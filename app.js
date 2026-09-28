@@ -216,7 +216,6 @@
   // ---------------- tabs ----------------
   var tabButtons = document.querySelectorAll(".tab-btn");
   var panels = {
-    inicio: document.getElementById("panel-inicio"),
     grupos: document.getElementById("panel-grupos"),
     individual: document.getElementById("panel-individual")
   };
@@ -226,7 +225,7 @@
       btn.classList.add("active");
       Object.keys(panels).forEach(function(k){ panels[k].classList.remove("active"); });
       panels[btn.dataset.tab].classList.add("active");
-      if(btn.dataset.tab === "grupos") renderGrupos();
+      if(btn.dataset.tab === "grupos") renderGroupList();
       if(btn.dataset.tab === "individual") renderIndividual();
     });
   });
@@ -267,7 +266,7 @@
 
   function populateFormSelects(){
     fillSelect(categoriaSel, state.categories, function(c){return c.id;}, function(c){return c.name;});
-    var opts = [{id:"individual", name:"Solo yo (individual)"}].concat(
+    var opts = [{id:"individual", name:"Personal"}].concat(
       state.groups.map(function(g){ return {id:g.id, name:g.name}; })
     );
     fillSelect(withSelect, opts, function(o){return o.id;}, function(o){return o.name;});
@@ -399,20 +398,25 @@
   // ---------------- guardar / editar gasto ----------------
   var editingId = null;
   var saveBtn = document.getElementById("saveBtn");
-  var cancelEditBtn = document.getElementById("cancelEditBtn");
+  var expenseScreen = document.getElementById("expenseScreen");
 
-  function resetForm(){
+  function resetForm(groupId){
     editingId = null;
     saveBtn.textContent = "Guardar gasto";
-    cancelEditBtn.hidden = true;
+    document.getElementById("expenseScreenTitle").textContent = "Nuevo gasto";
     cantidadInput.value = "";
     descripcionInput.value = "";
     fechaInput.value = todayStr();
-    withSelect.value = "individual";
+    withSelect.value = (groupId && groupById(groupId)) ? groupId : "individual";
     onWithChange();
-    var hoySection = document.getElementById("hoySection");
-    if(hoySection) hoySection.hidden = false;
   }
+
+  function openNewExpense(groupId){
+    resetForm(groupId);
+    openScreen(expenseScreen);
+    setTimeout(function(){ try{ cantidadInput.focus(); }catch(e){} }, 50);
+  }
+  document.getElementById("expenseScreenBack").addEventListener("click", function(){ goBack(); });
 
   saveBtn.addEventListener("click", function(){
     var amount = parseFloat(cantidadInput.value);
@@ -448,12 +452,10 @@
         ? sb.from("expenses").update(expenseToRow(exp)).eq("id", exp.id)
         : sb.from("expenses").insert(Object.assign({id:exp.id}, expenseToRow(exp)));
     });
-    resetForm();
+    goBack();
     showToast(wasEditing ? "Gasto actualizado" : "Gasto guardado");
     renderAll();
   });
-
-  cancelEditBtn.addEventListener("click", resetForm);
 
   function loadExpenseIntoForm(e){
     fechaInput.value = e.date;
@@ -472,9 +474,7 @@
     }
     editingId = e.id;
     saveBtn.textContent = "Guardar cambios";
-    cancelEditBtn.hidden = false;
-    var hoySection = document.getElementById("hoySection");
-    if(hoySection) hoySection.hidden = true;
+    document.getElementById("expenseScreenTitle").textContent = "Editar gasto";
   }
 
   // ---------------- render: filas de gasto ----------------
@@ -640,6 +640,7 @@
     el.querySelector(".modal-sheet").scrollTop = 0;
     if(screenStack.indexOf(el) !== -1) return;
     screenStack.push(el);
+    el.style.zIndex = 50 + screenStack.length;
     if(historyOk){
       try{ history.pushState({screenDepth: screenStack.length}, ""); }
       catch(e){ historyOk = false; }
@@ -650,6 +651,18 @@
     if(historyOk) history.back();
     else screenStack.pop().hidden = true;
   }
+  // Cambia la pantalla de arriba por otra (ej.: detalle → editar) sin tocar el historial.
+  function replaceTopScreen(el){
+    var top = screenStack.pop();
+    if(!top){ openScreen(el); return; }
+    top.hidden = true;
+    el.hidden = false;
+    el.querySelector(".modal-sheet").scrollTop = 0;
+    screenStack.push(el);
+    el.style.zIndex = 50 + screenStack.length;
+  }
+  function isScreenOpen(el){ return screenStack.indexOf(el) !== -1; }
+
   function closeAllScreens(){
     var n = screenStack.length;
     screenStack.forEach(function(el){ el.hidden = true; });
@@ -708,10 +721,8 @@
   document.getElementById("detailEditBtn").addEventListener("click", function(){
     var e = state.expenses.filter(function(x){ return x.id === currentDetailId; })[0];
     if(!e) return;
-    closeAllScreens();
-    tabButtons.forEach(function(b){ b.classList.toggle("active", b.dataset.tab === "inicio"); });
-    Object.keys(panels).forEach(function(k){ panels[k].classList.toggle("active", k === "inicio"); });
     loadExpenseIntoForm(e);
+    replaceTopScreen(expenseScreen);
   });
 
   document.getElementById("detailDeleteBtn").addEventListener("click", function(){
@@ -725,23 +736,10 @@
     state.expenses = state.expenses.filter(function(e){ return e.id !== deletedId; });
     persist(function(){ return sb.from("expenses").delete().eq("id", deletedId); });
     confirmDeleteModal.hidden = true;
-    closeAllScreens();
-    if(editingId === currentDetailId) resetForm();
+    goBack();
     renderAll();
     showToast("Gasto eliminado");
   });
-
-  function renderToday(){
-    var list = document.getElementById("todayList");
-    var today = todayStr();
-    var todays = state.expenses.filter(function(e){ return e.date === today; });
-    if(todays.length === 0){
-      list.innerHTML = '<div class="empty-state">Todavía no cargaste gastos hoy.</div>';
-      return;
-    }
-    list.innerHTML = todays.map(function(e){ return expenseRowHTML(e); }).join("");
-    attachRowClickHandlers(list);
-  }
 
   // ---------------- render: grupos ----------------
   var groupFilterMonthSel = document.getElementById("groupFilterMonth");
@@ -758,9 +756,7 @@
 
   function populateGroupFilters(groupId){
     var months = Array.from(new Set(
-      state.expenses
-        .filter(function(e){ return e.scope === "compartido" && e.groupId === groupId; })
-        .map(function(e){ return e.date.slice(0,7); })
+      expensesOf(groupId).map(function(e){ return e.date.slice(0,7); })
     )).sort().reverse();
 
     var prev = groupFilterMonthSel.value;
@@ -790,14 +786,14 @@
     }
     setGroupDateMode("month");
     groupFilterDayInput.value = "";
-    renderGrupos();
+    renderGroupScreen();
   });
-  groupFilterDayInput.addEventListener("change", renderGrupos);
+  groupFilterDayInput.addEventListener("change", renderGroupScreen);
   groupFilterDayBackBtn.addEventListener("click", function(){
     groupFilterDayInput.value = "";
     setGroupDateMode("month");
     groupFilterMonthSel.value = "all";
-    renderGrupos();
+    renderGroupScreen();
   });
 
   function computeGroupBalances(groupId){
@@ -827,15 +823,135 @@
     return balances;
   }
 
-  function renderGrupos(){
-    if(state.groups.length === 0){
-      document.getElementById("balanceHero").innerHTML = '<div class="empty-state">No hay grupos todavía.</div>';
-      document.getElementById("groupCategoryChart").innerHTML = "";
-      return;
-    }
-    var groupId = state.groups[0].id;
+  // ---------------- grupos: lista principal ----------------
+  // "Personal" es un grupo fijo (no está en la base): son los gastos con scope "personal".
+  var PERSONAL = "individual";
+  var currentGroupId = null;
+  var groupScreen = document.getElementById("groupScreen");
+
+  function expensesOf(groupId){
+    return groupId === PERSONAL
+      ? state.expenses.filter(function(e){ return e.scope === "personal"; })
+      : state.expenses.filter(function(e){ return e.scope === "compartido" && e.groupId === groupId; });
+  }
+  function sumAmounts(list){ return list.reduce(function(s, e){ return s + e.amount; }, 0); }
+  function monthName(ym){ return monthLabel(ym).split(" ")[0].toLowerCase(); }
+
+  function membersText(g, showPending){
+    return g.memberIds.map(function(id){
+      if(id === "me") return "Vos";
+      var m = state.members.filter(function(x){ return x.id === id; })[0];
+      var name = m ? m.name : "—";
+      return (showPending && m && m.joined === false) ? name + " (sin unirse)" : name;
+    }).join(", ");
+  }
+
+  var PERSON_ICON = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="currentColor"/><path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="currentColor"/></svg>';
+  function avatarHTML(groupId, extraCls){
+    var cls = "group-avatar" + (extraCls ? " " + extraCls : "");
+    if(groupId === PERSONAL) return '<div class="'+cls+' personal">'+PERSON_ICON+'</div>';
+    var idx = state.groups.findIndex(function(g){ return g.id === groupId; });
+    var g = state.groups[idx];
+    var letter = g ? (g.name.trim().charAt(0) || "?").toUpperCase() : "?";
+    return '<div class="'+cls+'" style="background:var(--series-'+((Math.max(idx,0) % 8) + 1)+')">'+esc(letter)+'</div>';
+  }
+
+  // Tu saldo en el grupo: > 0 te deben, < 0 debés.
+  function myNet(groupId){ return computeGroupBalances(groupId).me || 0; }
+
+  function balanceLine(groupId){
     var g = groupById(groupId);
-    document.getElementById("groupPanelTitle").textContent = g.name;
+    var others = g.memberIds.filter(function(id){ return id !== "me"; });
+    if(others.length === 0) return {text:"Todavía estás solo en este grupo", cls:""};
+    var net = myNet(groupId);
+    if(Math.abs(net) < 1) return {text:"Al día", cls:""};
+    if(others.length === 1){
+      var o = memberName(others[0]);
+      return net > 0
+        ? {text:o + " te debe " + money(net), cls:"positive"}
+        : {text:"Le debés " + money(-net) + " a " + o, cls:"negative"};
+    }
+    return net > 0
+      ? {text:"Te deben " + money(net), cls:"positive"}
+      : {text:"Debés " + money(-net), cls:"negative"};
+  }
+
+  function groupCardHTML(groupId, name, spent, line){
+    return '<button type="button" class="group-card" data-group="'+esc(groupId)+'">' +
+      avatarHTML(groupId) +
+      '<div class="group-card-main">' +
+        '<div class="group-card-name">'+esc(name)+'</div>' +
+        '<div class="group-card-spent">Gastado en '+monthName(currentYM())+' <strong>'+money(spent)+'</strong></div>' +
+        (line ? '<div class="group-card-balance '+line.cls+'">'+esc(line.text)+'</div>' : '') +
+      '</div>' +
+      '<span class="chevron">›</span>' +
+    '</button>';
+  }
+
+  function renderGroupList(){
+    var ym = currentYM();
+    function inMonth(e){ return e.date.slice(0,7) === ym; }
+
+    var cards = [groupCardHTML(PERSONAL, "Personal", sumAmounts(expensesOf(PERSONAL).filter(inMonth)), null)];
+    var totalNet = 0, withOthers = 0;
+    state.groups.forEach(function(g){
+      if(g.memberIds.length > 1){ totalNet += myNet(g.id); withOthers++; }
+      cards.push(groupCardHTML(g.id, g.name, sumAmounts(expensesOf(g.id).filter(inMonth)), balanceLine(g.id)));
+    });
+    if(state.groups.length === 0){
+      cards.push('<button type="button" class="group-card group-card-empty" id="emptyGroupCta">' +
+        '<div class="group-avatar ghost">＋</div>' +
+        '<div class="group-card-main"><div class="group-card-name">Compartí gastos</div>' +
+        '<div class="group-card-spent">Creá un grupo o unite con un código</div></div>' +
+        '<span class="chevron">›</span></button>');
+    }
+
+    // Lo que te costó el mes: tus gastos personales + tu parte de los compartidos.
+    var myMonth = sumAmounts(expensesOf(PERSONAL).filter(inMonth)) +
+      state.expenses.filter(function(e){ return e.scope === "compartido" && inMonth(e); })
+        .reduce(function(s, e){ return s + (myShareOf(e) || 0); }, 0);
+
+    var head;
+    if(withOthers === 0) head = 'Este mes gastaste <span class="accent">'+money(myMonth)+'</span>';
+    else if(Math.abs(totalNet) < 1) head = 'En general, <span class="accent">estás al día</span>';
+    else if(totalNet > 0) head = 'En general, te deben <span class="positive">'+money(totalNet)+'</span>';
+    else head = 'En general, debés <span class="negative">'+money(-totalNet)+'</span>';
+    var sub = withOthers === 0 ? '' : '<div class="overview-sub">Tus gastos de '+monthName(ym)+': '+money(myMonth)+'</div>';
+    document.getElementById("overview").innerHTML = '<div class="overview-head">'+head+'</div>' + sub;
+
+    var list = document.getElementById("groupList");
+    list.innerHTML = cards.join("");
+    list.querySelectorAll(".group-card[data-group]").forEach(function(card){
+      card.addEventListener("click", function(){ openGroupScreen(card.getAttribute("data-group")); });
+    });
+    var cta = document.getElementById("emptyGroupCta");
+    if(cta) cta.addEventListener("click", openSettings);
+  }
+
+  // ---------------- pantalla de un grupo ----------------
+  function openGroupScreen(groupId){
+    currentGroupId = groupId;
+    setGroupDateMode("month");
+    groupFilterDayInput.value = "";
+    groupFilterMonthSel.value = "";
+    renderGroupScreen();
+    openScreen(groupScreen);
+  }
+  document.getElementById("groupScreenBack").addEventListener("click", function(){ goBack(); });
+  document.getElementById("groupScreenAdd").addEventListener("click", function(){ openNewExpense(currentGroupId); });
+
+  function renderGroupScreen(){
+    var groupId = currentGroupId;
+    if(!groupId) return;
+    var isPersonal = groupId === PERSONAL;
+    var g = isPersonal ? null : groupById(groupId);
+    if(!isPersonal && !g) return;
+
+    document.getElementById("groupScreenAvatar").outerHTML =
+      avatarHTML(groupId, "big").replace('class="', 'id="groupScreenAvatar" class="');
+    document.getElementById("groupScreenTitle").textContent = isPersonal ? "Personal" : g.name;
+    document.getElementById("groupScreenKind").textContent = isPersonal ? "Solo vos" : membersText(g);
+
     populateGroupFilters(groupId);
     var selMonth = groupDateMode === "day" ? "all" : (groupFilterMonthSel.value || "all");
     var selDay = groupDateMode === "day" ? (groupFilterDayInput.value || "") : "";
@@ -843,70 +959,142 @@
       if(selDay) return dateStr === selDay;
       return selMonth === "all" || dateStr.slice(0,7) === selMonth;
     }
-    var balances = computeGroupBalances(groupId);
 
     var hero = document.getElementById("balanceHero");
-    var ids = g.memberIds;
-    if(ids.length === 2){
-      var a = ids[0], b = ids[1];
-      var diff = balances[a] - balances[b];
-      // diff/2 is what's owed one way (since sum should be ~0)
-      var owedAmount = Math.abs(diff)/2;
-      if(owedAmount < 1){
-        hero.innerHTML =
-          '<span class="pill">Al día</span>' +
-          '<div class="amount">'+ money(0) +'</div>' +
-          '<div class="caption">'+ esc(memberName(a)) +' y '+ esc(memberName(b)) +' están saldados</div>';
-      } else {
-        var debtor = diff > 0 ? b : a;
-        var creditor = diff > 0 ? a : b;
-        hero.innerHTML =
-          '<span class="pill warn">Balance pendiente</span>' +
-          '<div class="amount">'+ money(owedAmount) +'</div>' +
-          '<div class="caption">'+ esc(memberName(debtor)) +' le debe a '+ esc(memberName(creditor)) +'</div>' +
-          '<button class="btn-ghost" id="settleBtn" type="button" style="margin-top:6px;">Liquidar</button>';
-        var settleBtn = document.getElementById("settleBtn");
-        if(settleBtn){
-          settleBtn.addEventListener("click", function(){
-            openSettleModal(groupId, debtor, creditor, owedAmount);
-          });
-        }
-      }
+    if(isPersonal){
+      var ym = currentYM();
+      hero.innerHTML =
+        '<span class="pill">'+esc(monthLabel(ym))+'</span>' +
+        '<div class="amount">'+ money(sumAmounts(expensesOf(PERSONAL).filter(function(e){ return e.date.slice(0,7) === ym; }))) +'</div>' +
+        '<div class="caption">gastados este mes</div>';
     } else {
-      hero.innerHTML = ids.map(function(id){
-        var v = balances[id]||0;
-        return '<div class="caption">'+ esc(memberName(id)) +': <strong>'+ money(v) +'</strong></div>';
-      }).join("");
+      renderGroupHero(hero, g);
     }
 
-    var groupExpensesAll = state.expenses.filter(function(e){ return e.scope === "compartido" && e.groupId === groupId; });
-    var groupExpensesByDate = groupExpensesAll.filter(function(e){ return dateMatches(e.date); });
+    var byDate = expensesOf(groupId).filter(function(e){ return dateMatches(e.date); });
+    var settlementsByDate = isPersonal ? [] : state.settlements
+      .filter(function(st){ return st.groupId === groupId && dateMatches(st.date); });
 
     // torta por categoría: gasto total del grupo (no tu parte), según el filtro de fecha
     var byCat = {};
-    groupExpensesByDate.forEach(function(e){
-      byCat[e.categoryId] = (byCat[e.categoryId]||0) + e.amount;
-    });
+    byDate.forEach(function(e){ byCat[e.categoryId] = (byCat[e.categoryId]||0) + e.amount; });
     var catEntries = state.categories
       .filter(function(c){ return byCat[c.id] > 0; })
       .map(function(c){ return {id:c.id, amount:byCat[c.id]}; });
-    var groupTotal = catEntries.reduce(function(s,c){ return s + c.amount; }, 0);
-
-    var groupSettlementsByDate = state.settlements
-      .filter(function(s){ return s.groupId === groupId && dateMatches(s.date); });
+    var total = catEntries.reduce(function(sum, c){ return sum + c.amount; }, 0);
 
     var chartEl = document.getElementById("groupCategoryChart");
     if(catEntries.length === 0){
       chartEl.innerHTML = '<div class="empty-state">Sin gastos para este filtro.</div>';
     } else {
-      chartEl.innerHTML = buildDonutChart(catEntries, groupTotal, {selectable:true});
+      chartEl.innerHTML = buildDonutChart(catEntries, total, {selectable:true});
       chartEl.querySelectorAll(".legend-row[data-cat]").forEach(function(row){
         row.addEventListener("click", function(){
-          openGroupCategoryDetail(row.getAttribute("data-cat"), groupExpensesByDate, groupSettlementsByDate, byCat, groupTotal);
+          openGroupCategoryDetail(row.getAttribute("data-cat"), byDate, settlementsByDate, byCat, total);
         });
       });
     }
+
+    var rows = byDate.map(function(e){ return {date:e.date, html: expenseLedgerRowHTML(e)}; })
+      .concat(settlementsByDate.map(function(st){ return {date:st.date, html: settlementLedgerRowHTML(st)}; }))
+      .sort(function(a, b){ return b.date.localeCompare(a.date); });
+    var movEl = document.getElementById("groupMovements");
+    movEl.innerHTML = rows.length === 0
+      ? '<div class="empty-state">Todavía no hay movimientos.</div>'
+      : rows.map(function(r){ return r.html; }).join("");
+    attachRowClickHandlers(movEl);
   }
+
+  function debtText(debtor, creditor){
+    if(creditor === "me") return memberName(debtor) + " te debe";
+    if(debtor === "me") return "Le debés a " + memberName(creditor);
+    return memberName(debtor) + " le debe a " + memberName(creditor);
+  }
+
+  function renderGroupHero(hero, g){
+    var groupId = g.id;
+    var balances = computeGroupBalances(groupId);
+    var ids = g.memberIds;
+
+    if(ids.length < 2){
+      hero.innerHTML =
+        '<span class="pill">Solo vos</span>' +
+        '<div class="caption">Invitá a alguien para dividir gastos' +
+        (REMOTE && g.inviteCode ? ': pasale el código <strong class="mono">'+esc(g.inviteCode)+'</strong>' : '') +
+        '.</div>';
+      return;
+    }
+
+    if(ids.length === 2){
+      var a = ids[0], b = ids[1];
+      var owedAmount = Math.abs(balances[a] - balances[b]) / 2;
+      if(owedAmount < 1){
+        hero.innerHTML =
+          '<span class="pill">Al día</span>' +
+          '<div class="amount">'+ money(0) +'</div>' +
+          '<div class="caption">'+ esc(memberName(a)) +' y '+ esc(memberName(b)) +' están saldados</div>';
+        return;
+      }
+      var debtor = balances[a] > balances[b] ? b : a;
+      var creditor = debtor === a ? b : a;
+      hero.innerHTML =
+        '<span class="pill warn">Balance pendiente</span>' +
+        '<div class="amount">'+ money(owedAmount) +'</div>' +
+        '<div class="caption">'+ esc(debtText(debtor, creditor)) +'</div>' +
+        '<button class="btn-ghost" id="settleBtn" type="button" style="margin-top:6px;">Liquidar</button>';
+      document.getElementById("settleBtn").addEventListener("click", function(){
+        openSettleModal(groupId, debtor, creditor, owedAmount);
+      });
+      return;
+    }
+
+    // Más de dos personas: cuánto le deben o debe cada uno.
+    var sorted = ids.slice().sort(function(x, y){ return (balances[y]||0) - (balances[x]||0); });
+    var rowsHTML = sorted.map(function(id){
+      var v = balances[id] || 0;
+      var who = id === "me" ? "Vos" : memberName(id);
+      var txt = Math.abs(v) < 1 ? "al día" : (v > 0 ? "le deben " + money(v) : "debe " + money(-v));
+      if(id === "me" && Math.abs(v) >= 1) txt = v > 0 ? "te deben " + money(v) : "debés " + money(-v);
+      return '<div class="member-balance"><span>'+esc(who)+'</span><span class="'+(Math.abs(v) < 1 ? "" : (v > 0 ? "positive" : "negative"))+'">'+txt+'</span></div>';
+    }).join("");
+    var top = sorted[0], bottom = sorted[sorted.length - 1];
+    var pending = (balances[top]||0) >= 1 && (balances[bottom]||0) <= -1;
+    hero.innerHTML =
+      '<span class="pill'+(pending ? " warn" : "")+'">'+(pending ? "Balance pendiente" : "Al día")+'</span>' +
+      '<div class="member-balances">'+rowsHTML+'</div>' +
+      (pending ? '<button class="btn-ghost" id="settleBtn" type="button" style="margin-top:6px;">Registrar un pago</button>' : '');
+    if(pending){
+      document.getElementById("settleBtn").addEventListener("click", function(){
+        openSettleModal(groupId, bottom, top, Math.min(balances[top], -balances[bottom]));
+      });
+    }
+  }
+
+  // ---------------- ¿en qué grupo? ----------------
+  var pickGroupModal = document.getElementById("pickGroupModal");
+  function openPickGroup(){
+    if(state.groups.length === 0){ openNewExpense(PERSONAL); return; }
+    var items = [{id:PERSONAL, name:"Personal", sub:"Solo tus gastos"}].concat(
+      state.groups.map(function(g){ return {id:g.id, name:g.name, sub:membersText(g)}; })
+    );
+    var list = document.getElementById("pickGroupList");
+    list.innerHTML = items.map(function(it){
+      return '<button type="button" class="pick-row" data-group="'+esc(it.id)+'">' +
+        avatarHTML(it.id, "small") +
+        '<span class="pick-main"><span class="pick-name">'+esc(it.name)+'</span>' +
+        '<span class="pick-sub">'+esc(it.sub)+'</span></span>' +
+        '<span class="chevron">›</span></button>';
+    }).join("");
+    list.querySelectorAll(".pick-row").forEach(function(row){
+      row.addEventListener("click", function(){
+        pickGroupModal.hidden = true;
+        openNewExpense(row.getAttribute("data-group"));
+      });
+    });
+    pickGroupModal.hidden = false;
+  }
+  pickGroupModal.addEventListener("click", function(ev){ if(ev.target === pickGroupModal) pickGroupModal.hidden = true; });
+  document.getElementById("addExpenseBtn").addEventListener("click", openPickGroup);
 
   // ---------------- liquidar deudas ----------------
   var settleModal = document.getElementById("settleModal");
@@ -953,7 +1141,7 @@
     });
     closeSettleModal();
     showToast("Pago registrado");
-    renderGrupos();
+    renderAll();
   });
 
   // ---------------- filtros de "Mis gastos" ----------------
@@ -1183,29 +1371,32 @@
   // ---------------- settings modal ----------------
   var settingsModal = document.getElementById("settingsModal");
   var meNameInput = document.getElementById("meNameInput");
-  var partnerNameInput = document.getElementById("partnerNameInput");
-
-  // La "otra persona" es el primer integrante del grupo principal que no sos vos.
-  function partnerId(){
-    var g = state.groups[0];
-    return g ? g.memberIds.filter(function(id){ return id !== "me"; })[0] : null;
-  }
 
   function openSettings(){
-    var g = state.groups[0];
-    var pid = partnerId();
     meNameInput.value = memberName("me");
-    partnerNameInput.value = pid ? memberName(pid) : "";
-    document.getElementById("partnerField").hidden = !pid;
     document.getElementById("resetDataBtn").hidden = REMOTE;
     document.getElementById("signOutBtn").hidden = !REMOTE;
-    document.getElementById("noGroupBox").hidden = !REMOTE || !!g;
-    document.getElementById("inviteBox").hidden = !(REMOTE && g);
+    document.getElementById("joinBox").hidden = !REMOTE;
+    document.getElementById("groupsBox").hidden = state.groups.length === 0;
+    document.getElementById("groupsList").innerHTML = state.groups.map(function(g){
+      return '<div class="settings-group">' +
+        avatarHTML(g.id, "small") +
+        '<div class="settings-group-main">' +
+          '<div class="settings-group-name">'+esc(g.name)+'</div>' +
+          '<div class="settings-group-members">'+esc(membersText(g, true))+'</div>' +
+        '</div>' +
+        (REMOTE && g.inviteCode ? '<div class="invite-code small" title="Código para invitar">'+esc(g.inviteCode)+'</div>' : '') +
+      '</div>';
+    }).join("") + (REMOTE && state.groups.length
+      ? '<p class="hint">Para sumar a alguien a un grupo, pasale su código: crea su cuenta y lo pone en "¿Te invitaron?".</p>'
+      : '');
     if(REMOTE){
       document.getElementById("settingsTitle").textContent = "Configuración";
       document.getElementById("settingsHint").textContent =
         "Conectado como " + (session ? session.user.email : "") + ".";
-      if(g) document.getElementById("inviteCode").textContent = g.inviteCode || "";
+    } else {
+      document.getElementById("settingsHint").textContent =
+        "Modo local: los datos quedan solo en este navegador.";
     }
     updateInstallBox();
     settingsModal.hidden = false;
@@ -1248,13 +1439,9 @@
 
   document.getElementById("saveNamesBtn").addEventListener("click", function(){
     var meN = meNameInput.value.trim();
-    var pN = partnerNameInput.value.trim();
-    var pid = partnerId();
     var meChanged = meN && meN !== memberName("me");
-    var partnerChanged = pid && pN && pN !== memberName(pid);
     state.members.forEach(function(m){
       if(m.id === "me" && meChanged) m.name = meN;
-      if(m.id === pid && partnerChanged) m.name = pN;
     });
     settingsModal.hidden = true;
     populateFormSelects();
@@ -1266,7 +1453,6 @@
         var mine = Object.keys(myMemberIds);
         if(mine.length) ops.push(sb.from("group_members").update({name:meN}).in("id", mine));
       }
-      if(partnerChanged) ops.push(sb.from("group_members").update({name:pN}).eq("id", pid));
       return Promise.all(ops).then(function(res){
         return res.filter(function(r){ return r.error; })[0];
       });
@@ -1294,9 +1480,29 @@
     });
   }
   document.getElementById("createGroupBtn").addEventListener("click", function(){
-    var name = document.getElementById("newGroupName").value.trim() || "Casa";
-    var other = document.getElementById("newGroupOther").value.trim();
-    runGroupRpc("create_group", {group_name:name, my_name:memberName("me"), other_name:other || null}, "Grupo creado");
+    var nameInput = document.getElementById("newGroupName");
+    var otherInput = document.getElementById("newGroupOther");
+    var name = nameInput.value.trim();
+    var other = otherInput.value.trim();
+    if(!name){ showToast("Poné un nombre para el grupo"); nameInput.focus(); return; }
+    nameInput.value = "";
+    otherInput.value = "";
+    if(REMOTE){
+      runGroupRpc("create_group", {group_name:name, my_name:memberName("me"), other_name:other || null}, "Grupo creado");
+      return;
+    }
+    var g = {id:uid(), name:name, memberIds:["me"]};
+    if(other){
+      var m = {id:uid(), name:other};
+      state.members.push(m);
+      g.memberIds.push(m.id);
+    }
+    state.groups.push(g);
+    save();
+    settingsModal.hidden = true;
+    populateFormSelects();
+    renderAll();
+    showToast("Grupo creado");
   });
   document.getElementById("joinGroupBtn").addEventListener("click", function(){
     var code = document.getElementById("joinCodeInput").value.trim();
@@ -1454,15 +1660,13 @@
     }
     authScreen.hidden = true;
     document.getElementById("modeNote").textContent = "Sincronizado con la nube · " + s.user.email;
-    refresh().then(function(){
-      if(state.groups.length === 0) openSettings();
-    });
+    refresh();
     startRealtime();
   }
 
   function renderAll(){
-    renderToday();
-    renderGrupos();
+    renderGroupList();
+    if(isScreenOpen(groupScreen)) renderGroupScreen();
     renderIndividual();
   }
 

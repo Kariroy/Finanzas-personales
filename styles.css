@@ -653,3 +653,134 @@ nav.tabbar button.active{ color:var(--accent); font-weight:600; }
   flex:1;
   border-top:1px solid var(--border);
 }
+
+/* ventanas chicas (liquidar, borrar, reparto…) siempre arriba de las pantallas completas */
+.modal-backdrop:not(.fullscreen){ z-index:80; }
+
+/* ---------- inicio: resumen + lista de grupos ---------- */
+.overview{ padding:4px 2px 0; }
+.overview-head{
+  font-family:'Fraunces', serif;
+  font-weight:500;
+  font-size:1.35rem;
+  line-height:1.3;
+}
+.overview-sub{ font-size:0.85rem; color:var(--ink-soft); margin-top:4px; }
+.positive{ color:var(--accent); }
+.negative{ color:var(--warn); }
+.accent{ color:var(--accent); }
+.mono{ font-family:'IBM Plex Mono', monospace; letter-spacing:0.06em; }
+
+.group-list{ display:flex; flex-direction:column; gap:12px; }
+.group-card{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  width:100%;
+  text-align:left;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:14px;
+  box-shadow:var(--shadow);
+  font-family:inherit;
+  color:var(--ink);
+  cursor:pointer;
+}
+.group-card:active{ transform:scale(0.99); }
+.group-card-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.group-card-name{ font-weight:700; font-size:1.02rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.group-card-spent{ font-size:0.84rem; color:var(--ink-soft); }
+.group-card-spent strong{ color:var(--ink); font-family:'IBM Plex Mono', monospace; font-weight:600; }
+.group-card-balance{ font-size:0.86rem; font-weight:600; color:var(--ink-soft); }
+.group-card-balance.positive{ color:var(--accent); }
+.group-card-balance.negative{ color:var(--warn); }
+.group-card .chevron, .pick-row .chevron{ color:var(--ink-soft); font-size:1.3rem; }
+.group-card-empty{ border-style:dashed; box-shadow:none; background:transparent; }
+
+.group-avatar{
+  flex-shrink:0;
+  width:52px; height:52px;
+  border-radius:14px;
+  display:flex; align-items:center; justify-content:center;
+  color:#fff;
+  font-family:'Fraunces', serif;
+  font-weight:600;
+  font-size:1.45rem;
+}
+.group-avatar.personal{ background:var(--accent); color:var(--accent-ink); }
+.group-avatar.ghost{ background:var(--surface-2); color:var(--ink-soft); }
+.group-avatar.small{ width:40px; height:40px; border-radius:11px; font-size:1.1rem; }
+.group-avatar.small svg{ width:20px; height:20px; }
+.group-avatar.big{ width:60px; height:60px; border-radius:16px; font-size:1.7rem; }
+
+/* botón flotante "Añadir gasto" */
+.fab{
+  position:fixed;
+  right:max(16px, calc(50% - 240px + 16px));
+  bottom:calc(76px + env(safe-area-inset-bottom, 0px));
+  z-index:35;
+  display:flex; align-items:center; gap:8px;
+  background:var(--accent);
+  color:var(--accent-ink);
+  border:none;
+  border-radius:999px;
+  padding:14px 20px;
+  font-family:inherit;
+  font-size:0.98rem;
+  font-weight:700;
+  box-shadow:0 6px 18px -6px rgba(0,0,0,0.45);
+  cursor:pointer;
+}
+.fab-icon{ font-size:1.2rem; line-height:1; }
+main{ padding-bottom:160px; }
+
+/* ¿en qué grupo? */
+.pick-row{
+  display:flex; align-items:center; gap:12px;
+  width:100%;
+  background:none;
+  border:none;
+  border-bottom:1px solid var(--border);
+  padding:12px 2px;
+  text-align:left;
+  font-family:inherit;
+  color:var(--ink);
+  cursor:pointer;
+}
+.pick-row:last-child{ border-bottom:none; }
+.pick-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.pick-name{ font-weight:600; }
+.pick-sub{ font-size:0.8rem; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* pantalla de grupo / formulario */
+.screen-head{ display:flex; align-items:center; gap:14px; }
+.screen-title{
+  font-family:'Fraunces', serif;
+  font-weight:600;
+  font-size:1.5rem;
+  margin:0;
+}
+.member-balances{ width:100%; display:flex; flex-direction:column; margin-top:4px; }
+.member-balance{
+  display:flex; justify-content:space-between; gap:10px;
+  padding:8px 0;
+  border-bottom:1px solid var(--border);
+  font-size:0.9rem;
+}
+.member-balance:last-child{ border-bottom:none; }
+.member-balance span:last-child{ font-weight:600; }
+
+/* configuración: lista de grupos */
+.settings-group{
+  display:flex; align-items:center; gap:12px;
+  padding:10px 0;
+  border-bottom:1px solid var(--border);
+}
+.settings-group:last-of-type{ border-bottom:none; }
+.settings-group-main{ flex:1; min-width:0; }
+.settings-group-name{ font-weight:600; }
+.settings-group-members{ font-size:0.8rem; color:var(--ink-soft); }
+.invite-code.small{ font-size:0.9rem; padding:6px 8px; letter-spacing:0.08em; }
+
+#toast{ z-index:100; }
