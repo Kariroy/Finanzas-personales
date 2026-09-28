@@ -815,3 +815,32 @@ main{ padding-bottom:160px; }
 .group-avatar.round{ border-radius:50%; }
 .field-hint{ font-size:0.8rem; color:var(--ink-soft); margin:0; }
 #payerOther, #debtPersonOther{ margin-top:8px; }
+
+/* amigos: desglose por grupo / sin grupo */
+.friend-part{
+  display:flex; justify-content:space-between; gap:10px;
+  font-size:0.82rem; color:var(--ink-soft);
+}
+.friend-part .positive, .friend-part .negative{ font-weight:600; }
+.friend-parts{ width:100%; margin-top:10px; border-top:1px solid var(--border); }
+.friend-part.big{
+  align-items:center;
+  font-size:0.9rem; color:var(--ink);
+  padding:10px 0;
+  border-bottom:1px solid var(--border);
+}
+.friend-part.big:last-child{ border-bottom:none; }
+.friend-part-name{
+  flex:1; min-width:0;
+  display:flex; align-items:center; gap:8px;
+  background:none; border:none; padding:0;
+  font-family:inherit; font-size:inherit; color:inherit; text-align:left; cursor:pointer;
+}
+.friend-part-amt{ white-space:nowrap; }
+.small-btn{ padding:5px 9px; font-size:0.78rem; }
+.part-icon{
+  width:26px; height:26px; border-radius:8px;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:var(--surface-2); color:var(--ink-soft);
+}
+.group-avatar.debt{ background:var(--warn); color:#fff; font-family:inherit; }
