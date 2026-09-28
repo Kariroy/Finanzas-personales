@@ -57,12 +57,20 @@
       {id:uid(), date:todayStr(), amount:520, categoryId:"cat-comida", description:"Pan", scope:"personal", paidBy:"me"}
     ];
 
+    var debts = [
+      {id:uid(), kind:"gasto", date:daysAgo(2), amount:1000, description:"Zapatillas", categoryId:"cat-otros",
+        creditor:{name:"Ana"}, debtor:{me:true}},
+      {id:uid(), kind:"prestamo", date:daysAgo(5), amount:500, description:"", categoryId:null,
+        creditor:{me:true}, debtor:{name:"Papá"}}
+    ];
+
     return {
       members:[me, partner],
       groups:[group],
       categories: CATEGORY_SEED,
       expenses: expenses,
       settlements: [],
+      debts: debts,
       seeded: true
     };
   }
@@ -74,6 +82,7 @@
       var parsed = JSON.parse(raw);
       if(!parsed || !parsed.members) return seedData();
       if(!parsed.settlements) parsed.settlements = [];
+      if(!parsed.debts) parsed.debts = [];
       return parsed;
     }catch(e){
       return seedData();
@@ -84,7 +93,7 @@
   }
 
   function emptyState(){
-    return {members:[{id:"me", name:"Vos"}], groups:[], categories:CATEGORY_SEED, expenses:[], settlements:[]};
+    return {members:[{id:"me", name:"Vos"}], groups:[], categories:CATEGORY_SEED, expenses:[], settlements:[], debts:[], people:[]};
   }
 
   // ---------------- Supabase ----------------
@@ -108,7 +117,8 @@
       sb.from("groups").select("id,name,invite_code,created_at").order("created_at"),
       sb.from("group_members").select("id,group_id,user_id,name,created_at").order("created_at"),
       sb.from("expenses").select("*").order("date", {ascending:false}).order("created_at", {ascending:false}),
-      sb.from("settlements").select("*").order("date").order("created_at")
+      sb.from("settlements").select("*").order("date").order("created_at"),
+      sb.from("debts").select("*").order("date", {ascending:false}).order("created_at", {ascending:false})
     ]).then(function(res){
       res.forEach(function(r){ if(r.error) throw r.error; });
       var user = session.user;
@@ -123,7 +133,27 @@
       var myName = meta.name || meta.full_name ||
         (myRow && myRow.name) || (user.email || "Vos").split("@")[0];
 
+      // Personas con cuenta que comparten algún grupo con vos (para anotar deudas).
+      var userNames = {};
+      memberRows.forEach(function(m){
+        if(m.user_id && m.user_id !== user.id && !userNames[m.user_id]) userNames[m.user_id] = m.name;
+      });
+      function side(userId, name){
+        if(userId === user.id) return {me:true};
+        if(userId) return {user:userId, name:userNames[userId] || name || "—"};
+        return {name:name || "—"};
+      }
+
       state = {
+        people: Object.keys(userNames).map(function(uid){ return {user:uid, name:userNames[uid]}; }),
+        debts: res[4].data.map(function(r){
+          return {
+            id: r.id, kind: r.kind, date: r.date, amount: Number(r.amount),
+            description: r.description || "", categoryId: r.category_id,
+            creditor: side(r.creditor_user, r.creditor_name),
+            debtor: side(r.debtor_user, r.debtor_name)
+          };
+        }),
         members: [{id:"me", name:myName}].concat(
           memberRows.filter(function(m){ return !myMemberIds[m.id]; })
             .map(function(m){ return {id:m.id, name:m.name, joined:!!m.user_id}; })
@@ -213,19 +243,73 @@
     return state.groups.filter(function(g){return g.id===id;})[0];
   }
 
+  // ---------------- deudas: helpers ----------------
+  // Una deuda tiene acreedor y deudor; uno de los dos sos vos ({me:true}) y el otro
+  // es un usuario ({user, name}) o un nombre suelto ({name}).
+  function personKey(side){
+    return side.user ? "u:" + side.user : "n:" + String(side.name || "").trim().toLowerCase();
+  }
+  function otherSide(d){ return d.creditor.me ? d.debtor : d.creditor; }
+  // Efecto en tu saldo con esa persona: > 0 te debe, < 0 le debés.
+  function debtEffect(d){
+    return d.amount * (d.creditor.me ? 1 : -1) * (d.kind === "pago" ? -1 : 1);
+  }
+  // Personas conocidas: con cuenta en tus grupos, integrantes locales y nombres ya usados.
+  function peopleOptions(){
+    var seen = {}, list = [];
+    function add(side){
+      if(!side || !side.name) return;
+      var k = personKey(side);
+      if(seen[k]) return;
+      seen[k] = true;
+      list.push({key:k, side: side.user ? {user:side.user, name:side.name} : {name:side.name}});
+    }
+    (state.people || []).forEach(function(p){ add({user:p.user, name:p.name}); });
+    if(!REMOTE) state.members.forEach(function(m){ if(m.id !== "me") add({name:m.name}); });
+    (state.debts || []).forEach(function(d){ add(otherSide(d)); });
+    return list;
+  }
+  // Lo que otra persona pagó y era 100% tuyo cuenta como gasto personal tuyo.
+  function debtExpenses(){
+    return (state.debts || []).filter(function(d){ return d.kind === "gasto" && d.debtor.me; })
+      .map(function(d){
+        return {id:"d:" + d.id, debtId:d.id, fromDebt:true, date:d.date, amount:d.amount,
+          description:d.description, categoryId:d.categoryId || "cat-otros",
+          scope:"personal", paidBy:"me", paidByName:d.creditor.name};
+      });
+  }
+  function personalExpenses(){
+    return state.expenses.filter(function(e){ return e.scope === "personal"; }).concat(debtExpenses());
+  }
+  function findExpense(id){
+    return state.expenses.filter(function(x){ return x.id === id; })[0] ||
+      debtExpenses().filter(function(x){ return x.id === id; })[0];
+  }
+  function debtById(id){ return (state.debts || []).filter(function(d){ return d.id === id; })[0]; }
+
   // ---------------- tabs ----------------
   var tabButtons = document.querySelectorAll(".tab-btn");
   var panels = {
     grupos: document.getElementById("panel-grupos"),
+    deudas: document.getElementById("panel-deudas"),
     individual: document.getElementById("panel-individual")
   };
+  var fab = document.getElementById("addExpenseBtn");
+  var currentTab = "grupos";
+  function updateFab(){
+    fab.hidden = currentTab === "individual";
+    fab.innerHTML = '<span class="fab-icon">＋</span>' + (currentTab === "deudas" ? "Anotar deuda" : "Añadir gasto");
+  }
   tabButtons.forEach(function(btn){
     btn.addEventListener("click", function(){
       tabButtons.forEach(function(b){ b.classList.remove("active"); });
       btn.classList.add("active");
       Object.keys(panels).forEach(function(k){ panels[k].classList.remove("active"); });
       panels[btn.dataset.tab].classList.add("active");
+      currentTab = btn.dataset.tab;
+      updateFab();
       if(btn.dataset.tab === "grupos") renderGroupList();
+      if(btn.dataset.tab === "deudas") renderDebts();
       if(btn.dataset.tab === "individual") renderIndividual();
     });
   });
@@ -250,6 +334,37 @@
   var cantidadInput = document.getElementById("cantidad");
   var splitSummaryRow = document.getElementById("splitSummaryRow");
   var splitSummaryText = document.getElementById("splitSummaryText");
+  var payerField = document.getElementById("payerField");
+  var payerSelect = document.getElementById("payerSelect");
+  var payerOther = document.getElementById("payerOther");
+  var OTHER_PERSON = "__other";
+
+  function populatePayerSelect(selectedKey){
+    var opts = [{id:"me", name:"Vos"}]
+      .concat(peopleOptions().map(function(p){ return {id:p.key, name:p.side.name}; }))
+      .concat([{id:OTHER_PERSON, name:"Otra persona…"}]);
+    fillSelect(payerSelect, opts, function(o){ return o.id; }, function(o){ return o.name; });
+    payerSelect.value = selectedKey || "me";
+    if(payerSelect.value !== (selectedKey || "me")) payerSelect.value = "me";
+    onPayerChange();
+  }
+  function onPayerChange(){
+    payerOther.hidden = payerSelect.value !== OTHER_PERSON;
+    document.getElementById("payerHint").hidden = payerSelect.value === "me";
+  }
+  payerSelect.addEventListener("change", function(){
+    onPayerChange();
+    if(payerSelect.value === OTHER_PERSON) payerOther.focus();
+  });
+  // Lado "acreedor" elegido en ¿Quién pagó? (null si falta el nombre).
+  function payerSide(){
+    if(payerSelect.value === OTHER_PERSON){
+      var n = payerOther.value.trim();
+      return n ? {name:n} : null;
+    }
+    var p = peopleOptions().filter(function(x){ return x.key === payerSelect.value; })[0];
+    return p ? p.side : null;
+  }
 
   function fillSelect(sel, items, getId, getLabel){
     sel.innerHTML = "";
@@ -279,6 +394,7 @@
 
   function onWithChange(){
     var val = withSelect.value;
+    payerField.hidden = val !== "individual";
     if(val === "individual"){
       currentSplit = null;
       splitSummaryRow.classList.remove("show");
@@ -330,11 +446,10 @@
 
     if(g && g.memberIds.length === 2){
       var other = g.memberIds.filter(function(id){ return id !== "me"; })[0] || g.memberIds[1];
+      // Lo que es 100% de una persona no va en el grupo: se anota en Personal + Deudas.
       var presets = [
         {splitType:"equitativo", paidBy:"me", groupId:g.id},
-        {splitType:"completo", paidBy:"me", owedBy:other, groupId:g.id},
-        {splitType:"equitativo", paidBy:other, groupId:g.id},
-        {splitType:"completo", paidBy:other, owedBy:"me", groupId:g.id}
+        {splitType:"equitativo", paidBy:other, groupId:g.id}
       ];
       splitOptionsList.innerHTML = presets.map(function(p, i){
         var isSel = p.splitType === currentSplit.splitType && p.paidBy === currentSplit.paidBy &&
@@ -409,6 +524,8 @@
     fechaInput.value = todayStr();
     withSelect.value = (groupId && groupById(groupId)) ? groupId : "individual";
     onWithChange();
+    payerOther.value = "";
+    populatePayerSelect("me");
   }
 
   function openNewExpense(groupId){
@@ -425,24 +542,46 @@
       return;
     }
     var isCompartido = withSelect.value !== "individual";
-    var exp = {
-      id: editingId || uid(),
+    var editing = editingId ? findExpense(editingId) : null;
+    var base = {
       date: fechaInput.value || todayStr(),
       amount: amount,
       description: descripcionInput.value.trim(),
-      categoryId: categoriaSel.value,
+      categoryId: categoriaSel.value
+    };
+
+    // Personal pagado por otra persona → deuda de tipo "gasto" (cuenta como gasto tuyo).
+    if(!isCompartido && payerSelect.value !== "me"){
+      var creditor = payerSide();
+      if(!creditor){ showToast("Poné quién pagó"); payerOther.focus(); return; }
+      var reuse = editing && editing.fromDebt;
+      var d = Object.assign({id: reuse ? editing.debtId : uid(), kind:"gasto", creditor:creditor, debtor:{me:true}}, base);
+      if(editing && !editing.fromDebt) removeExpense(editing.id);
+      saveDebt(d, reuse);
+      goBack();
+      showToast(editing ? "Gasto actualizado" : "Gasto guardado");
+      renderAll();
+      return;
+    }
+
+    if(editing && editing.fromDebt){
+      deleteDebt(editing.debtId);
+      editing = null;
+    }
+    var exp = Object.assign({
+      id: editing ? editing.id : uid(),
       scope: isCompartido ? "compartido" : "personal",
       paidBy: isCompartido ? currentSplit.paidBy : "me"
-    };
+    }, base);
     if(isCompartido){
       exp.groupId = currentSplit.groupId;
       exp.splitType = currentSplit.splitType;
       if(currentSplit.splitType === "completo") exp.owedBy = currentSplit.owedBy;
     }
 
-    var wasEditing = !!editingId;
+    var wasEditing = !!editing;
     if(wasEditing){
-      var idx = state.expenses.findIndex(function(x){ return x.id === editingId; });
+      var idx = state.expenses.findIndex(function(x){ return x.id === exp.id; });
       if(idx > -1) state.expenses[idx] = exp;
     } else {
       state.expenses.unshift(exp);
@@ -453,9 +592,43 @@
         : sb.from("expenses").insert(Object.assign({id:exp.id}, expenseToRow(exp)));
     });
     goBack();
-    showToast(wasEditing ? "Gasto actualizado" : "Gasto guardado");
+    showToast(editingId ? "Gasto actualizado" : "Gasto guardado");
     renderAll();
   });
+
+  function removeExpense(id){
+    state.expenses = state.expenses.filter(function(e){ return e.id !== id; });
+    persist(function(){ return sb.from("expenses").delete().eq("id", id); });
+  }
+
+  // ---------------- deudas: guardar ----------------
+  function debtToRow(d){
+    function u(side){ return side.me ? session.user.id : (side.user || null); }
+    function n(side){ return (side.me ? memberName("me") : side.name || "").slice(0, 40); }
+    return {
+      kind: d.kind, date: d.date, amount: d.amount,
+      description: d.description || "", category_id: d.categoryId || null,
+      creditor_user: u(d.creditor), creditor_name: n(d.creditor),
+      debtor_user: u(d.debtor), debtor_name: n(d.debtor)
+    };
+  }
+  function saveDebt(d, isUpdate){
+    if(isUpdate){
+      var idx = state.debts.findIndex(function(x){ return x.id === d.id; });
+      if(idx > -1) state.debts[idx] = d; else state.debts.unshift(d);
+    } else {
+      state.debts.unshift(d);
+    }
+    return persist(function(){
+      return isUpdate
+        ? sb.from("debts").update(debtToRow(d)).eq("id", d.id)
+        : sb.from("debts").insert(Object.assign({id:d.id}, debtToRow(d)));
+    });
+  }
+  function deleteDebt(id){
+    state.debts = state.debts.filter(function(d){ return d.id !== id; });
+    return persist(function(){ return sb.from("debts").delete().eq("id", id); });
+  }
 
   function loadExpenseIntoForm(e){
     fechaInput.value = e.date;
@@ -465,6 +638,12 @@
     if(e.scope === "personal"){
       withSelect.value = "individual";
       onWithChange();
+      if(e.fromDebt){
+        var d = debtById(e.debtId);
+        populatePayerSelect(d ? personKey(d.creditor) : "me");
+      } else {
+        populatePayerSelect("me");
+      }
     } else {
       withSelect.value = e.groupId;
       onWithChange();
@@ -566,8 +745,8 @@
     if(share === null) return null;
     var paidByMe = e.paidBy === "me" ? e.amount : 0;
     var net = paidByMe - share;
-    if(net > 0.5) return {label:"prestaste", amount:net, cls:"positive"};
-    if(net < -0.5) return {label:"pediste", amount:-net, cls:"negative"};
+    if(net > 0.5) return {label:"te deben", amount:net, cls:"positive"};
+    if(net < -0.5) return {label:"debés", amount:-net, cls:"negative"};
     return {label:"", amount:share, cls:""};
   }
 
@@ -579,6 +758,7 @@
     var titleText = e.description ? e.description : categoryName(e.categoryId);
     var subParts = [];
     if(e.description) subParts.push(categoryName(e.categoryId));
+    if(e.fromDebt) subParts.push("pagó " + e.paidByName + " · le debés");
 
     var amount = e.amount, statusHTML = "", amountCls = "";
 
@@ -680,7 +860,7 @@
   var currentDetailId = null;
 
   function openExpenseDetail(id){
-    var e = state.expenses.filter(function(x){ return x.id === id; })[0];
+    var e = findExpense(id);
     if(!e) return;
     currentDetailId = id;
 
@@ -710,8 +890,12 @@
       bd.innerHTML = lines.map(function(l){
         return '<div class="line"><span>'+esc(l.label)+'</span><span class="amt">'+money(l.amt)+'</span></div>';
       }).join("");
+    } else if(e.fromDebt){
+      bd.innerHTML =
+        '<div class="line"><span>'+esc(e.paidByName)+' pagó</span><span class="amt">'+money(e.amount)+'</span></div>' +
+        '<div class="line"><span>Le debés a '+esc(e.paidByName)+'</span><span class="amt">'+money(e.amount)+'</span></div>';
     } else {
-      bd.innerHTML = '<div class="line"><span>Gasto individual</span></div>';
+      bd.innerHTML = '<div class="line"><span>Gasto personal</span></div>';
     }
     openScreen(detailModal);
   }
@@ -719,22 +903,43 @@
   document.getElementById("detailCloseBtn").addEventListener("click", goBack);
 
   document.getElementById("detailEditBtn").addEventListener("click", function(){
-    var e = state.expenses.filter(function(x){ return x.id === currentDetailId; })[0];
+    var e = findExpense(currentDetailId);
     if(!e) return;
     loadExpenseIntoForm(e);
     replaceTopScreen(expenseScreen);
   });
 
+  var pendingDelete = null;
+  function askDelete(title, onConfirm){
+    pendingDelete = onConfirm;
+    document.getElementById("confirmDeleteTitle").textContent = title;
+    confirmDeleteModal.hidden = false;
+  }
   document.getElementById("detailDeleteBtn").addEventListener("click", function(){
+    pendingDelete = null;
+    document.getElementById("confirmDeleteTitle").textContent = "¿Eliminar gasto?";
     confirmDeleteModal.hidden = false;
   });
   document.getElementById("cancelDeleteBtn").addEventListener("click", function(){
+    pendingDelete = null;
     confirmDeleteModal.hidden = true;
   });
   document.getElementById("confirmDeleteBtn").addEventListener("click", function(){
-    var deletedId = currentDetailId;
-    state.expenses = state.expenses.filter(function(e){ return e.id !== deletedId; });
-    persist(function(){ return sb.from("expenses").delete().eq("id", deletedId); });
+    if(pendingDelete){
+      var fn = pendingDelete;
+      pendingDelete = null;
+      confirmDeleteModal.hidden = true;
+      fn();
+      return;
+    }
+    var deleted = findExpense(currentDetailId);
+    if(deleted && deleted.fromDebt){
+      deleteDebt(deleted.debtId);
+    } else {
+      var deletedId = currentDetailId;
+      state.expenses = state.expenses.filter(function(e){ return e.id !== deletedId; });
+      persist(function(){ return sb.from("expenses").delete().eq("id", deletedId); });
+    }
     confirmDeleteModal.hidden = true;
     goBack();
     renderAll();
@@ -831,7 +1036,7 @@
 
   function expensesOf(groupId){
     return groupId === PERSONAL
-      ? state.expenses.filter(function(e){ return e.scope === "personal"; })
+      ? personalExpenses()
       : state.expenses.filter(function(e){ return e.scope === "compartido" && e.groupId === groupId; });
   }
   function sumAmounts(list){ return list.reduce(function(s, e){ return s + e.amount; }, 0); }
@@ -1070,6 +1275,280 @@
     }
   }
 
+  // ---------------- deudas: lista por persona ----------------
+  var currentPersonKey = null;
+  var personScreen = document.getElementById("personScreen");
+
+  function personAvatarHTML(side, extraCls){
+    var name = side.name || "?";
+    var h = 0;
+    for(var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+    return '<div class="group-avatar round' + (extraCls ? " " + extraCls : "") + '" style="background:var(--series-'+((h % 8) + 1)+')">' +
+      esc(name.trim().charAt(0).toUpperCase() || "?") + '</div>';
+  }
+  function personBalances(){
+    var map = {};
+    (state.debts || []).forEach(function(d){
+      var side = otherSide(d), k = personKey(side);
+      if(!map[k]) map[k] = {key:k, side:side, net:0, count:0};
+      map[k].net += debtEffect(d);
+      map[k].count++;
+    });
+    return map;
+  }
+  function netText(name, net){
+    if(Math.abs(net) < 1) return {text:"Al día", cls:""};
+    return net > 0
+      ? {text:name + " te debe " + money(net), cls:"positive"}
+      : {text:"Le debés " + money(-net) + " a " + name, cls:"negative"};
+  }
+
+  function renderDebts(){
+    var map = personBalances();
+    var people = Object.keys(map).map(function(k){ return map[k]; })
+      .sort(function(a, b){ return Math.abs(b.net) - Math.abs(a.net) || a.side.name.localeCompare(b.side.name); });
+    var owedToMe = 0, iOwe = 0;
+    people.forEach(function(p){ if(p.net > 0) owedToMe += p.net; else iOwe -= p.net; });
+
+    var head;
+    if(owedToMe < 1 && iOwe < 1) head = 'No tenés deudas <span class="accent">pendientes</span>';
+    else {
+      var parts = [];
+      if(owedToMe >= 1) parts.push('te deben <span class="positive">'+money(owedToMe)+'</span>');
+      if(iOwe >= 1) parts.push('debés <span class="negative">'+money(iOwe)+'</span>');
+      head = 'Fuera de los grupos, ' + parts.join(" y ");
+    }
+    document.getElementById("debtOverview").innerHTML =
+      '<div class="overview-head">'+head+'</div>' +
+      '<div class="overview-sub">Lo que alguien pagó por vos (o vos por otro) y los préstamos.</div>';
+
+    var list = document.getElementById("debtList");
+    if(people.length === 0){
+      list.innerHTML = '<button type="button" class="group-card group-card-empty" id="emptyDebtCta">' +
+        '<div class="group-avatar ghost">＋</div>' +
+        '<div class="group-card-main"><div class="group-card-name">Anotar una deuda</div>' +
+        '<div class="group-card-spent">Si alguien te pagó algo o te prestó plata (o al revés)</div></div>' +
+        '<span class="chevron">›</span></button>';
+      document.getElementById("emptyDebtCta").addEventListener("click", function(){ openDebtForm(null); });
+      return;
+    }
+    list.innerHTML = people.map(function(p){
+      var line = netText(p.side.name, p.net);
+      return '<button type="button" class="group-card" data-person="'+esc(p.key)+'">' +
+        personAvatarHTML(p.side) +
+        '<div class="group-card-main">' +
+          '<div class="group-card-name">'+esc(p.side.name)+'</div>' +
+          '<div class="group-card-balance '+line.cls+'">'+esc(line.text)+'</div>' +
+          '<div class="group-card-spent">'+p.count+' movimiento'+(p.count === 1 ? "" : "s") +
+            (p.side.user ? "" : " · solo lo ves vos")+'</div>' +
+        '</div>' +
+        '<span class="chevron">›</span>' +
+      '</button>';
+    }).join("");
+    list.querySelectorAll(".group-card[data-person]").forEach(function(card){
+      card.addEventListener("click", function(){ openPersonScreen(card.getAttribute("data-person")); });
+    });
+  }
+
+  // ---------------- pantalla de una persona ----------------
+  function personSide(key){
+    var p = personBalances()[key];
+    if(p) return p.side;
+    var o = peopleOptions().filter(function(x){ return x.key === key; })[0];
+    return o ? o.side : null;
+  }
+  function openPersonScreen(key){
+    currentPersonKey = key;
+    renderPersonScreen();
+    openScreen(personScreen);
+  }
+  document.getElementById("personScreenBack").addEventListener("click", function(){ goBack(); });
+  document.getElementById("personAddDebt").addEventListener("click", function(){ openDebtForm(null, currentPersonKey); });
+
+  function debtRowHTML(d){
+    var other = otherSide(d).name;
+    var title = d.description ||
+      (d.kind === "prestamo" ? "Préstamo" : d.kind === "pago" ? "Pago" : categoryName(d.categoryId));
+    var sub;
+    if(d.kind === "gasto") sub = d.creditor.me ? "Pagaste algo de " + other : other + " pagó algo tuyo";
+    else if(d.kind === "prestamo") sub = d.creditor.me ? "Le prestaste a " + other : other + " te prestó";
+    else sub = d.debtor.me ? "Le pagaste a " + other : other + " te pagó";
+    var eff = debtEffect(d);
+    var status = d.kind === "pago" ? "pago" : (eff > 0 ? "te debe" : "le debés");
+    var cls = d.kind === "pago" ? "" : (eff > 0 ? "positive" : "negative");
+    var dot = d.kind === "pago" ? "var(--warn)" : (d.kind === "gasto" ? categoryColorVar(d.categoryId) : "var(--ink-soft)");
+    return '<div class="ledger-row" data-debt="'+esc(d.id)+'">' +
+      ledgerDateHTML(d.date) +
+      '<div class="ledger-dot" style="background:'+dot+'"></div>' +
+      '<div class="ledger-main">' +
+        '<div class="ledger-title">'+esc(title)+'</div>' +
+        '<div class="ledger-sub">'+esc(sub)+'</div>' +
+      '</div>' +
+      '<div class="ledger-right">' +
+        '<div class="ledger-status '+cls+'">'+status+'</div>' +
+        '<div class="ledger-amount '+cls+'">'+money(d.amount)+'</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderPersonScreen(){
+    var key = currentPersonKey;
+    var side = key && personSide(key);
+    if(!side) return;
+    var p = personBalances()[key] || {net:0};
+    document.getElementById("personAvatar").outerHTML = personAvatarHTML(side, "big").replace('class="', 'id="personAvatar" class="');
+    document.getElementById("personName").textContent = side.name;
+    document.getElementById("personKind").textContent = side.user ? "Tiene cuenta · lo ve en su app" : "Solo lo ves vos";
+    document.getElementById("personAddDebt").textContent = "＋ Anotar deuda con " + side.name;
+
+    var hero = document.getElementById("personHero");
+    var net = p.net;
+    if(Math.abs(net) < 1){
+      hero.innerHTML = '<span class="pill">Al día</span><div class="amount">'+money(0)+'</div>' +
+        '<div class="caption">No hay deudas pendientes con '+esc(side.name)+'</div>';
+    } else {
+      hero.innerHTML = '<span class="pill warn">Pendiente</span>' +
+        '<div class="amount">'+money(Math.abs(net))+'</div>' +
+        '<div class="caption">'+esc(net > 0 ? side.name + " te debe" : "Le debés a " + side.name)+'</div>' +
+        '<button class="btn-ghost" id="personSettleBtn" type="button" style="margin-top:6px;">Liquidar</button>';
+      document.getElementById("personSettleBtn").addEventListener("click", function(){
+        openPersonSettle(side, net < 0, Math.abs(net));
+      });
+    }
+
+    var rows = (state.debts || []).filter(function(d){ return personKey(otherSide(d)) === key; })
+      .sort(function(a, b){ return b.date.localeCompare(a.date); });
+    var movEl = document.getElementById("personMovements");
+    movEl.innerHTML = rows.length === 0
+      ? '<div class="empty-state">Sin movimientos.</div>'
+      : rows.map(debtRowHTML).join("");
+    movEl.querySelectorAll("[data-debt]").forEach(function(row){
+      row.addEventListener("click", function(){
+        var d = debtById(row.getAttribute("data-debt"));
+        if(!d) return;
+        if(d.kind === "pago"){
+          askDelete("¿Eliminar este pago?", function(){ deleteDebt(d.id); renderAll(); showToast("Pago eliminado"); });
+        } else {
+          openDebtForm(d);
+        }
+      });
+    });
+  }
+
+  // ---------------- anotar / editar deuda ----------------
+  var debtScreen = document.getElementById("debtScreen");
+  var debtPersonSel = document.getElementById("debtPerson");
+  var debtPersonOther = document.getElementById("debtPersonOther");
+  var debtDirSeg = document.getElementById("debtDirSeg");
+  var debtKindSeg = document.getElementById("debtKindSeg");
+  var editingDebtId = null;
+
+  function segValue(seg, attr){ var b = seg.querySelector(".selected"); return b ? b.getAttribute(attr) : null; }
+  function setSeg(seg, attr, value){
+    seg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("selected", b.getAttribute(attr) === value); });
+  }
+  function updateDebtLabels(){
+    var iOwe = segValue(debtDirSeg, "data-dir") === "yo";
+    var kind = segValue(debtKindSeg, "data-kind");
+    var bG = debtKindSeg.querySelector('[data-kind="gasto"]'), bP = debtKindSeg.querySelector('[data-kind="prestamo"]');
+    bG.textContent = iOwe ? "Pagó algo mío" : "Pagué algo suyo";
+    bP.textContent = iOwe ? "Me prestó plata" : "Le presté plata";
+    document.getElementById("debtCatField").hidden = kind !== "gasto";
+    var hint = kind === "prestamo"
+      ? "Un préstamo no cuenta como gasto de nadie."
+      : (iOwe ? "Cuenta como gasto tuyo en Personal." : "No cuenta como gasto tuyo. Si la persona tiene cuenta, le aparece en su Personal.");
+    document.getElementById("debtHint").textContent = hint;
+    debtPersonOther.hidden = debtPersonSel.value !== OTHER_PERSON;
+  }
+  [debtDirSeg, debtKindSeg].forEach(function(seg){
+    seg.querySelectorAll("button").forEach(function(b){
+      b.addEventListener("click", function(){
+        seg.querySelectorAll("button").forEach(function(x){ x.classList.remove("selected"); });
+        b.classList.add("selected");
+        updateDebtLabels();
+      });
+    });
+  });
+  debtPersonSel.addEventListener("change", function(){
+    updateDebtLabels();
+    if(debtPersonSel.value === OTHER_PERSON) debtPersonOther.focus();
+  });
+
+  function openDebtForm(d, presetKey){
+    editingDebtId = d ? d.id : null;
+    var opts = peopleOptions().map(function(p){ return {id:p.key, name:p.side.name}; })
+      .concat([{id:OTHER_PERSON, name:"Otra persona…"}]);
+    fillSelect(debtPersonSel, opts, function(o){ return o.id; }, function(o){ return o.name; });
+    fillSelect(document.getElementById("debtCategory"), state.categories, function(c){ return c.id; }, function(c){ return c.name; });
+    debtPersonOther.value = "";
+    var key = d ? personKey(otherSide(d)) : (presetKey || (opts.length > 1 ? opts[0].id : OTHER_PERSON));
+    debtPersonSel.value = key;
+    if(debtPersonSel.value !== key) debtPersonSel.value = OTHER_PERSON;
+    setSeg(debtDirSeg, "data-dir", d ? (d.debtor.me ? "yo" : "el") : "yo");
+    setSeg(debtKindSeg, "data-kind", d ? d.kind : "gasto");
+    document.getElementById("debtDate").value = d ? d.date : todayStr();
+    document.getElementById("debtAmount").value = d ? d.amount : "";
+    document.getElementById("debtDesc").value = d ? (d.description || "") : "";
+    document.getElementById("debtCategory").value = (d && d.categoryId) || "cat-otros";
+    document.getElementById("debtScreenTitle").textContent = d ? "Editar deuda" : "Anotar deuda";
+    document.getElementById("debtDeleteBtn").hidden = !d;
+    updateDebtLabels();
+    if(d && isScreenOpen(detailModal)) replaceTopScreen(debtScreen);
+    else openScreen(debtScreen);
+  }
+  document.getElementById("debtScreenBack").addEventListener("click", function(){ goBack(); });
+
+  document.getElementById("debtSaveBtn").addEventListener("click", function(){
+    var amount = parseFloat(document.getElementById("debtAmount").value);
+    if(!amount || amount <= 0){ showToast("Poné una cantidad válida"); return; }
+    var other;
+    if(debtPersonSel.value === OTHER_PERSON){
+      var n = debtPersonOther.value.trim();
+      if(!n){ showToast("Poné el nombre de la persona"); debtPersonOther.focus(); return; }
+      other = {name:n};
+    } else {
+      var p = peopleOptions().filter(function(x){ return x.key === debtPersonSel.value; })[0];
+      other = p ? p.side : null;
+    }
+    if(!other){ showToast("Elegí una persona"); return; }
+    var iOwe = segValue(debtDirSeg, "data-dir") === "yo";
+    var kind = segValue(debtKindSeg, "data-kind");
+    var d = {
+      id: editingDebtId || uid(),
+      kind: kind,
+      date: document.getElementById("debtDate").value || todayStr(),
+      amount: amount,
+      description: document.getElementById("debtDesc").value.trim(),
+      categoryId: kind === "gasto" ? document.getElementById("debtCategory").value : null,
+      creditor: iOwe ? other : {me:true},
+      debtor: iOwe ? {me:true} : other
+    };
+    var wasEditing = !!editingDebtId;
+    saveDebt(d, wasEditing);
+    goBack();
+    showToast(wasEditing ? "Deuda actualizada" : "Deuda anotada");
+    renderAll();
+  });
+  document.getElementById("debtDeleteBtn").addEventListener("click", function(){
+    var id = editingDebtId;
+    askDelete("¿Eliminar esta deuda?", function(){
+      deleteDebt(id);
+      goBack();
+      renderAll();
+      showToast("Deuda eliminada");
+    });
+  });
+
+  // Liquidar con una persona: registra un pago que salda la deuda.
+  function openPersonSettle(side, iOwe, amount){
+    settleCtx = {person:side, iOwe:iOwe};
+    document.getElementById("settleFromLabel").textContent = iOwe ? "Vos" : side.name;
+    document.getElementById("settleToLabel").textContent = iOwe ? side.name : "Vos";
+    document.getElementById("settleDescription").textContent = iOwe ? "Le pagaste a " + side.name : side.name + " te pagó a vos";
+    document.getElementById("settleAmount").value = amount.toFixed(2);
+    settleModal.hidden = false;
+  }
+
   // ---------------- ¿en qué grupo? ----------------
   var pickGroupModal = document.getElementById("pickGroupModal");
   function openPickGroup(){
@@ -1094,7 +1573,10 @@
     pickGroupModal.hidden = false;
   }
   pickGroupModal.addEventListener("click", function(ev){ if(ev.target === pickGroupModal) pickGroupModal.hidden = true; });
-  document.getElementById("addExpenseBtn").addEventListener("click", openPickGroup);
+  fab.addEventListener("click", function(){
+    if(currentTab === "deudas") openDebtForm(null);
+    else openPickGroup();
+  });
 
   // ---------------- liquidar deudas ----------------
   var settleModal = document.getElementById("settleModal");
@@ -1118,6 +1600,17 @@
     var amt = parseFloat(document.getElementById("settleAmount").value);
     if(!amt || amt <= 0){
       showToast("Poné una cantidad válida");
+      return;
+    }
+    if(settleCtx.person){
+      saveDebt({
+        id: uid(), kind: "pago", date: todayStr(), amount: amt, description: "", categoryId: null,
+        creditor: settleCtx.iOwe ? settleCtx.person : {me:true},
+        debtor: settleCtx.iOwe ? {me:true} : settleCtx.person
+      }, false);
+      closeSettleModal();
+      showToast("Pago registrado");
+      renderAll();
       return;
     }
     var st = {
@@ -1168,7 +1661,7 @@
   }
 
   function populateIndividualFilters(){
-    var months = Array.from(new Set(state.expenses.map(function(e){ return e.date.slice(0,7); }))).sort().reverse();
+    var months = Array.from(new Set(state.expenses.concat(debtExpenses()).map(function(e){ return e.date.slice(0,7); }))).sort().reverse();
 
     var prevMonth = filterMonthSel.value;
     fillSelect(
@@ -1333,7 +1826,7 @@
     // "Mis gastos" = mis gastos personales + mi parte real de cada gasto compartido
     // (así un gasto compartido pesa en mi plata aunque no lo haya pagado yo).
     // La torta reacciona a la fecha; tocar una categoría abre su desglose en una pantalla aparte.
-    var personalByDate = state.expenses.filter(function(e){ return e.scope === "personal" && dateMatches(e.date); });
+    var personalByDate = personalExpenses().filter(function(e){ return dateMatches(e.date); });
     var sharedByDate = state.expenses
       .filter(function(e){ return e.scope === "compartido" && dateMatches(e.date); })
       .map(function(e){ return {expense:e, share: myShareOf(e)}; })
@@ -1652,7 +2145,7 @@
   function startRealtime(){
     stopRealtime();
     realtimeChannel = sb.channel("cambios-" + session.user.id);
-    ["expenses", "settlements", "group_members", "groups"].forEach(function(table){
+    ["expenses", "settlements", "group_members", "groups", "debts"].forEach(function(table){
       realtimeChannel.on("postgres_changes", {event:"*", schema:"public", table:table}, scheduleRefresh);
     });
     realtimeChannel.subscribe(function(status){
@@ -1687,6 +2180,8 @@
   function renderAll(){
     renderGroupList();
     if(isScreenOpen(groupScreen)) renderGroupScreen();
+    renderDebts();
+    if(isScreenOpen(personScreen)) renderPersonScreen();
     renderIndividual();
   }
 

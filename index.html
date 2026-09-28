@@ -35,10 +35,16 @@
       <div class="group-list" id="groupList"></div>
     </section>
 
-    <!-- MIS GASTOS -->
+    <!-- DEUDAS: por persona, fuera de los grupos -->
+    <section class="panel" id="panel-deudas">
+      <div class="overview" id="debtOverview"></div>
+      <div class="group-list" id="debtList"></div>
+    </section>
+
+    <!-- RESUMEN (mis gastos) -->
     <section class="panel" id="panel-individual">
       <div>
-        <h2 class="section-title">Mis gastos</h2>
+        <h2 class="section-title">Resumen</h2>
       </div>
 
       <div class="card">
@@ -61,7 +67,8 @@
   <nav class="tabbar">
     <div class="inner">
       <button class="tab-btn active" data-tab="grupos"><span class="icon">⇄</span>Grupos</button>
-      <button class="tab-btn" data-tab="individual"><span class="icon">◐</span>Mis gastos</button>
+      <button class="tab-btn" data-tab="deudas"><span class="icon">⇆</span>Deudas</button>
+      <button class="tab-btn" data-tab="individual"><span class="icon">◐</span>Resumen</button>
     </div>
   </nav>
 
@@ -116,6 +123,86 @@
     </div>
   </div>
 
+  <!-- Pantalla de una persona (deudas) -->
+  <div class="modal-backdrop fullscreen" id="personScreen" hidden>
+    <div class="modal-sheet">
+      <div class="detail-header">
+        <button class="back-btn" id="personScreenBack" type="button" aria-label="Atrás">‹ Atrás</button>
+      </div>
+      <div class="screen-head">
+        <div class="group-avatar big" id="personAvatar"></div>
+        <div>
+          <div class="detail-cat" id="personKind"></div>
+          <h2 class="screen-title" id="personName"></h2>
+        </div>
+      </div>
+      <div class="card">
+        <div class="balance-hero" id="personHero"></div>
+      </div>
+      <div>
+        <h2 class="section-title">Movimientos</h2>
+        <div class="card">
+          <div id="personMovements"></div>
+        </div>
+      </div>
+      <button class="btn-primary" id="personAddDebt" type="button">＋ Anotar deuda</button>
+    </div>
+  </div>
+
+  <!-- Anotar / editar deuda -->
+  <div class="modal-backdrop fullscreen" id="debtScreen" hidden>
+    <div class="modal-sheet">
+      <div class="detail-header">
+        <button class="back-btn" id="debtScreenBack" type="button" aria-label="Atrás">‹ Atrás</button>
+      </div>
+      <h2 class="screen-title" id="debtScreenTitle">Anotar deuda</h2>
+      <div class="card">
+        <div class="form-grid">
+          <div class="field">
+            <label for="debtPerson">Persona</label>
+            <select id="debtPerson"></select>
+            <input type="text" id="debtPersonOther" placeholder="Nombre" maxlength="40" hidden>
+          </div>
+          <div class="field">
+            <label>¿Quién debe?</label>
+            <div class="segmented" id="debtDirSeg">
+              <button type="button" data-dir="yo" class="selected">Yo le debo</button>
+              <button type="button" data-dir="el">Me debe</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>¿Qué fue?</label>
+            <div class="segmented" id="debtKindSeg">
+              <button type="button" data-kind="gasto" class="selected">Pagó algo mío</button>
+              <button type="button" data-kind="prestamo">Me prestó plata</button>
+            </div>
+          </div>
+          <div class="row-2">
+            <div class="field">
+              <label for="debtDate">Fecha</label>
+              <input type="date" id="debtDate">
+            </div>
+            <div class="field">
+              <label for="debtAmount">Cantidad</label>
+              <input type="number" id="debtAmount" placeholder="0" step="0.01" min="0" inputmode="decimal">
+            </div>
+          </div>
+          <div class="field">
+            <label for="debtDesc">Descripción (opcional)</label>
+            <input type="text" id="debtDesc" placeholder="ej: Zapatillas, entrada del cine" maxlength="200">
+          </div>
+          <div class="field" id="debtCatField">
+            <label for="debtCategory">Categoría</label>
+            <select id="debtCategory"></select>
+          </div>
+          <p class="field-hint" id="debtHint"></p>
+          <button class="btn-primary" id="debtSaveBtn" type="button">Guardar</button>
+          <button class="btn-ghost" id="debtDeleteBtn" type="button" hidden>Eliminar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Nuevo / editar gasto -->
   <div class="modal-backdrop fullscreen" id="expenseScreen" hidden>
     <div class="modal-sheet">
@@ -130,6 +217,13 @@
             <select id="withSelect">
               <option value="individual">Personal</option>
             </select>
+          </div>
+
+          <div class="field" id="payerField">
+            <label for="payerSelect">¿Quién pagó?</label>
+            <select id="payerSelect"></select>
+            <input type="text" id="payerOther" placeholder="Nombre de quien pagó" maxlength="40" hidden>
+            <p class="field-hint" id="payerHint" hidden>Cuenta como gasto tuyo y queda anotado en Deudas que le debés.</p>
           </div>
 
           <div class="row-2">
@@ -252,7 +346,7 @@
           <label>Reparto</label>
           <div class="segmented" id="splitSeg">
             <button type="button" data-split="equitativo" class="selected">Equitativo</button>
-            <button type="button" data-split="completo">100% de uno</button>
+            <button type="button" data-split="completo" hidden>100% de uno</button>
           </div>
         </div>
         <div class="field" id="owedByField">
@@ -320,7 +414,7 @@
 
   <div class="modal-backdrop" id="confirmDeleteModal" hidden>
     <div class="modal-sheet">
-      <h3>¿Eliminar gasto?</h3>
+      <h3 id="confirmDeleteTitle">¿Eliminar gasto?</h3>
       <p class="hint">Esta acción no se puede deshacer.</p>
       <div class="modal-actions">
         <button class="btn-ghost" id="cancelDeleteBtn" type="button">Cancelar</button>

@@ -17,7 +17,7 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 |---|---|
 | `index.html`, `styles.css`, `app.js` | La app (HTML/CSS/JS puro, sin build). |
 | `config.js` | URL y clave pública de Supabase. Vacío = modo local. |
-| `supabase/1-tablas.sql` … `4-tiempo-real.sql` | Base de datos: tablas, funciones, reglas de seguridad (RLS) y tiempo real. |
+| `supabase/1-tablas.sql` … `5-deudas.sql` | Base de datos: tablas, funciones, reglas de seguridad (RLS), tiempo real y deudas. |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Para instalar la app en el celular. |
 | `_headers` | Cabeceras de seguridad para Cloudflare Pages. |
 
@@ -26,7 +26,7 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 ### 1. Supabase (base de datos)
 
 1. Creá un proyecto en [supabase.com](https://supabase.com).
-2. Corré los 4 archivos de la carpeta `supabase/` **en orden** (1, 2, 3, 4). Para cada uno:
+2. Corré los archivos de la carpeta `supabase/` **en orden** (1, 2, 3, 4, 5). Para cada uno:
    - En GitHub abrí el archivo y usá el botón **Copy raw file** (el ícono de copiar arriba a la
      derecha del código), así se copia completo.
    - En Supabase: **SQL Editor → New query**, pegá, y apretá **Run**. Tiene que decir *Success*.
