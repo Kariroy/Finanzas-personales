@@ -37,6 +37,7 @@
       return (c === "x" ? r : (r&0x3|0x8)).toString(16);
     });
   }
+  function capitalize(t){ t = String(t || ""); return t.charAt(0).toUpperCase() + t.slice(1); }
   function money(n){
     var v = Number(n)||0;
     return "$" + v.toLocaleString("es-UY", {minimumFractionDigits:0, maximumFractionDigits:0});
@@ -128,7 +129,7 @@
 
   function fetchRemote(){
     return Promise.all([
-      sb.from("groups").select("id,name,invite_code,created_at").order("created_at"),
+      sb.from("groups").select("id,name,invite_code,created_by,created_at").order("created_at"),
       sb.from("group_members").select("id,group_id,user_id,name,created_at").order("created_at"),
       sb.from("expenses").select("*").order("date", {ascending:false}).order("created_at", {ascending:false}),
       sb.from("settlements").select("*").order("date").order("created_at"),
@@ -145,7 +146,7 @@
       var myRow = memberRows.filter(function(m){ return myMemberIds[m.id]; })[0];
       var meta = user.user_metadata || {};
       var myName = meta.name || meta.full_name ||
-        (myRow && myRow.name) || (user.email || "Vos").split("@")[0];
+        (myRow && myRow.name) || capitalize((user.email || "Vos").split("@")[0]);
 
       // Personas con cuenta que comparten algún grupo con vos (para anotar deudas).
       var userNames = {};
@@ -177,6 +178,7 @@
             id: g.id,
             name: g.name,
             inviteCode: g.invite_code,
+            createdByMe: g.created_by === user.id,
             memberIds: memberRows.filter(function(m){ return m.group_id === g.id; })
               .map(function(m){ return toLocalMember(m.id); })
           };
@@ -1100,7 +1102,14 @@
   function catColor(catId){ return catId === PAGO_CAT ? "var(--warn)" : categoryColorVar(catId); }
   function dayLabel(d){ var p = d.split("-").map(Number); return p[2] + " " + MONTHS_ABBR[p[1]-1]; }
 
-  // rows: [{id, date, catId, desc, amount, status, cls, isPago}]
+  // rows: [{id, date, catId, title, extra, amount, status, cls, isPago}]
+  // Debajo del nombre: la categoría (si el nombre no es ya la categoría) y datos extra.
+  function subLine(r){
+    var parts = [];
+    if(r.title && r.title !== catLabel(r.catId)) parts.push(catLabel(r.catId));
+    if(r.extra) parts.push(r.extra);
+    return parts.join(" · ");
+  }
   function renderMovTable(el, tid, rows, rerender){
     var st = tableState(tid);
     if(rows.length === 0){
@@ -1127,8 +1136,8 @@
     var body = shown.map(function(r){
       return '<tr'+(r.id ? ' data-id="'+esc(r.id)+'"' : '')+'>' +
         '<td class="c-date">'+dayLabel(r.date)+'</td>' +
-        '<td class="c-cat"><div class="c-cat-name"><span class="c-dot" style="background:'+catColor(r.catId)+'"></span>'+esc(catLabel(r.catId))+'</div>' +
-          (r.desc ? '<div class="c-desc">'+esc(r.desc)+'</div>' : '') + '</td>' +
+        '<td class="c-cat"><div class="c-cat-name"><span class="c-dot" style="background:'+catColor(r.catId)+'"></span>'+esc(r.title || catLabel(r.catId))+'</div>' +
+          (subLine(r) ? '<div class="c-desc">'+esc(subLine(r))+'</div>' : '') + '</td>' +
         '<td class="num"><div class="c-amt">'+money(r.amount)+'</div>' +
           (r.status ? '<div class="c-status '+(r.cls || "")+'">'+esc(r.status)+'</div>' : '') + '</td>' +
       '</tr>';
@@ -1367,6 +1376,8 @@
     document.getElementById("groupScreenAvatar").outerHTML =
       avatarHTML(groupId, "big").replace('class="', 'id="groupScreenAvatar" class="');
     document.getElementById("groupScreenTitle").textContent = isPersonal ? "Personal" : g.name;
+    document.getElementById("groupEditBtn").hidden = isPersonal;
+    document.getElementById("groupInviteBtn").hidden = isPersonal;
     document.getElementById("groupScreenKind").textContent = isPersonal ? "Solo vos" : membersText(g);
 
     renderGroupSummary(groupId, g);
@@ -1376,20 +1387,20 @@
 
     // ---- Movimientos: tabla con filtros
     var rows = all.map(function(e){
-      var desc = e.description || "";
-      var status = "", cls = "";
+      var extra = "", status = "", cls = "";
       if(e.scope === "compartido"){
-        desc = (desc ? desc + " · " : "") + (e.paidBy === "me" ? "pagaste" : "pagó " + memberName(e.paidBy));
+        extra = e.paidBy === "me" ? "pagaste" : "pagó " + memberName(e.paidBy);
         var eff = balanceEffectOf(e);
         if(eff && eff.label){ status = eff.label + " " + money(eff.amount); cls = eff.cls; }
       } else if(e.fromDebt){
-        desc = (desc ? desc + " · " : "") + "pagó " + e.paidByName;
+        extra = "pagó " + e.paidByName;
         status = "le debés"; cls = "negative";
       }
-      return {id:e.id, date:e.date, catId:e.categoryId, desc:desc, amount:e.amount, status:status, cls:cls};
+      return {id:e.id, date:e.date, catId:e.categoryId, title:e.description || "", extra:extra,
+        amount:e.amount, status:status, cls:cls};
     }).concat(allSettlements.map(function(st){
-      return {id:null, date:st.date, catId:PAGO_CAT, isPago:true, amount:st.amount,
-        desc:(st.from === "me" ? "Vos" : memberName(st.from)) + " → " + (st.to === "me" ? "vos" : memberName(st.to)), status:"pago"};
+      return {id:null, date:st.date, catId:PAGO_CAT, isPago:true, amount:st.amount, title:"Pago",
+        extra:(st.from === "me" ? "Vos" : memberName(st.from)) + " → " + (st.to === "me" ? "vos" : memberName(st.to)), status:"pago"};
     }));
     renderMovTable(document.getElementById("groupMovements"), "group", rows, renderGroupScreen);
 
@@ -1425,8 +1436,8 @@
     if(!g){
       left = '<span class="summary-balance">Solo tus gastos</span>';
     } else if(g.memberIds.length < 2){
-      left = '<span class="summary-balance">Solo vos' +
-        (REMOTE && g.inviteCode ? ' · invitá con <strong class="mono">'+esc(g.inviteCode)+'</strong>' : '') + '</span>';
+      left = '<span class="summary-balance">Todavía estás solo</span>' +
+        '<button type="button" class="link-btn" id="summaryInviteBtn">Invitar a alguien</button>';
     } else {
       var balances = computeGroupBalances(groupId);
       var ids = g.memberIds;
@@ -1461,6 +1472,8 @@
       '<div class="summary-right"><span class="summary-label">Gastado en '+esc(monthName(ym))+'</span>' +
         '<span class="summary-amt">'+money(spent)+'</span></div>';
     if(settle) document.getElementById("settleBtn").addEventListener("click", settle);
+    var inv = document.getElementById("summaryInviteBtn");
+    if(inv) inv.addEventListener("click", function(){ openInvite(groupId); });
   }
 
   // ---------------- amigos: lista por persona ----------------
@@ -1760,6 +1773,163 @@
     settleModal.hidden = false;
   }
 
+  // ---------------- editar / borrar grupo ----------------
+  var groupEditModal = document.getElementById("groupEditModal");
+  var editingGroupId = null;
+  function canDeleteGroup(g){ return !REMOTE || g.createdByMe; }
+
+  function openGroupEdit(groupId){
+    var g = groupById(groupId);
+    if(!g) return;
+    editingGroupId = groupId;
+    document.getElementById("groupEditName").value = g.name;
+    // Se pueden renombrar los integrantes que todavía no se unieron (los otros usan su nombre de cuenta).
+    var editable = g.memberIds.filter(function(id){
+      if(id === "me") return false;
+      var m = memberObj(id);
+      return m && (!REMOTE || m.joined === false);
+    });
+    document.getElementById("groupEditMembers").innerHTML = editable.map(function(id){
+      return '<div class="field"><label>Integrante (todavía no se unió)</label>' +
+        '<input type="text" maxlength="40" data-member="'+esc(id)+'" value="'+esc(memberName(id))+'"></div>';
+    }).join("");
+    var n = expensesOf(groupId).length + state.settlements.filter(function(st){ return st.groupId === groupId; }).length;
+    var del = document.getElementById("groupDeleteBtn");
+    del.disabled = !canDeleteGroup(g);
+    document.getElementById("groupDeleteHint").textContent = canDeleteGroup(g)
+      ? "Se borran sus " + n + " gastos y pagos" + (REMOTE ? ", para todos los integrantes." : ".")
+      : "Solo quien creó el grupo puede eliminarlo.";
+    settingsModal.hidden = true;
+    groupEditModal.hidden = false;
+  }
+  document.getElementById("groupEditBtn").addEventListener("click", function(){
+    if(currentGroupId && currentGroupId !== PERSONAL) openGroupEdit(currentGroupId);
+  });
+  document.getElementById("groupEditCancel").addEventListener("click", function(){ groupEditModal.hidden = true; });
+  groupEditModal.addEventListener("click", function(ev){ if(ev.target === groupEditModal) groupEditModal.hidden = true; });
+
+  document.getElementById("groupEditSave").addEventListener("click", function(){
+    var g = groupById(editingGroupId);
+    if(!g) return;
+    var name = document.getElementById("groupEditName").value.trim();
+    if(!name){ showToast("Poné un nombre para el grupo"); return; }
+    var memberChanges = [];
+    groupEditModal.querySelectorAll("input[data-member]").forEach(function(inp){
+      var id = inp.getAttribute("data-member"), v = inp.value.trim(), m = memberObj(id);
+      if(m && v && v !== m.name){ m.name = v; memberChanges.push({id:id, name:v}); }
+    });
+    var nameChanged = name !== g.name;
+    g.name = name;
+    groupEditModal.hidden = true;
+    populateFormSelects();
+    renderAll();
+    persist(function(){
+      var ops = [];
+      if(nameChanged) ops.push(sb.from("groups").update({name:name}).eq("id", g.id));
+      memberChanges.forEach(function(c){ ops.push(sb.from("group_members").update({name:c.name}).eq("id", c.id)); });
+      return Promise.all(ops).then(function(res){ return res.filter(function(r){ return r.error; })[0]; });
+    }).then(function(ok){ if(ok) showToast("Grupo actualizado"); });
+  });
+
+  document.getElementById("groupDeleteBtn").addEventListener("click", function(){
+    var g = groupById(editingGroupId);
+    if(!g || !canDeleteGroup(g)) return;
+    groupEditModal.hidden = true;
+    askDelete("¿Eliminar el grupo " + g.name + "?", function(){ deleteGroup(g.id); });
+  });
+
+  function deleteGroup(groupId){
+    var g = groupById(groupId);
+    if(!g) return;
+    var inOtherGroups = {};
+    state.groups.forEach(function(o){ if(o.id !== groupId) o.memberIds.forEach(function(id){ inOtherGroups[id] = true; }); });
+    state.groups = state.groups.filter(function(o){ return o.id !== groupId; });
+    state.expenses = state.expenses.filter(function(e){ return e.groupId !== groupId; });
+    state.settlements = state.settlements.filter(function(st){ return st.groupId !== groupId; });
+    state.members = state.members.filter(function(m){ return m.id === "me" || inOtherGroups[m.id] || g.memberIds.indexOf(m.id) === -1; });
+    if(isScreenOpen(groupScreen)) goBack();
+    populateFormSelects();
+    renderAll();
+    persist(function(){
+      // Con RLS, si no sos quien lo creó no borra nada: se detecta y se avisa.
+      return sb.from("groups").delete().eq("id", groupId).select("id").then(function(r){
+        if(!r.error && (!r.data || r.data.length === 0)) return {error:new Error("sin permiso")};
+        return r;
+      });
+    }).then(function(ok){ if(ok) showToast("Grupo eliminado"); });
+  }
+
+  // ---------------- invitar con link ----------------
+  // El link lleva el código (?unirse=XXXX). Quien lo abre y entra a su cuenta queda unido solo.
+  var JOIN_KEY = "libro-gastos:unirse";
+  function inviteLink(g){ return location.origin + location.pathname + "?unirse=" + encodeURIComponent(g.inviteCode); }
+  function shareInvite(g){
+    if(!REMOTE || !g.inviteCode){
+      showToast("Para invitar, la app tiene que estar conectada a la nube");
+      return;
+    }
+    var link = inviteLink(g);
+    var text = "Sumate a mi grupo “" + g.name + "” en Libro de Gastos: " + link;
+    if(navigator.share){
+      navigator.share({title:"Libro de Gastos", text:text}).catch(function(){});
+      return;
+    }
+    var done = function(){ showToast("Link copiado: pegalo en WhatsApp o donde quieras"); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done, function(){ window.prompt("Copiá este link:", link); });
+    } else {
+      window.prompt("Copiá este link:", link);
+    }
+  }
+  var inviteModal = document.getElementById("inviteModal");
+  var invitingGroupId = null;
+  function openInvite(groupId){
+    var g = groupById(groupId);
+    if(!g) return;
+    invitingGroupId = groupId;
+    var real = REMOTE && g.inviteCode;
+    document.getElementById("inviteTitle").textContent = "Invitar a " + g.name;
+    document.getElementById("inviteCodeBig").textContent = real ? g.inviteCode : "AB12CD34";
+    document.getElementById("inviteLocalNote").hidden = !!real;
+    document.getElementById("inviteShareBtn").disabled = !real;
+    document.getElementById("inviteCopyBtn").disabled = !real;
+    settingsModal.hidden = true;
+    inviteModal.hidden = false;
+  }
+  document.getElementById("groupInviteBtn").addEventListener("click", function(){ openInvite(currentGroupId); });
+  document.getElementById("inviteShareBtn").addEventListener("click", function(){
+    var g = groupById(invitingGroupId);
+    if(g) shareInvite(g);
+  });
+  document.getElementById("inviteCopyBtn").addEventListener("click", function(){
+    var g = groupById(invitingGroupId);
+    if(!g || !g.inviteCode) return;
+    var done = function(){ showToast("Código copiado"); };
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(g.inviteCode).then(done, function(){ window.prompt("Copiá el código:", g.inviteCode); });
+    else window.prompt("Copiá el código:", g.inviteCode);
+  });
+  document.getElementById("inviteCloseBtn").addEventListener("click", function(){ inviteModal.hidden = true; });
+  inviteModal.addEventListener("click", function(ev){ if(ev.target === inviteModal) inviteModal.hidden = true; });
+  // Guardar el código del link (sobrevive al login con email o Google) y limpiar la URL.
+  (function(){
+    try{
+      var code = new URLSearchParams(location.search).get("unirse");
+      if(code){
+        localStorage.setItem(JOIN_KEY, code.trim().toUpperCase().slice(0, 8));
+        history.replaceState(null, "", location.pathname + location.hash);
+      }
+    }catch(e){}
+  })();
+  function joinFromLinkIfPending(){
+    var code = null;
+    try{ code = localStorage.getItem(JOIN_KEY); }catch(e){}
+    if(!code || !REMOTE || !session) return;
+    try{ localStorage.removeItem(JOIN_KEY); }catch(e){}
+    if(state.groups.some(function(g){ return g.inviteCode === code; })) return;
+    var meta = session.user.user_metadata || {};
+    runGroupRpc("join_group", {code:code, my_name:meta.name || meta.full_name || null}, "Te uniste al grupo");
+  }
+
   // ---------------- ¿en qué grupo? ----------------
   var pickGroupModal = document.getElementById("pickGroupModal");
   var DEBT_OPTION = "__deuda";
@@ -1898,14 +2068,14 @@
 
     // Movimientos: tabla con lo que te costó a vos
     var rows = items.map(function(x){
-      var e = x.expense, desc = e.description || "";
+      var e = x.expense, extra = "";
       if(e.scope === "compartido"){
         var g = groupById(e.groupId);
-        desc = (desc ? desc + " · " : "") + (g ? g.name : "Grupo") + " · tu parte de " + money(e.amount);
+        extra = (g ? g.name : "Grupo") + " · tu parte de " + money(e.amount);
       } else if(e.fromDebt){
-        desc = (desc ? desc + " · " : "") + "pagó " + e.paidByName;
+        extra = "pagó " + e.paidByName;
       }
-      return {id:e.id, date:e.date, catId:e.categoryId, desc:desc, amount:x.amount};
+      return {id:e.id, date:e.date, catId:e.categoryId, title:e.description || "", extra:extra, amount:x.amount};
     });
     renderMovTable(document.getElementById("myMovements"), "mine", rows, renderMyOverview);
 
@@ -1949,6 +2119,10 @@
           '<div class="settings-group-members">'+esc(membersText(g, true))+'</div>' +
         '</div>' +
         (REMOTE && g.inviteCode ? '<div class="invite-code small" title="Código para invitar">'+esc(g.inviteCode)+'</div>' : '') +
+        '<div class="settings-group-actions">' +
+          '<button type="button" class="link-btn" data-invite-group="'+esc(g.id)+'">Invitar</button>' +
+          '<button type="button" class="link-btn" data-edit-group="'+esc(g.id)+'">Editar</button>' +
+        '</div>' +
       '</div>';
     }).join("") + (REMOTE && state.groups.length
       ? '<p class="hint">Para sumar a alguien a un grupo, pasale su código: crea su cuenta y lo pone en "¿Te invitaron?".</p>'
@@ -1961,6 +2135,12 @@
       document.getElementById("settingsHint").textContent =
         "Modo local: los datos quedan solo en este navegador.";
     }
+    document.querySelectorAll("[data-invite-group]").forEach(function(b){
+      b.addEventListener("click", function(){ openInvite(b.getAttribute("data-invite-group")); });
+    });
+    document.querySelectorAll("[data-edit-group]").forEach(function(b){
+      b.addEventListener("click", function(){ openGroupEdit(b.getAttribute("data-edit-group")); });
+    });
     updateInstallBox();
     settingsModal.hidden = false;
   }
@@ -2216,14 +2396,18 @@
       resetForm();
       populateFormSelects();
       renderAll();
-      if(!/No se pudo entrar/.test(authMsg.textContent)) setAuthMsg("");
+      if(!/No se pudo entrar/.test(authMsg.textContent)){
+        var invited = null;
+        try{ invited = localStorage.getItem(JOIN_KEY); }catch(e){}
+        setAuthMsg(invited ? "Te invitaron a un grupo: entrá o creá tu cuenta y te sumamos." : "", true);
+      }
       authPassword.value = "";
       authScreen.hidden = false;
       return;
     }
     authScreen.hidden = true;
     document.getElementById("modeNote").textContent = "Sincronizado con la nube · " + s.user.email;
-    refresh();
+    refresh().then(joinFromLinkIfPending);
     startRealtime();
   }
 

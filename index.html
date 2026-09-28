@@ -9,7 +9,7 @@
 <title>Libro de Gastos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
@@ -50,6 +50,7 @@
 
       <div class="group-summary" id="mySummary"></div>
 
+      <div class="tabbed">
       <div class="segmented tabs-seg" id="myTabs" role="tablist">
         <button type="button" data-mtab="mov" class="selected" role="tab">Movimientos</button>
         <button type="button" data-mtab="mes" role="tab">Resumen mensual</button>
@@ -61,6 +62,7 @@
 
       <div class="card" id="myTabMes" hidden>
         <div id="myMonthly"></div>
+      </div>
       </div>
     </section>
   </main>
@@ -75,6 +77,46 @@
     </div>
   </nav>
 
+  <!-- Invitar al grupo -->
+  <div class="modal-backdrop" id="inviteModal" hidden>
+    <div class="modal-sheet">
+      <h3 id="inviteTitle">Invitar al grupo</h3>
+      <p class="hint" id="inviteLocalNote" hidden>Vista previa: cuando la app está conectada a la nube, acá aparece el código real del grupo.</p>
+      <div class="field">
+        <label>Código del grupo</label>
+        <div class="invite-code" id="inviteCodeBig"></div>
+      </div>
+      <button class="btn-primary" id="inviteShareBtn" type="button">Compartir link de invitación</button>
+      <button class="btn-ghost" id="inviteCopyBtn" type="button">Copiar código</button>
+      <ol class="invite-steps">
+        <li>Mandale el link (o el código) a la otra persona.</li>
+        <li>Lo abre y crea su cuenta, o entra con Google.</li>
+        <li>Queda unida al grupo sola. Con el código: ⚙ → "¿Te invitaron?" → Unirme.</li>
+      </ol>
+      <button class="btn-ghost" id="inviteCloseBtn" type="button">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- Editar grupo -->
+  <div class="modal-backdrop" id="groupEditModal" hidden>
+    <div class="modal-sheet scrollable">
+      <h3>Editar grupo</h3>
+      <div class="field">
+        <label for="groupEditName">Nombre del grupo</label>
+        <input type="text" id="groupEditName" maxlength="60">
+      </div>
+      <div id="groupEditMembers"></div>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="groupEditCancel" type="button">Cancelar</button>
+        <button class="btn-primary" id="groupEditSave" type="button">Guardar</button>
+      </div>
+      <div class="settings-section">
+        <button class="btn-danger" id="groupDeleteBtn" type="button">Eliminar grupo</button>
+        <p class="hint" id="groupDeleteHint"></p>
+      </div>
+    </div>
+  </div>
+
   <!-- ¿En qué grupo? -->
   <div class="modal-backdrop" id="pickGroupModal" hidden>
     <div class="modal-sheet scrollable">
@@ -88,6 +130,10 @@
     <div class="modal-sheet">
       <div class="detail-header">
         <button class="back-btn" id="groupScreenBack" type="button" aria-label="Atrás">‹ Atrás</button>
+        <div class="header-actions">
+          <button class="back-btn" id="groupInviteBtn" type="button">＋ Invitar</button>
+          <button class="back-btn" id="groupEditBtn" type="button">✎ Editar</button>
+        </div>
       </div>
       <div class="screen-head">
         <div class="group-avatar" id="groupScreenAvatar"></div>
@@ -100,6 +146,7 @@
       <!-- saldo + gastado en el mes, en un renglón -->
       <div class="group-summary" id="groupSummary"></div>
 
+      <div class="tabbed">
       <div class="segmented tabs-seg" id="groupTabs" role="tablist">
         <button type="button" data-gtab="mov" class="selected" role="tab">Movimientos</button>
         <button type="button" data-gtab="mes" role="tab">Resumen mensual</button>
@@ -111,6 +158,7 @@
 
       <div class="card" id="groupTabMes" hidden>
         <div id="groupMonthly"></div>
+      </div>
       </div>
 
       <button class="btn-primary" id="groupScreenAdd" type="button">＋ Añadir gasto</button>

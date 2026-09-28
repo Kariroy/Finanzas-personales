@@ -17,7 +17,7 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 |---|---|
 | `index.html`, `styles.css`, `app.js` | La app (HTML/CSS/JS puro, sin build). |
 | `config.js` | URL y clave pública de Supabase. Vacío = modo local. |
-| `supabase/1-tablas.sql` … `5-deudas.sql` | Base de datos: tablas, funciones, reglas de seguridad (RLS), tiempo real y deudas. |
+| `supabase/1-tablas.sql` … `6-borrar-grupos.sql` | Base de datos: tablas, funciones, reglas de seguridad (RLS), tiempo real, deudas y borrado de grupos. |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Para instalar la app en el celular. |
 | `_headers` | Cabeceras de seguridad para Cloudflare Pages. |
 
@@ -26,7 +26,7 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 ### 1. Supabase (base de datos)
 
 1. Creá un proyecto en [supabase.com](https://supabase.com).
-2. Corré los archivos de la carpeta `supabase/` **en orden** (1, 2, 3, 4, 5). Para cada uno:
+2. Corré los archivos de la carpeta `supabase/` **en orden** (1 al 6). Para cada uno:
    - En GitHub abrí el archivo y usá el botón **Copy raw file** (el ícono de copiar arriba a la
      derecha del código), así se copia completo.
    - En Supabase: **SQL Editor → New query**, pegá, y apretá **Run**. Tiene que decir *Success*.
@@ -64,10 +64,10 @@ El botón "Continuar con Google" aparece solo cuando Google está habilitado en 
 ### 4. Compartir con otra persona
 
 1. Entrá, abrí ⚙ y creá el grupo (por ejemplo "Casa", con el nombre de la otra persona).
-2. Pasale el **código para invitar** que aparece en ⚙.
-3. La otra persona crea su cuenta, abre ⚙ → **Unirme** con ese código, y ya ven los mismos
-   gastos compartidos y el mismo saldo. Los gastos que cargaste a su nombre antes de que se una
-   pasan a ser suyos.
+2. En el grupo tocá **＋ Invitar** → **Compartir link de invitación** (o copiá el código).
+3. La otra persona abre el link y crea su cuenta (o entra con Google): queda unida sola.
+   Con el código: ⚙ → **¿Te invitaron?** → Unirme. Los gastos que cargaste a su nombre antes
+   de que se una pasan a ser suyos.
 
 ## Probar sin Supabase
 
