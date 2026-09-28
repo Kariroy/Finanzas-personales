@@ -1055,3 +1055,16 @@ header.top h1{ font-weight:700; letter-spacing:-0.02em; }
 .invite-steps{ margin:0; padding-left:20px; font-size:0.85rem; color:var(--ink-soft); display:flex; flex-direction:column; gap:4px; }
 .btn-primary:disabled, .btn-ghost:disabled{ opacity:0.5; cursor:not-allowed; }
 .settings-group-actions{ display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+
+/* botones del encabezado del grupo: Invitar (principal) y Editar (secundario) */
+.header-actions{ display:flex; align-items:center; gap:8px; }
+.hdr-btn{
+  display:inline-flex; align-items:center; gap:6px;
+  border-radius:999px;
+  padding:7px 13px;
+  font-family:inherit; font-size:0.86rem; font-weight:600;
+  cursor:pointer; line-height:1;
+}
+.hdr-primary{ background:var(--accent); color:var(--accent-ink); border:1px solid var(--accent); }
+.hdr-ghost{ background:transparent; color:var(--ink-soft); border:1px solid var(--border); }
+.hdr-btn[hidden]{ display:none !important; }
