@@ -52,25 +52,11 @@
 
       <div class="segmented tabs-seg" id="myTabs" role="tablist">
         <button type="button" data-mtab="mov" class="selected" role="tab">Movimientos</button>
-        <button type="button" data-mtab="cat" role="tab">Por categoría</button>
         <button type="button" data-mtab="mes" role="tab">Resumen mensual</button>
       </div>
 
       <div class="card" id="myTabMov">
         <div id="myMovements"></div>
-      </div>
-
-      <div class="card" id="myTabCat" hidden>
-        <div class="field" style="margin-bottom:14px;">
-          <label for="filterMonth">Fecha</label>
-          <select id="filterMonth"></select>
-          <div class="day-row" id="filterDayRow" hidden>
-            <input type="date" id="filterDay" aria-label="Buscar día específico">
-            <button type="button" id="filterDayBack" class="icon-btn" aria-label="Volver a meses">↺</button>
-          </div>
-        </div>
-        <div class="my-breakdown" id="myBreakdown"></div>
-        <div id="categoryBars"></div>
       </div>
 
       <div class="card" id="myTabMes" hidden>
@@ -116,24 +102,11 @@
 
       <div class="segmented tabs-seg" id="groupTabs" role="tablist">
         <button type="button" data-gtab="mov" class="selected" role="tab">Movimientos</button>
-        <button type="button" data-gtab="cat" role="tab">Por categoría</button>
         <button type="button" data-gtab="mes" role="tab">Resumen mensual</button>
       </div>
 
       <div class="card" id="groupTabMov">
         <div id="groupMovements"></div>
-      </div>
-
-      <div class="card" id="groupTabCat" hidden>
-        <div class="field" style="margin-bottom:14px;">
-          <label for="groupFilterMonth">Fecha</label>
-          <select id="groupFilterMonth"></select>
-          <div class="day-row" id="groupFilterDayRow" hidden>
-            <input type="date" id="groupFilterDay" aria-label="Buscar día específico">
-            <button type="button" id="groupFilterDayBack" class="icon-btn" aria-label="Volver a meses">↺</button>
-          </div>
-        </div>
-        <div id="groupCategoryChart"></div>
       </div>
 
       <div class="card" id="groupTabMes" hidden>
@@ -274,6 +247,29 @@
 
   <div id="toast"></div>
 
+  <!-- filtro tipo Excel de las tablas -->
+  <div class="fp-backdrop" id="filterPopBackdrop" hidden></div>
+  <div class="filter-pop" id="filterPop" role="dialog" aria-label="Filtro" hidden>
+    <div id="fpFilterPart">
+      <input type="search" id="fpSearch" placeholder="Buscar..." aria-label="Buscar">
+      <div class="fp-actions">
+        <button type="button" class="link-btn" id="fpAll">Seleccionar todo</button>
+        <button type="button" class="link-btn" id="fpNone">Borrar</button>
+      </div>
+      <div class="fp-list" id="fpList"></div>
+    </div>
+    <div id="fpSortPart" hidden>
+      <div class="fp-title">Ordenar</div>
+      <label class="fp-item"><input type="radio" name="fpSort" value=""> <span>Por fecha (más recientes primero)</span></label>
+      <label class="fp-item"><input type="radio" name="fpSort" value="desc"> <span>Mayor a menor</span></label>
+      <label class="fp-item"><input type="radio" name="fpSort" value="asc"> <span>Menor a mayor</span></label>
+    </div>
+    <div class="fp-footer">
+      <button type="button" class="btn-ghost" id="fpCancel">Cancelar</button>
+      <button type="button" class="btn-primary" id="fpOk">Aceptar</button>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="settingsModal" hidden>
     <div class="modal-sheet scrollable">
       <h3 id="settingsTitle">Configuración local</h3>
@@ -369,20 +365,6 @@
         </div>
         <button class="btn-primary" id="applyAdvancedSplit" type="button">Aplicar</button>
       </div>
-    </div>
-  </div>
-
-  <div class="modal-backdrop fullscreen" id="categoryDetailModal" hidden>
-    <div class="modal-sheet">
-      <div class="detail-header">
-        <button class="back-btn" id="categoryDetailCloseBtn" type="button" aria-label="Atrás">‹ Atrás</button>
-      </div>
-      <div>
-        <div class="detail-cat" id="categoryDetailCat"></div>
-        <div class="detail-amount" id="categoryDetailAmount"></div>
-        <div class="detail-meta" id="categoryDetailMeta"></div>
-      </div>
-      <div id="categoryDetailList"></div>
     </div>
   </div>
 
