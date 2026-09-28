@@ -1,0 +1,1385 @@
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = "libro-gastos:v1";
+
+  var CATEGORY_SEED = [
+    {id:"cat-comida", name:"Comida"},
+    {id:"cat-disfrute", name:"Disfrute"},
+    {id:"cat-salud", name:"Salud"},
+    {id:"cat-transporte", name:"Transporte"},
+    {id:"cat-vivienda", name:"Vivienda"},
+    {id:"cat-otros", name:"Otros"}
+  ];
+
+  // Fecha local (no UTC): en Uruguay, después de las 21 toISOString ya da el día siguiente.
+  function localDateStr(d){
+    function pad(n){ return (n < 10 ? "0" : "") + n; }
+    return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
+  }
+  function todayStr(){
+    return localDateStr(new Date());
+  }
+  function daysAgo(n){
+    var d = new Date();
+    d.setDate(d.getDate()-n);
+    return localDateStr(d);
+  }
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function uid(){
+    if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c){
+      var r = Math.random()*16|0;
+      return (c === "x" ? r : (r&0x3|0x8)).toString(16);
+    });
+  }
+  function money(n){
+    var v = Number(n)||0;
+    return "$" + v.toLocaleString("es-UY", {minimumFractionDigits:0, maximumFractionDigits:0});
+  }
+
+  function seedData(){
+    var me = {id:"me", name:"Vos"};
+    var partner = {id:"partner", name:"Ana"};
+    var group = {id:"g-casa", name:"Casa", memberIds:["me","partner"]};
+
+    var expenses = [
+      {id:uid(), date:daysAgo(1), amount:1450, categoryId:"cat-comida", description:"Supermercado", scope:"compartido", groupId:"g-casa", paidBy:"me", splitType:"equitativo"},
+      {id:uid(), date:daysAgo(1), amount:600, categoryId:"cat-disfrute", description:"Cine", scope:"personal", paidBy:"me"},
+      {id:uid(), date:daysAgo(3), amount:3200, categoryId:"cat-vivienda", description:"Alquiler", scope:"compartido", groupId:"g-casa", paidBy:"partner", splitType:"equitativo"},
+      {id:uid(), date:daysAgo(4), amount:890, categoryId:"cat-transporte", description:"Nafta", scope:"personal", paidBy:"me"},
+      {id:uid(), date:daysAgo(6), amount:2200, categoryId:"cat-salud", description:"Farmacia", scope:"personal", paidBy:"me"},
+      {id:uid(), date:daysAgo(2), amount:1800, categoryId:"cat-disfrute", description:"Salida", scope:"compartido", groupId:"g-casa", paidBy:"me", splitType:"completo", owedBy:"partner"},
+      {id:uid(), date:todayStr(), amount:520, categoryId:"cat-comida", description:"Pan", scope:"personal", paidBy:"me"}
+    ];
+
+    return {
+      members:[me, partner],
+      groups:[group],
+      categories: CATEGORY_SEED,
+      expenses: expenses,
+      settlements: [],
+      seeded: true
+    };
+  }
+
+  function load(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return seedData();
+      var parsed = JSON.parse(raw);
+      if(!parsed || !parsed.members) return seedData();
+      if(!parsed.settlements) parsed.settlements = [];
+      return parsed;
+    }catch(e){
+      return seedData();
+    }
+  }
+  function save(){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+  }
+
+  function emptyState(){
+    return {members:[{id:"me", name:"Vos"}], groups:[], categories:CATEGORY_SEED, expenses:[], settlements:[]};
+  }
+
+  // ---------------- Supabase ----------------
+  // Si config.js tiene URL y clave, los datos viven en Supabase; si no, en localStorage.
+  var CFG = window.APP_CONFIG || {};
+  var REMOTE = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+  var sb = (REMOTE && window.supabase && window.supabase.createClient)
+    ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey)
+    : null;
+  var session = null;
+
+  // En memoria la app usa "me" para referirse a vos. En la base, cada grupo tiene
+  // su propia fila de integrante; estas tablas traducen entre ambos.
+  var myMemberByGroup = {};
+  var myMemberIds = {};
+  function toLocalMember(id){ return id && myMemberIds[id] ? "me" : id; }
+  function toRemoteMember(id, groupId){ return id === "me" ? myMemberByGroup[groupId] : id; }
+
+  function fetchRemote(){
+    return Promise.all([
+      sb.from("groups").select("id,name,invite_code,created_at").order("created_at"),
+      sb.from("group_members").select("id,group_id,user_id,name,created_at").order("created_at"),
+      sb.from("expenses").select("*").order("date", {ascending:false}).order("created_at", {ascending:false}),
+      sb.from("settlements").select("*").order("date").order("created_at")
+    ]).then(function(res){
+      res.forEach(function(r){ if(r.error) throw r.error; });
+      var user = session.user;
+      var memberRows = res[1].data;
+      myMemberByGroup = {};
+      myMemberIds = {};
+      memberRows.forEach(function(m){
+        if(m.user_id === user.id){ myMemberByGroup[m.group_id] = m.id; myMemberIds[m.id] = true; }
+      });
+      var myRow = memberRows.filter(function(m){ return myMemberIds[m.id]; })[0];
+      var myName = (user.user_metadata && user.user_metadata.name) ||
+        (myRow && myRow.name) || (user.email || "Vos").split("@")[0];
+
+      state = {
+        members: [{id:"me", name:myName}].concat(
+          memberRows.filter(function(m){ return !myMemberIds[m.id]; })
+            .map(function(m){ return {id:m.id, name:m.name, joined:!!m.user_id}; })
+        ),
+        groups: res[0].data.map(function(g){
+          return {
+            id: g.id,
+            name: g.name,
+            inviteCode: g.invite_code,
+            memberIds: memberRows.filter(function(m){ return m.group_id === g.id; })
+              .map(function(m){ return toLocalMember(m.id); })
+          };
+        }),
+        categories: CATEGORY_SEED,
+        expenses: res[2].data.map(function(r){
+          var shared = !!r.group_id;
+          var e = {
+            id: r.id,
+            date: r.date,
+            amount: Number(r.amount),
+            description: r.description || "",
+            categoryId: r.category_id,
+            scope: shared ? "compartido" : "personal",
+            paidBy: shared ? toLocalMember(r.paid_by) : "me"
+          };
+          if(shared){
+            e.groupId = r.group_id;
+            e.splitType = r.split_type;
+            if(r.owed_by) e.owedBy = toLocalMember(r.owed_by);
+          }
+          return e;
+        }),
+        settlements: res[3].data.map(function(r){
+          return {
+            id: r.id,
+            groupId: r.group_id,
+            from: toLocalMember(r.from_member),
+            to: toLocalMember(r.to_member),
+            amount: Number(r.amount),
+            date: r.date
+          };
+        })
+      };
+    });
+  }
+
+  function expenseToRow(e){
+    var shared = e.scope === "compartido";
+    return {
+      date: e.date,
+      amount: e.amount,
+      description: e.description || "",
+      category_id: e.categoryId,
+      group_id: shared ? e.groupId : null,
+      split_type: shared ? e.splitType : null,
+      paid_by: shared ? toRemoteMember(e.paidBy, e.groupId) : null,
+      owed_by: shared && e.splitType === "completo" ? toRemoteMember(e.owedBy, e.groupId) : null
+    };
+  }
+
+  // Guarda un cambio: en modo local escribe localStorage; en Supabase corre la
+  // consulta y, si falla, avisa y vuelve a traer los datos del servidor.
+  function persist(run){
+    if(!REMOTE){ save(); return Promise.resolve(true); }
+    return Promise.resolve().then(run).then(function(r){
+      if(r && r.error) throw r.error;
+      return true;
+    }).catch(function(err){
+      console.error(err);
+      showToast("No se pudo guardar. Revisá tu conexión.");
+      refresh();
+      return false;
+    });
+  }
+
+  var state = REMOTE ? emptyState() : load();
+
+  function memberName(id){
+    var m = state.members.filter(function(x){return x.id===id;})[0];
+    return m ? m.name : "—";
+  }
+  function categoryName(id){
+    var c = state.categories.filter(function(x){return x.id===id;})[0];
+    return c ? c.name : "Otros";
+  }
+  function groupById(id){
+    return state.groups.filter(function(g){return g.id===id;})[0];
+  }
+
+  // ---------------- tabs ----------------
+  var tabButtons = document.querySelectorAll(".tab-btn");
+  var panels = {
+    inicio: document.getElementById("panel-inicio"),
+    grupos: document.getElementById("panel-grupos"),
+    individual: document.getElementById("panel-individual")
+  };
+  tabButtons.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      tabButtons.forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      Object.keys(panels).forEach(function(k){ panels[k].classList.remove("active"); });
+      panels[btn.dataset.tab].classList.add("active");
+      if(btn.dataset.tab === "grupos") renderGrupos();
+      if(btn.dataset.tab === "individual") renderIndividual();
+    });
+  });
+
+  // ---------------- toast ----------------
+  var toastEl = document.getElementById("toast");
+  var toastTimer;
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 1800);
+  }
+
+  // ---------------- form: populate selects ----------------
+  var categoriaSel = document.getElementById("categoria");
+  var descripcionInput = document.getElementById("descripcion");
+  var withSelect = document.getElementById("withSelect");
+  var paidBySel = document.getElementById("paidBy");
+  var owedBySel = document.getElementById("owedBy");
+  var fechaInput = document.getElementById("fecha");
+  var cantidadInput = document.getElementById("cantidad");
+  var splitSummaryRow = document.getElementById("splitSummaryRow");
+  var splitSummaryText = document.getElementById("splitSummaryText");
+
+  function fillSelect(sel, items, getId, getLabel){
+    sel.innerHTML = "";
+    items.forEach(function(it){
+      var opt = document.createElement("option");
+      opt.value = getId(it);
+      opt.textContent = getLabel(it);
+      sel.appendChild(opt);
+    });
+  }
+
+  // currentSplit: null cuando es individual, o {splitType, paidBy, owedBy} cuando es compartido
+  var currentSplit = null;
+
+  function populateFormSelects(){
+    fillSelect(categoriaSel, state.categories, function(c){return c.id;}, function(c){return c.name;});
+    var opts = [{id:"individual", name:"Solo yo (individual)"}].concat(
+      state.groups.map(function(g){ return {id:g.id, name:g.name}; })
+    );
+    fillSelect(withSelect, opts, function(o){return o.id;}, function(o){return o.name;});
+    onWithChange();
+  }
+
+  function defaultSplitForGroup(groupId){
+    return {splitType:"equitativo", paidBy:"me", groupId:groupId};
+  }
+
+  function onWithChange(){
+    var val = withSelect.value;
+    if(val === "individual"){
+      currentSplit = null;
+      splitSummaryRow.classList.remove("show");
+    } else {
+      currentSplit = defaultSplitForGroup(val);
+      splitSummaryRow.classList.add("show");
+      refreshMemberSelectsForGroup(val);
+      updateSplitSummaryText();
+    }
+  }
+  withSelect.addEventListener("change", onWithChange);
+
+  function refreshMemberSelectsForGroup(groupId){
+    var g = groupById(groupId);
+    var members = g ? state.members.filter(function(m){ return g.memberIds.indexOf(m.id) !== -1; }) : [];
+    fillSelect(paidBySel, members, function(m){return m.id;}, function(m){return m.name;});
+    fillSelect(owedBySel, members, function(m){return m.id;}, function(m){return m.name;});
+  }
+
+  function splitLabel(split){
+    if(split.splitType === "equitativo"){
+      return split.paidBy === "me"
+        ? "Pagaste vos, dividido a partes iguales"
+        : memberName(split.paidBy) + " pagó, dividido a partes iguales";
+    }
+    // completo
+    return split.owedBy === "me"
+      ? "Se te debe la cantidad total"
+      : "A " + memberName(split.owedBy) + " se le debe la cantidad total";
+  }
+
+  function updateSplitSummaryText(){
+    if(currentSplit) splitSummaryText.textContent = splitLabel(currentSplit);
+  }
+
+  fechaInput.value = todayStr();
+
+  // ---------------- modal: reparto estilo Splitwise ----------------
+  var splitModal = document.getElementById("splitModal");
+  var splitOptionsList = document.getElementById("splitOptionsList");
+  var advancedSplit = document.getElementById("advancedSplit");
+  var moreOptionsBtn = document.getElementById("moreOptionsBtn");
+
+  function openSplitModal(){
+    if(!currentSplit) return;
+    var g = groupById(currentSplit.groupId);
+    advancedSplit.classList.remove("show");
+    moreOptionsBtn.hidden = false;
+
+    if(g && g.memberIds.length === 2){
+      var other = g.memberIds.filter(function(id){ return id !== "me"; })[0] || g.memberIds[1];
+      var presets = [
+        {splitType:"equitativo", paidBy:"me", groupId:g.id},
+        {splitType:"completo", paidBy:"me", owedBy:other, groupId:g.id},
+        {splitType:"equitativo", paidBy:other, groupId:g.id},
+        {splitType:"completo", paidBy:other, owedBy:"me", groupId:g.id}
+      ];
+      splitOptionsList.innerHTML = presets.map(function(p, i){
+        var isSel = p.splitType === currentSplit.splitType && p.paidBy === currentSplit.paidBy &&
+          (p.splitType !== "completo" || p.owedBy === currentSplit.owedBy);
+        return '<button type="button" class="split-option'+(isSel?" selected":"")+'" data-idx="'+i+'">' +
+          '<span>'+ esc(splitLabel(p)) +'</span><span class="check">✓</span></button>';
+      }).join("");
+      splitOptionsList.querySelectorAll(".split-option").forEach(function(btn, i){
+        btn.addEventListener("click", function(){
+          currentSplit = presets[i];
+          updateSplitSummaryText();
+          closeSplitModal();
+        });
+      });
+    } else {
+      // grupo con más de 2 personas: directo a opciones avanzadas
+      splitOptionsList.innerHTML = '<div class="empty-state">Este grupo tiene más de dos personas — elegí manualmente abajo.</div>';
+      showAdvancedSplit();
+    }
+    splitModal.hidden = false;
+  }
+  function closeSplitModal(){ splitModal.hidden = true; }
+
+  function showAdvancedSplit(){
+    refreshMemberSelectsForGroup(currentSplit.groupId);
+    paidBySel.value = currentSplit.paidBy;
+    splitSeg.querySelectorAll("button").forEach(function(b){
+      b.classList.toggle("selected", b.dataset.split === currentSplit.splitType);
+    });
+    owedByField.classList.toggle("show", currentSplit.splitType === "completo");
+    if(currentSplit.owedBy) owedBySel.value = currentSplit.owedBy;
+    advancedSplit.classList.add("show");
+    moreOptionsBtn.hidden = true;
+  }
+  moreOptionsBtn.addEventListener("click", showAdvancedSplit);
+
+  var splitSeg = document.getElementById("splitSeg");
+  var owedByField = document.getElementById("owedByField");
+  splitSeg.querySelectorAll("button").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      splitSeg.querySelectorAll("button").forEach(function(b){b.classList.remove("selected");});
+      btn.classList.add("selected");
+      owedByField.classList.toggle("show", btn.dataset.split === "completo");
+    });
+  });
+
+  document.getElementById("applyAdvancedSplit").addEventListener("click", function(){
+    var splitType = splitSeg.querySelector(".selected").dataset.split;
+    var next = {splitType:splitType, paidBy:paidBySel.value, groupId:currentSplit.groupId};
+    if(splitType === "completo") next.owedBy = owedBySel.value;
+    currentSplit = next;
+    updateSplitSummaryText();
+    closeSplitModal();
+  });
+
+  splitSummaryRow.addEventListener("click", openSplitModal);
+  splitModal.addEventListener("click", function(ev){
+    if(ev.target === splitModal) closeSplitModal();
+  });
+
+  // ---------------- guardar / editar gasto ----------------
+  var editingId = null;
+  var saveBtn = document.getElementById("saveBtn");
+  var cancelEditBtn = document.getElementById("cancelEditBtn");
+
+  function resetForm(){
+    editingId = null;
+    saveBtn.textContent = "Guardar gasto";
+    cancelEditBtn.hidden = true;
+    cantidadInput.value = "";
+    descripcionInput.value = "";
+    fechaInput.value = todayStr();
+    withSelect.value = "individual";
+    onWithChange();
+    var hoySection = document.getElementById("hoySection");
+    if(hoySection) hoySection.hidden = false;
+  }
+
+  saveBtn.addEventListener("click", function(){
+    var amount = parseFloat(cantidadInput.value);
+    if(!amount || amount <= 0){
+      showToast("Poné una cantidad válida");
+      return;
+    }
+    var isCompartido = withSelect.value !== "individual";
+    var exp = {
+      id: editingId || uid(),
+      date: fechaInput.value || todayStr(),
+      amount: amount,
+      description: descripcionInput.value.trim(),
+      categoryId: categoriaSel.value,
+      scope: isCompartido ? "compartido" : "personal",
+      paidBy: isCompartido ? currentSplit.paidBy : "me"
+    };
+    if(isCompartido){
+      exp.groupId = currentSplit.groupId;
+      exp.splitType = currentSplit.splitType;
+      if(currentSplit.splitType === "completo") exp.owedBy = currentSplit.owedBy;
+    }
+
+    var wasEditing = !!editingId;
+    if(wasEditing){
+      var idx = state.expenses.findIndex(function(x){ return x.id === editingId; });
+      if(idx > -1) state.expenses[idx] = exp;
+    } else {
+      state.expenses.unshift(exp);
+    }
+    persist(function(){
+      return wasEditing
+        ? sb.from("expenses").update(expenseToRow(exp)).eq("id", exp.id)
+        : sb.from("expenses").insert(Object.assign({id:exp.id}, expenseToRow(exp)));
+    });
+    resetForm();
+    showToast(wasEditing ? "Gasto actualizado" : "Gasto guardado");
+    renderAll();
+  });
+
+  cancelEditBtn.addEventListener("click", resetForm);
+
+  function loadExpenseIntoForm(e){
+    fechaInput.value = e.date;
+    cantidadInput.value = e.amount;
+    descripcionInput.value = e.description || "";
+    categoriaSel.value = e.categoryId;
+    if(e.scope === "personal"){
+      withSelect.value = "individual";
+      onWithChange();
+    } else {
+      withSelect.value = e.groupId;
+      onWithChange();
+      currentSplit = {splitType:e.splitType, paidBy:e.paidBy, groupId:e.groupId};
+      if(e.splitType === "completo") currentSplit.owedBy = e.owedBy;
+      updateSplitSummaryText();
+    }
+    editingId = e.id;
+    saveBtn.textContent = "Guardar cambios";
+    cancelEditBtn.hidden = false;
+    var hoySection = document.getElementById("hoySection");
+    if(hoySection) hoySection.hidden = true;
+  }
+
+  // ---------------- render: filas de gasto ----------------
+  // Cuánto de un gasto compartido te corresponde realmente a vos (tu costo real),
+  // sin importar quién puso la plata.
+  function myShareOf(e){
+    if(e.scope !== "compartido") return null;
+    var g = groupById(e.groupId);
+    if(!g || g.memberIds.indexOf("me") === -1) return null;
+    if(e.splitType === "equitativo"){
+      var n = g.memberIds.length || 1;
+      return e.amount / n;
+    }
+    // completo: si el 100% es tuyo, es todo tu costo; si es del otro, no te cuesta nada
+    return e.owedBy === "me" ? e.amount : 0;
+  }
+
+  function expenseRowHTML(e, opts){
+    opts = opts || {};
+    var titleText = e.description ? e.description : categoryName(e.categoryId);
+    var subParts = [];
+    if(e.description) subParts.push(categoryName(e.categoryId));
+    var displayAmount = e.amount;
+
+    if(e.scope === "compartido"){
+      var g = groupById(e.groupId);
+      if(opts.personalView){
+        displayAmount = myShareOf(e) || 0;
+        subParts.push((g ? g.name : "grupo") + " · tu parte de " + money(e.amount));
+      } else {
+        var partSub = (g ? g.name : "grupo") + " · pagó " + memberName(e.paidBy);
+        if(e.splitType === "completo"){
+          partSub += " · 100% " + memberName(e.owedBy);
+        } else {
+          partSub += " · equitativo";
+        }
+        subParts.push(partSub);
+      }
+    }
+    var dateLabel = opts.showDate ? formatDateShort(e.date) + " · " : "";
+    return (
+      '<div class="expense-row" data-id="'+e.id+'">' +
+        '<div class="expense-cat-dot" style="background:'+categoryColorVar(e.categoryId)+'"></div>' +
+        '<div class="expense-main">' +
+          '<div class="expense-title">'+ dateLabel + esc(titleText) +'</div>' +
+          '<div class="expense-sub">'+ esc(subParts.join(" · ")) +'</div>' +
+        '</div>' +
+        '<div class="expense-amount">'+ money(displayAmount) +'</div>' +
+        '<span class="chevron">›</span>' +
+      '</div>'
+    );
+  }
+
+  function categoryColorVar(categoryId){
+    var idx = state.categories.findIndex(function(c){ return c.id === categoryId; });
+    if(idx < 0) idx = 0;
+    return "var(--series-" + ((idx % 8) + 1) + ")";
+  }
+
+  function formatDateShort(d){
+    var parts = d.split("-");
+    return parts[2] + "/" + parts[1];
+  }
+
+  function formatDateLong(d){
+    var months = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+    var parts = d.split("-").map(Number);
+    return parts[2] + " " + months[parts[1]-1] + " " + parts[0];
+  }
+
+  function attachRowClickHandlers(container){
+    container.querySelectorAll("[data-id]").forEach(function(row){
+      row.addEventListener("click", function(){
+        openExpenseDetail(row.getAttribute("data-id"));
+      });
+    });
+  }
+
+  var MONTHS_SHORT = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+  function ledgerDateHTML(dateStr){
+    var parts = dateStr.split("-").map(Number);
+    return '<div class="ledger-date"><span class="mon">'+ MONTHS_SHORT[parts[1]-1] +'</span><span class="day">'+ parts[2] +'</span></div>';
+  }
+
+  // Si el gasto compartido te da un saldo a favor o en contra, devuelve {label, amount, cls}.
+  // Para grupos de 2 personas esto coincide siempre con "tu parte" del gasto.
+  function balanceEffectOf(e){
+    var share = myShareOf(e);
+    if(share === null) return null;
+    var paidByMe = e.paidBy === "me" ? e.amount : 0;
+    var net = paidByMe - share;
+    if(net > 0.5) return {label:"prestaste", amount:net, cls:"positive"};
+    if(net < -0.5) return {label:"pediste", amount:-net, cls:"negative"};
+    return {label:"", amount:share, cls:""};
+  }
+
+  // Fila de lista (Detalle / Movimientos): fecha a la izquierda, descripción + contexto, saldo a la derecha
+  // opts.personalView: para "Mis gastos" — muestra cuánto te costó realmente el gasto (tu parte),
+  // sin el lenguaje de saldo (prestaste/pediste), que es propio de la vista de Grupos.
+  function expenseLedgerRowHTML(e, opts){
+    opts = opts || {};
+    var titleText = e.description ? e.description : categoryName(e.categoryId);
+    var subParts = [];
+    if(e.description) subParts.push(categoryName(e.categoryId));
+
+    var amount = e.amount, statusHTML = "", amountCls = "";
+
+    if(e.scope === "compartido"){
+      var g = groupById(e.groupId);
+      subParts.push((g ? g.name : "grupo") + " · " + (e.paidBy === "me" ? "pagaste" : memberName(e.paidBy) + " pagó") + " " + money(e.amount));
+      if(opts.personalView){
+        amount = myShareOf(e) || 0;
+      } else {
+        var effect = balanceEffectOf(e);
+        if(effect){
+          amount = effect.amount;
+          amountCls = effect.cls;
+          if(effect.label) statusHTML = '<div class="ledger-status '+effect.cls+'">'+effect.label+'</div>';
+        }
+      }
+    }
+
+    return (
+      '<div class="ledger-row" data-id="'+e.id+'">' +
+        ledgerDateHTML(e.date) +
+        '<div class="ledger-dot" style="background:'+categoryColorVar(e.categoryId)+'"></div>' +
+        '<div class="ledger-main">' +
+          '<div class="ledger-title">'+ esc(titleText) +'</div>' +
+          '<div class="ledger-sub">'+ esc(subParts.join(" · ")) +'</div>' +
+        '</div>' +
+        '<div class="ledger-right">' +
+          statusHTML +
+          '<div class="ledger-amount'+(amountCls?(" "+amountCls):"")+'">'+ money(amount) +'</div>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function settlementLedgerRowHTML(s){
+    return (
+      '<div class="ledger-row">' +
+        ledgerDateHTML(s.date) +
+        '<div class="ledger-dot" style="background:var(--warn);"></div>' +
+        '<div class="ledger-main">' +
+          '<div class="ledger-title">Pago registrado</div>' +
+          '<div class="ledger-sub">'+ esc(memberName(s.from)) +' → '+ esc(memberName(s.to)) +'</div>' +
+        '</div>' +
+        '<div class="ledger-right">' +
+          '<div class="ledger-amount">'+ money(s.amount) +'</div>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  // ---------------- detalle del gasto (estilo Splitwise) ----------------
+  var detailModal = document.getElementById("detailModal");
+  var confirmDeleteModal = document.getElementById("confirmDeleteModal");
+  var currentDetailId = null;
+
+  function openExpenseDetail(id){
+    var e = state.expenses.filter(function(x){ return x.id === id; })[0];
+    if(!e) return;
+    currentDetailId = id;
+
+    document.getElementById("detailCat").textContent = categoryName(e.categoryId);
+    var detailDescEl = document.getElementById("detailDesc");
+    detailDescEl.textContent = e.description || "";
+    detailDescEl.style.display = e.description ? "block" : "none";
+    document.getElementById("detailAmount").textContent = money(e.amount);
+    var metaParts = ["Añadido el " + formatDateLong(e.date)];
+    metaParts.push(e.scope === "compartido" ? (groupById(e.groupId) ? groupById(e.groupId).name : "Grupo") : "Individual");
+    document.getElementById("detailMeta").textContent = metaParts.join(" · ");
+
+    var bd = document.getElementById("detailBreakdown");
+    if(e.scope === "compartido"){
+      var g = groupById(e.groupId);
+      var lines = [];
+      lines.push({label:(e.paidBy === "me" ? "Pagaste" : memberName(e.paidBy) + " pagó"), amt: e.amount});
+      if(e.splitType === "equitativo"){
+        var n = g ? g.memberIds.length : 1;
+        var share = e.amount / n;
+        (g ? g.memberIds : []).forEach(function(mid){
+          lines.push({label:(mid === "me" ? "Debés" : memberName(mid) + " debe"), amt: share});
+        });
+      } else {
+        lines.push({label:(e.owedBy === "me" ? "Debés" : memberName(e.owedBy) + " debe"), amt: e.amount});
+      }
+      bd.innerHTML = lines.map(function(l){
+        return '<div class="line"><span>'+esc(l.label)+'</span><span class="amt">'+money(l.amt)+'</span></div>';
+      }).join("");
+    } else {
+      bd.innerHTML = '<div class="line"><span>Gasto individual</span></div>';
+    }
+    detailModal.hidden = false;
+  }
+  function closeDetail(){ detailModal.hidden = true; }
+
+  document.getElementById("detailCloseBtn").addEventListener("click", closeDetail);
+  detailModal.addEventListener("click", function(ev){ if(ev.target === detailModal) closeDetail(); });
+
+  document.getElementById("detailEditBtn").addEventListener("click", function(){
+    var e = state.expenses.filter(function(x){ return x.id === currentDetailId; })[0];
+    if(!e) return;
+    closeDetail();
+    var catModal = document.getElementById("categoryDetailModal");
+    if(catModal) catModal.hidden = true;
+    tabButtons.forEach(function(b){ b.classList.toggle("active", b.dataset.tab === "inicio"); });
+    Object.keys(panels).forEach(function(k){ panels[k].classList.toggle("active", k === "inicio"); });
+    loadExpenseIntoForm(e);
+  });
+
+  document.getElementById("detailDeleteBtn").addEventListener("click", function(){
+    confirmDeleteModal.hidden = false;
+  });
+  document.getElementById("cancelDeleteBtn").addEventListener("click", function(){
+    confirmDeleteModal.hidden = true;
+  });
+  document.getElementById("confirmDeleteBtn").addEventListener("click", function(){
+    var deletedId = currentDetailId;
+    state.expenses = state.expenses.filter(function(e){ return e.id !== deletedId; });
+    persist(function(){ return sb.from("expenses").delete().eq("id", deletedId); });
+    confirmDeleteModal.hidden = true;
+    closeDetail();
+    var catModal = document.getElementById("categoryDetailModal");
+    if(catModal) catModal.hidden = true;
+    if(editingId === currentDetailId) resetForm();
+    renderAll();
+    showToast("Gasto eliminado");
+  });
+
+  function renderToday(){
+    var list = document.getElementById("todayList");
+    var today = todayStr();
+    var todays = state.expenses.filter(function(e){ return e.date === today; });
+    if(todays.length === 0){
+      list.innerHTML = '<div class="empty-state">Todavía no cargaste gastos hoy.</div>';
+      return;
+    }
+    list.innerHTML = todays.map(function(e){ return expenseRowHTML(e); }).join("");
+    attachRowClickHandlers(list);
+  }
+
+  // ---------------- render: grupos ----------------
+  var groupFilterMonthSel = document.getElementById("groupFilterMonth");
+  var groupFilterDayRow = document.getElementById("groupFilterDayRow");
+  var groupFilterDayInput = document.getElementById("groupFilterDay");
+  var groupFilterDayBackBtn = document.getElementById("groupFilterDayBack");
+  var groupDateMode = "month";
+
+  function setGroupDateMode(mode){
+    groupDateMode = mode;
+    groupFilterMonthSel.hidden = (mode === "day");
+    groupFilterDayRow.hidden = (mode !== "day");
+  }
+
+  function populateGroupFilters(groupId){
+    var months = Array.from(new Set(
+      state.expenses
+        .filter(function(e){ return e.scope === "compartido" && e.groupId === groupId; })
+        .map(function(e){ return e.date.slice(0,7); })
+    )).sort().reverse();
+
+    var prev = groupFilterMonthSel.value;
+    fillSelect(
+      groupFilterMonthSel,
+      [{id:"all", name:"Todos los meses"}]
+        .concat(months.map(function(ym){ return {id:ym, name:monthLabel(ym)}; }))
+        .concat([{id:DAY_OPTION, name:"Buscar un día…"}]),
+      function(o){return o.id;}, function(o){return o.name;}
+    );
+    if(groupDateMode === "day"){
+      groupFilterMonthSel.value = DAY_OPTION;
+    } else if(prev && (prev === "all" || months.indexOf(prev) !== -1)){
+      groupFilterMonthSel.value = prev;
+    } else if(months.indexOf(currentYM()) !== -1){
+      groupFilterMonthSel.value = currentYM();
+    } else {
+      groupFilterMonthSel.value = "all";
+    }
+  }
+  groupFilterMonthSel.addEventListener("change", function(){
+    if(groupFilterMonthSel.value === DAY_OPTION){
+      setGroupDateMode("day");
+      if(groupFilterDayInput.showPicker){ try{ groupFilterDayInput.showPicker(); }catch(e){} }
+      groupFilterDayInput.focus();
+      return;
+    }
+    setGroupDateMode("month");
+    groupFilterDayInput.value = "";
+    renderGrupos();
+  });
+  groupFilterDayInput.addEventListener("change", renderGrupos);
+  groupFilterDayBackBtn.addEventListener("click", function(){
+    groupFilterDayInput.value = "";
+    setGroupDateMode("month");
+    groupFilterMonthSel.value = "all";
+    renderGrupos();
+  });
+
+  function computeGroupBalances(groupId){
+    var g = groupById(groupId);
+    if(!g) return {};
+    var balances = {};
+    g.memberIds.forEach(function(id){ balances[id] = 0; });
+
+    var groupExpenses = state.expenses.filter(function(e){ return e.scope === "compartido" && e.groupId === groupId; });
+    groupExpenses.forEach(function(e){
+      balances[e.paidBy] = (balances[e.paidBy]||0) + e.amount;
+      if(e.splitType === "equitativo"){
+        var n = g.memberIds.length || 1;
+        var share = e.amount / n;
+        g.memberIds.forEach(function(id){ balances[id] -= share; });
+      } else if(e.splitType === "completo"){
+        balances[e.owedBy] = (balances[e.owedBy]||0) - e.amount;
+      }
+    });
+
+    var groupSettlements = state.settlements.filter(function(s){ return s.groupId === groupId; });
+    groupSettlements.forEach(function(s){
+      // "from" le pagó a "to": el balance de "from" mejora, el de "to" se reduce.
+      balances[s.from] = (balances[s.from]||0) + s.amount;
+      balances[s.to] = (balances[s.to]||0) - s.amount;
+    });
+    return balances;
+  }
+
+  function renderGrupos(){
+    if(state.groups.length === 0){
+      document.getElementById("balanceHero").innerHTML = '<div class="empty-state">No hay grupos todavía.</div>';
+      document.getElementById("groupCategoryChart").innerHTML = "";
+      return;
+    }
+    var groupId = state.groups[0].id;
+    var g = groupById(groupId);
+    document.getElementById("groupPanelTitle").textContent = g.name;
+    populateGroupFilters(groupId);
+    var selMonth = groupDateMode === "day" ? "all" : (groupFilterMonthSel.value || "all");
+    var selDay = groupDateMode === "day" ? (groupFilterDayInput.value || "") : "";
+    function dateMatches(dateStr){
+      if(selDay) return dateStr === selDay;
+      return selMonth === "all" || dateStr.slice(0,7) === selMonth;
+    }
+    var balances = computeGroupBalances(groupId);
+
+    var hero = document.getElementById("balanceHero");
+    var ids = g.memberIds;
+    if(ids.length === 2){
+      var a = ids[0], b = ids[1];
+      var diff = balances[a] - balances[b];
+      // diff/2 is what's owed one way (since sum should be ~0)
+      var owedAmount = Math.abs(diff)/2;
+      if(owedAmount < 1){
+        hero.innerHTML =
+          '<span class="pill">Al día</span>' +
+          '<div class="amount">'+ money(0) +'</div>' +
+          '<div class="caption">'+ esc(memberName(a)) +' y '+ esc(memberName(b)) +' están saldados</div>';
+      } else {
+        var debtor = diff > 0 ? b : a;
+        var creditor = diff > 0 ? a : b;
+        hero.innerHTML =
+          '<span class="pill warn">Balance pendiente</span>' +
+          '<div class="amount">'+ money(owedAmount) +'</div>' +
+          '<div class="caption">'+ esc(memberName(debtor)) +' le debe a '+ esc(memberName(creditor)) +'</div>' +
+          '<button class="btn-ghost" id="settleBtn" type="button" style="margin-top:6px;">Liquidar</button>';
+        var settleBtn = document.getElementById("settleBtn");
+        if(settleBtn){
+          settleBtn.addEventListener("click", function(){
+            openSettleModal(groupId, debtor, creditor, owedAmount);
+          });
+        }
+      }
+    } else {
+      hero.innerHTML = ids.map(function(id){
+        var v = balances[id]||0;
+        return '<div class="caption">'+ esc(memberName(id)) +': <strong>'+ money(v) +'</strong></div>';
+      }).join("");
+    }
+
+    var groupExpensesAll = state.expenses.filter(function(e){ return e.scope === "compartido" && e.groupId === groupId; });
+    var groupExpensesByDate = groupExpensesAll.filter(function(e){ return dateMatches(e.date); });
+
+    // torta por categoría: gasto total del grupo (no tu parte), según el filtro de fecha
+    var byCat = {};
+    groupExpensesByDate.forEach(function(e){
+      byCat[e.categoryId] = (byCat[e.categoryId]||0) + e.amount;
+    });
+    var catEntries = state.categories
+      .filter(function(c){ return byCat[c.id] > 0; })
+      .map(function(c){ return {id:c.id, amount:byCat[c.id]}; });
+    var groupTotal = catEntries.reduce(function(s,c){ return s + c.amount; }, 0);
+
+    var groupSettlementsByDate = state.settlements
+      .filter(function(s){ return s.groupId === groupId && dateMatches(s.date); });
+
+    var chartEl = document.getElementById("groupCategoryChart");
+    if(catEntries.length === 0){
+      chartEl.innerHTML = '<div class="empty-state">Sin gastos para este filtro.</div>';
+    } else {
+      chartEl.innerHTML = buildDonutChart(catEntries, groupTotal, {selectable:true});
+      chartEl.querySelectorAll(".legend-row[data-cat]").forEach(function(row){
+        row.addEventListener("click", function(){
+          openGroupCategoryDetail(row.getAttribute("data-cat"), groupExpensesByDate, groupSettlementsByDate, byCat, groupTotal);
+        });
+      });
+    }
+  }
+
+  // ---------------- liquidar deudas ----------------
+  var settleModal = document.getElementById("settleModal");
+  var settleCtx = null;
+
+  function openSettleModal(groupId, from, to, amount){
+    settleCtx = {groupId:groupId, from:from, to:to};
+    document.getElementById("settleFromLabel").textContent = from === "me" ? "Vos" : memberName(from);
+    document.getElementById("settleToLabel").textContent = to === "me" ? "Vos" : memberName(to);
+    document.getElementById("settleDescription").textContent =
+      (from === "me" ? "Le pagaste a " + memberName(to) : memberName(from) + " te pagó a vos");
+    document.getElementById("settleAmount").value = amount.toFixed(2);
+    settleModal.hidden = false;
+  }
+  function closeSettleModal(){ settleModal.hidden = true; }
+
+  document.getElementById("cancelSettleBtn").addEventListener("click", closeSettleModal);
+  settleModal.addEventListener("click", function(ev){ if(ev.target === settleModal) closeSettleModal(); });
+
+  document.getElementById("confirmSettleBtn").addEventListener("click", function(){
+    var amt = parseFloat(document.getElementById("settleAmount").value);
+    if(!amt || amt <= 0){
+      showToast("Poné una cantidad válida");
+      return;
+    }
+    var st = {
+      id: uid(),
+      groupId: settleCtx.groupId,
+      from: settleCtx.from,
+      to: settleCtx.to,
+      amount: amt,
+      date: todayStr()
+    };
+    state.settlements.push(st);
+    persist(function(){
+      return sb.from("settlements").insert({
+        id: st.id,
+        group_id: st.groupId,
+        from_member: toRemoteMember(st.from, st.groupId),
+        to_member: toRemoteMember(st.to, st.groupId),
+        amount: st.amount,
+        date: st.date
+      });
+    });
+    closeSettleModal();
+    showToast("Pago registrado");
+    renderGrupos();
+  });
+
+  // ---------------- filtros de "Mis gastos" ----------------
+  var filterMonthSel = document.getElementById("filterMonth");
+  var filterDayRow = document.getElementById("filterDayRow");
+  var filterDayInput = document.getElementById("filterDay");
+  var filterDayBackBtn = document.getElementById("filterDayBack");
+  var individualDateMode = "month";
+  var DAY_OPTION = "__day__";
+
+  function currentYM(){ return todayStr().slice(0,7); }
+
+  function monthLabel(ym){
+    var months = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+    var parts = ym.split("-").map(Number);
+    var label = months[parts[1]-1] + " " + parts[0];
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }
+
+  function setIndividualDateMode(mode){
+    individualDateMode = mode;
+    filterMonthSel.hidden = (mode === "day");
+    filterDayRow.hidden = (mode !== "day");
+  }
+
+  function populateIndividualFilters(){
+    var months = Array.from(new Set(state.expenses.map(function(e){ return e.date.slice(0,7); }))).sort().reverse();
+
+    var prevMonth = filterMonthSel.value;
+    fillSelect(
+      filterMonthSel,
+      [{id:"all", name:"Todos los meses"}]
+        .concat(months.map(function(ym){ return {id:ym, name:monthLabel(ym)}; }))
+        .concat([{id:DAY_OPTION, name:"Buscar un día…"}]),
+      function(o){return o.id;}, function(o){return o.name;}
+    );
+    if(individualDateMode === "day"){
+      filterMonthSel.value = DAY_OPTION;
+    } else if(prevMonth && (prevMonth === "all" || months.indexOf(prevMonth) !== -1)){
+      filterMonthSel.value = prevMonth;
+    } else if(months.indexOf(currentYM()) !== -1){
+      filterMonthSel.value = currentYM();
+    } else {
+      filterMonthSel.value = "all";
+    }
+  }
+  filterMonthSel.addEventListener("change", function(){
+    if(filterMonthSel.value === DAY_OPTION){
+      setIndividualDateMode("day");
+      if(filterDayInput.showPicker){ try{ filterDayInput.showPicker(); }catch(e){} }
+      filterDayInput.focus();
+      return;
+    }
+    setIndividualDateMode("month");
+    filterDayInput.value = "";
+    renderIndividual();
+  });
+  filterDayInput.addEventListener("change", renderIndividual);
+  filterDayBackBtn.addEventListener("click", function(){
+    filterDayInput.value = "";
+    setIndividualDateMode("month");
+    filterMonthSel.value = "all";
+    renderIndividual();
+  });
+
+  // ---------------- gráfico de torta por categoría ----------------
+  function buildDonutChart(entries, total, opts){
+    opts = opts || {};
+    var r = 40, cx = 50, cy = 50, sw = 15;
+    var circumference = 2 * Math.PI * r;
+    var cumulative = 0;
+
+    var parts = entries.map(function(entry){
+      var colorVar = categoryColorVar(entry.id);
+      var pct = total > 0 ? entry.amount / total : 0;
+      var dash = pct * circumference;
+      var gap = entries.length > 1 ? Math.min(2.5, dash * 0.15) : 0;
+      var visDash = Math.max(0, dash - gap);
+      var circle = '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" style="stroke:'+colorVar+'" ' +
+        'stroke-width="'+sw+'" stroke-linecap="round" ' +
+        'stroke-dasharray="'+visDash.toFixed(2)+' '+(circumference - visDash).toFixed(2)+'" ' +
+        'stroke-dashoffset="'+(-cumulative).toFixed(2)+'"></circle>';
+      cumulative += dash;
+      return {circle:circle, colorVar:colorVar, pct:pct, entry:entry};
+    });
+
+    var legend = parts.map(function(p){
+      var isSel = opts.selectable && opts.selectedId === p.entry.id;
+      var cls = "legend-row" + (opts.selectable ? " clickable" : "") + (isSel ? " selected" : "");
+      var dataAttr = opts.selectable ? ' data-cat="'+p.entry.id+'"' : "";
+      return '<div class="'+cls+'"'+dataAttr+'>' +
+        '<span class="legend-dot" style="background:'+p.colorVar+'"></span>' +
+        '<span class="legend-name">'+ esc(categoryName(p.entry.id)) +'</span>' +
+        '<span class="legend-pct">'+ Math.round(p.pct*100) +'%</span>' +
+        '<span class="legend-amt">'+ money(p.entry.amount) +'</span>' +
+      '</div>';
+    }).join("");
+
+    var totalRow = opts.selectable
+      ? '<div class="legend-row clickable total-legend-row" data-cat="all">' +
+          '<span class="legend-dot" style="background:var(--ink-soft)"></span>' +
+          '<span class="legend-name">Total</span>' +
+          '<span class="legend-pct"></span>' +
+          '<span class="legend-amt">'+ money(total) +'</span>' +
+        '</div>'
+      : "";
+
+    return (
+      '<div class="donut-wrap">' +
+        '<div class="donut-svg-holder">' +
+          '<svg viewBox="0 0 100 100" class="donut-svg"><g transform="rotate(-90 50 50)">' +
+            parts.map(function(p){ return p.circle; }).join("") +
+          '</g></svg>' +
+          '<div class="donut-center">' +
+            '<div class="donut-center-amt">'+ money(total) +'</div>' +
+            '<div class="donut-center-label">total</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="legend-list">'+ totalRow + legend +'</div>' +
+      '</div>'
+    );
+  }
+
+  // ---------------- pantalla de desglose por categoría ----------------
+  var categoryDetailModal = document.getElementById("categoryDetailModal");
+
+  function openCategoryDetail(catId, personalByDate, sharedByDate, byCat, totalAmount){
+    var isAll = catId === "all";
+    var catPersonal = isAll ? personalByDate : personalByDate.filter(function(e){ return e.categoryId === catId; });
+    var catShared = isAll ? sharedByDate : sharedByDate.filter(function(x){ return x.expense.categoryId === catId; });
+    var amount = isAll ? totalAmount : (byCat[catId] || 0);
+    var count = catPersonal.length + catShared.length;
+
+    document.getElementById("categoryDetailCat").textContent = isAll ? "Todas las categorías" : categoryName(catId);
+    document.getElementById("categoryDetailAmount").textContent = money(amount);
+    document.getElementById("categoryDetailMeta").textContent = count + " gasto" + (count === 1 ? "" : "s");
+
+    var rows = catPersonal.map(function(e){ return {date:e.date, html: expenseLedgerRowHTML(e, {personalView:true})}; })
+      .concat(catShared.map(function(x){ return {date:x.expense.date, html: expenseLedgerRowHTML(x.expense, {personalView:true})}; }))
+      .sort(function(a,b){ return b.date.localeCompare(a.date); });
+
+    var listEl = document.getElementById("categoryDetailList");
+    listEl.innerHTML = rows.length === 0
+      ? '<div class="empty-state">No hay gastos para este filtro.</div>'
+      : rows.map(function(item){ return item.html; }).join("");
+    attachRowClickHandlers(listEl);
+
+    categoryDetailModal.hidden = false;
+  }
+
+  function openGroupCategoryDetail(catId, groupExpensesByDate, groupSettlementsByDate, byCat, totalAmount){
+    var isAll = catId === "all";
+    var catExpenses = isAll ? groupExpensesByDate : groupExpensesByDate.filter(function(e){ return e.categoryId === catId; });
+    var amount = isAll ? totalAmount : (byCat[catId] || 0);
+    var count = catExpenses.length + (isAll ? groupSettlementsByDate.length : 0);
+
+    document.getElementById("categoryDetailCat").textContent = isAll ? "Todos los movimientos" : categoryName(catId);
+    document.getElementById("categoryDetailAmount").textContent = money(amount);
+    document.getElementById("categoryDetailMeta").textContent = count + " movimiento" + (count === 1 ? "" : "s");
+
+    var rows = catExpenses.map(function(e){ return {date:e.date, html: expenseLedgerRowHTML(e)}; });
+    if(isAll){
+      rows = rows.concat(groupSettlementsByDate.map(function(s){ return {date:s.date, html: settlementLedgerRowHTML(s)}; }));
+    }
+    rows.sort(function(a,b){ return b.date.localeCompare(a.date); });
+
+    var listEl = document.getElementById("categoryDetailList");
+    listEl.innerHTML = rows.length === 0
+      ? '<div class="empty-state">No hay movimientos para este filtro.</div>'
+      : rows.map(function(item){ return item.html; }).join("");
+    attachRowClickHandlers(listEl);
+
+    categoryDetailModal.hidden = false;
+  }
+
+  function closeCategoryDetail(){ categoryDetailModal.hidden = true; }
+  document.getElementById("categoryDetailCloseBtn").addEventListener("click", closeCategoryDetail);
+  categoryDetailModal.addEventListener("click", function(ev){
+    if(ev.target === categoryDetailModal) closeCategoryDetail();
+  });
+
+  // ---------------- render: mis gastos ----------------
+  function renderIndividual(){
+    populateIndividualFilters();
+    var selMonth = individualDateMode === "day" ? "all" : (filterMonthSel.value || "all");
+    var selDay = individualDateMode === "day" ? (filterDayInput.value || "") : "";
+
+    function dateMatches(dateStr){
+      if(selDay) return dateStr === selDay;
+      return selMonth === "all" || dateStr.slice(0,7) === selMonth;
+    }
+
+    // "Mis gastos" = mis gastos personales + mi parte real de cada gasto compartido
+    // (así un gasto compartido pesa en mi plata aunque no lo haya pagado yo).
+    // La torta reacciona a la fecha; tocar una categoría abre su desglose en una pantalla aparte.
+    var personalByDate = state.expenses.filter(function(e){ return e.scope === "personal" && dateMatches(e.date); });
+    var sharedByDate = state.expenses
+      .filter(function(e){ return e.scope === "compartido" && dateMatches(e.date); })
+      .map(function(e){ return {expense:e, share: myShareOf(e)}; })
+      .filter(function(x){ return x.share !== null && x.share > 0; });
+
+    var totalPersonal = personalByDate.reduce(function(s,e){ return s + e.amount; }, 0);
+    var totalShared = sharedByDate.reduce(function(s,x){ return s + x.share; }, 0);
+    var total = totalPersonal + totalShared;
+
+    var byCat = {};
+    personalByDate.forEach(function(e){
+      byCat[e.categoryId] = (byCat[e.categoryId]||0) + e.amount;
+    });
+    sharedByDate.forEach(function(x){
+      byCat[x.expense.categoryId] = (byCat[x.expense.categoryId]||0) + x.share;
+    });
+    // orden fijo por categoría (no por monto) para que el color de cada porción no cambie
+    var catEntries = state.categories
+      .filter(function(c){ return byCat[c.id] > 0; })
+      .map(function(c){ return {id:c.id, amount:byCat[c.id]}; });
+
+    var barsEl = document.getElementById("categoryBars");
+    if(catEntries.length === 0){
+      barsEl.innerHTML = '<div class="empty-state">Sin gastos para este filtro.</div>';
+    } else {
+      barsEl.innerHTML = buildDonutChart(catEntries, total, {selectable:true});
+      barsEl.querySelectorAll(".legend-row[data-cat]").forEach(function(row){
+        row.addEventListener("click", function(){
+          openCategoryDetail(row.getAttribute("data-cat"), personalByDate, sharedByDate, byCat, total);
+        });
+      });
+    }
+  }
+
+  // ---------------- settings modal ----------------
+  var settingsModal = document.getElementById("settingsModal");
+  var meNameInput = document.getElementById("meNameInput");
+  var partnerNameInput = document.getElementById("partnerNameInput");
+
+  // La "otra persona" es el primer integrante del grupo principal que no sos vos.
+  function partnerId(){
+    var g = state.groups[0];
+    return g ? g.memberIds.filter(function(id){ return id !== "me"; })[0] : null;
+  }
+
+  function openSettings(){
+    var g = state.groups[0];
+    var pid = partnerId();
+    meNameInput.value = memberName("me");
+    partnerNameInput.value = pid ? memberName(pid) : "";
+    document.getElementById("partnerField").hidden = !pid;
+    document.getElementById("resetDataBtn").hidden = REMOTE;
+    document.getElementById("signOutBtn").hidden = !REMOTE;
+    document.getElementById("noGroupBox").hidden = !REMOTE || !!g;
+    document.getElementById("inviteBox").hidden = !(REMOTE && g);
+    if(REMOTE){
+      document.getElementById("settingsTitle").textContent = "Configuración";
+      document.getElementById("settingsHint").textContent =
+        "Conectado como " + (session ? session.user.email : "") + ".";
+      if(g) document.getElementById("inviteCode").textContent = g.inviteCode || "";
+    }
+    settingsModal.hidden = false;
+  }
+  document.getElementById("settingsBtn").addEventListener("click", openSettings);
+  settingsModal.addEventListener("click", function(ev){
+    if(ev.target === settingsModal) settingsModal.hidden = true;
+  });
+
+  document.getElementById("saveNamesBtn").addEventListener("click", function(){
+    var meN = meNameInput.value.trim();
+    var pN = partnerNameInput.value.trim();
+    var pid = partnerId();
+    var meChanged = meN && meN !== memberName("me");
+    var partnerChanged = pid && pN && pN !== memberName(pid);
+    state.members.forEach(function(m){
+      if(m.id === "me" && meChanged) m.name = meN;
+      if(m.id === pid && partnerChanged) m.name = pN;
+    });
+    settingsModal.hidden = true;
+    populateFormSelects();
+    renderAll();
+    persist(function(){
+      var ops = [];
+      if(meChanged){
+        ops.push(sb.auth.updateUser({data:{name:meN}}));
+        var mine = Object.keys(myMemberIds);
+        if(mine.length) ops.push(sb.from("group_members").update({name:meN}).in("id", mine));
+      }
+      if(partnerChanged) ops.push(sb.from("group_members").update({name:pN}).eq("id", pid));
+      return Promise.all(ops).then(function(res){
+        return res.filter(function(r){ return r.error; })[0];
+      });
+    }).then(function(ok){ if(ok) showToast("Guardado"); });
+  });
+
+  document.getElementById("resetDataBtn").addEventListener("click", function(){
+    state = seedData();
+    save();
+    settingsModal.hidden = true;
+    populateFormSelects();
+    renderAll();
+    showToast("Datos de ejemplo reiniciados");
+  });
+
+  function runGroupRpc(fn, args, okMsg){
+    return sb.rpc(fn, args).then(function(r){
+      if(r.error) throw r.error;
+      settingsModal.hidden = true;
+      showToast(okMsg);
+      return refresh();
+    }).catch(function(err){
+      console.error(err);
+      showToast(/inválido/i.test(err.message || "") ? "Código inválido" : "No se pudo completar. Probá de nuevo.");
+    });
+  }
+  document.getElementById("createGroupBtn").addEventListener("click", function(){
+    var name = document.getElementById("newGroupName").value.trim() || "Casa";
+    var other = document.getElementById("newGroupOther").value.trim();
+    runGroupRpc("create_group", {group_name:name, my_name:memberName("me"), other_name:other || null}, "Grupo creado");
+  });
+  document.getElementById("joinGroupBtn").addEventListener("click", function(){
+    var code = document.getElementById("joinCodeInput").value.trim();
+    if(!code){ showToast("Poné el código"); return; }
+    // Sin nombre propio configurado, se conserva el que puso quien creó el grupo.
+    var meta = session && session.user.user_metadata;
+    runGroupRpc("join_group", {code:code, my_name:(meta && meta.name) || null}, "Te uniste al grupo");
+  });
+  document.getElementById("signOutBtn").addEventListener("click", function(){
+    settingsModal.hidden = true;
+    sb.auth.signOut();
+  });
+
+  // ---------------- login ----------------
+  var authScreen = document.getElementById("authScreen");
+  var authMsg = document.getElementById("authMsg");
+  var authEmail = document.getElementById("authEmail");
+  var authPassword = document.getElementById("authPassword");
+
+  function setAuthMsg(text, ok){
+    authMsg.textContent = text || "";
+    authMsg.classList.toggle("ok", !!ok);
+  }
+  function authErrorText(err){
+    var m = (err && err.message) || "";
+    if(/invalid login/i.test(m)) return "Email o contraseña incorrectos.";
+    if(/not confirmed/i.test(m)) return "Confirmá tu email antes de entrar (revisá tu casilla).";
+    if(/already registered/i.test(m)) return "Ese email ya tiene cuenta. Probá con Entrar.";
+    if(/password/i.test(m)) return "La contraseña tiene que tener al menos 6 caracteres.";
+    return "No se pudo conectar. Probá de nuevo.";
+  }
+  function credentials(){
+    var email = authEmail.value.trim(), password = authPassword.value;
+    if(!email || password.length < 6){
+      setAuthMsg("Poné tu email y una contraseña de al menos 6 caracteres.");
+      return null;
+    }
+    return {email:email, password:password};
+  }
+  document.getElementById("authForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    var c = credentials();
+    if(!c) return;
+    setAuthMsg("Entrando…", true);
+    sb.auth.signInWithPassword(c).then(function(r){
+      if(r.error) setAuthMsg(authErrorText(r.error));
+    });
+  });
+  document.getElementById("signUpBtn").addEventListener("click", function(){
+    var c = credentials();
+    if(!c) return;
+    setAuthMsg("Creando cuenta…", true);
+    sb.auth.signUp({
+      email: c.email,
+      password: c.password,
+      options: {emailRedirectTo: location.origin + location.pathname}
+    }).then(function(r){
+      if(r.error) setAuthMsg(authErrorText(r.error));
+      else if(!r.data.session) setAuthMsg("Te mandamos un email para confirmar la cuenta. Después volvé y entrá.", true);
+    });
+  });
+
+  // ---------------- sincronización ----------------
+  var refreshing = null;
+  function refresh(){
+    if(!REMOTE || !session) return Promise.resolve();
+    if(refreshing) return refreshing;
+    refreshing = fetchRemote().then(function(){
+      // Mantener lo que se esté cargando en el formulario.
+      var prevWith = withSelect.value, prevSplit = currentSplit, prevCat = categoriaSel.value;
+      populateFormSelects();
+      if(prevCat) categoriaSel.value = prevCat;
+      if(prevWith !== "individual" && groupById(prevWith)){
+        withSelect.value = prevWith;
+        onWithChange();
+        if(prevSplit){ currentSplit = prevSplit; updateSplitSummaryText(); }
+      }
+      renderAll();
+    }).catch(function(err){
+      console.error(err);
+      showToast("No se pudieron cargar los datos");
+    }).then(function(){ refreshing = null; });
+    return refreshing;
+  }
+
+  function onSession(s){
+    session = s;
+    document.getElementById("settingsBtn").hidden = !s;
+    if(!s){
+      state = emptyState();
+      resetForm();
+      populateFormSelects();
+      renderAll();
+      setAuthMsg("");
+      authPassword.value = "";
+      authScreen.hidden = false;
+      return;
+    }
+    authScreen.hidden = true;
+    document.getElementById("modeNote").textContent = "Sincronizado con la nube · " + s.user.email;
+    refresh().then(function(){
+      if(state.groups.length === 0) openSettings();
+    });
+  }
+
+  function renderAll(){
+    renderToday();
+    renderGrupos();
+    renderIndividual();
+  }
+
+  // ---------------- init ----------------
+  populateFormSelects();
+  renderAll();
+
+  if(REMOTE){
+    if(!sb){
+      document.getElementById("modeNote").textContent = "No se pudo cargar Supabase. Revisá tu conexión y recargá.";
+      authScreen.hidden = false;
+      setAuthMsg("No se pudo cargar Supabase. Revisá tu conexión y recargá la página.");
+      document.getElementById("signInBtn").disabled = true;
+      document.getElementById("signUpBtn").disabled = true;
+    } else {
+      var currentUserId;
+      sb.auth.onAuthStateChange(function(event, s){
+        var id = s ? s.user.id : null;
+        if(id === currentUserId){ session = s || session; return; }
+        currentUserId = id;
+        // Supabase recomienda no llamar a la API dentro de este callback.
+        setTimeout(function(){ onSession(s); }, 0);
+      });
+      document.addEventListener("visibilitychange", function(){
+        if(document.visibilityState === "visible") refresh();
+      });
+    }
+  } else {
+    document.getElementById("modeNote").textContent =
+      "Modo local — los datos se guardan solo en este navegador.";
+  }
+
+})();
