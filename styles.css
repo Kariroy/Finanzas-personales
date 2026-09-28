@@ -623,6 +623,3 @@ nav.tabbar button.active{ color:var(--accent); font-weight:600; }
   padding:8px;
   cursor:pointer;
 }
-
-/* PRUEBA DE DEPLOY: fondo rojo para confirmar que Cloudflare publica los cambios. Borrar después. */
-:root{ --bg:#E53935 !important; }
