@@ -1525,9 +1525,11 @@
       '<div class="overview-head">'+head+'</div>' +
       '<div class="overview-sub">Sumando tus grupos en común y lo anotado fuera de grupo.</div>';
 
+    // Solo quienes tienen algo pendiente; los que están al día no se muestran.
+    people = people.filter(function(p){ return Math.abs(p.net) >= 1; });
     var list = document.getElementById("debtList");
     if(people.length === 0){
-      list.innerHTML = '<div class="empty-state">Acá vas a ver a la gente de tus grupos y las deudas que anotes con "Añadir gasto" → Deuda.</div>';
+      list.innerHTML = '<div class="empty-state">Nadie te debe ni le debés a nadie. Cuando haya algo pendiente, lo vas a ver acá.</div>';
       return;
     }
     list.innerHTML = people.map(function(p){
