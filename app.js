@@ -633,21 +633,28 @@
   // Cada pantalla abierta agrega una entrada al historial, así el botón atrás del
   // celular/navegador la cierra en vez de salir de la app.
   var screenStack = [];
+  // Algunos visores embebidos bloquean el historial; ahí se cierra sin usarlo.
+  var historyOk = true;
   function openScreen(el){
     el.hidden = false;
     el.querySelector(".modal-sheet").scrollTop = 0;
     if(screenStack.indexOf(el) !== -1) return;
     screenStack.push(el);
-    history.pushState({screenDepth: screenStack.length}, "");
+    if(historyOk){
+      try{ history.pushState({screenDepth: screenStack.length}, ""); }
+      catch(e){ historyOk = false; }
+    }
   }
   function goBack(){
-    if(screenStack.length) history.back();
+    if(!screenStack.length) return;
+    if(historyOk) history.back();
+    else screenStack.pop().hidden = true;
   }
   function closeAllScreens(){
     var n = screenStack.length;
     screenStack.forEach(function(el){ el.hidden = true; });
     screenStack = [];
-    if(n) history.go(-n);
+    if(n && historyOk) history.go(-n);
   }
   window.addEventListener("popstate", function(ev){
     var depth = (ev.state && ev.state.screenDepth) || 0;
