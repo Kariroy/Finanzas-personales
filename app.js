@@ -119,7 +119,8 @@
         if(m.user_id === user.id){ myMemberByGroup[m.group_id] = m.id; myMemberIds[m.id] = true; }
       });
       var myRow = memberRows.filter(function(m){ return myMemberIds[m.id]; })[0];
-      var myName = (user.user_metadata && user.user_metadata.name) ||
+      var meta = user.user_metadata || {};
+      var myName = meta.name || meta.full_name ||
         (myRow && myRow.name) || (user.email || "Vos").split("@")[0];
 
       state = {
@@ -1199,9 +1200,41 @@
         "Conectado como " + (session ? session.user.email : "") + ".";
       if(g) document.getElementById("inviteCode").textContent = g.inviteCode || "";
     }
+    updateInstallBox();
     settingsModal.hidden = false;
   }
   document.getElementById("settingsBtn").addEventListener("click", openSettings);
+
+  // ---------------- instalar como app ----------------
+  var installPrompt = null;
+  var isStandalone = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  function updateInstallBox(){
+    var canPrompt = !!installPrompt;
+    var iosHint = isIOS && !isStandalone;
+    document.getElementById("installBtn").hidden = !canPrompt;
+    document.getElementById("iosInstallHint").hidden = !iosHint;
+    document.getElementById("installBox").hidden = !(canPrompt || iosHint);
+  }
+  window.addEventListener("beforeinstallprompt", function(ev){
+    ev.preventDefault();
+    installPrompt = ev;
+    updateInstallBox();
+  });
+  window.addEventListener("appinstalled", function(){
+    installPrompt = null;
+    updateInstallBox();
+    showToast("App instalada");
+  });
+  document.getElementById("installBtn").addEventListener("click", function(){
+    if(!installPrompt) return;
+    installPrompt.prompt();
+    installPrompt = null;
+    updateInstallBox();
+  });
+  if("serviceWorker" in navigator && location.protocol === "https:"){
+    navigator.serviceWorker.register("sw.js").catch(function(err){ console.warn(err); });
+  }
   settingsModal.addEventListener("click", function(ev){
     if(ev.target === settingsModal) settingsModal.hidden = true;
   });
@@ -1319,11 +1352,40 @@
     });
   });
 
+  // ---------------- login con Google ----------------
+  // El botón aparece solo si Google está habilitado en Supabase (Authentication → Providers).
+  function checkGoogleEnabled(){
+    return fetch(CFG.supabaseUrl + "/auth/v1/settings", {headers:{apikey:CFG.supabaseAnonKey}})
+      .then(function(r){ return r.json(); })
+      .then(function(st){
+        document.getElementById("googleBox").hidden = !(st && st.external && st.external.google);
+      })
+      .catch(function(){});
+  }
+  document.getElementById("googleBtn").addEventListener("click", function(){
+    setAuthMsg("Abriendo Google…", true);
+    sb.auth.signInWithOAuth({
+      provider: "google",
+      options: {redirectTo: location.origin + location.pathname}
+    }).then(function(r){
+      if(r.error) setAuthMsg("No se pudo abrir Google. Probá de nuevo.");
+    });
+  });
+  // Si Google o Supabase devuelven un error, viene en la URL (#error_description=...).
+  function oauthErrorFromUrl(){
+    var params = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));
+    var desc = params.get("error_description");
+    if(!desc) return null;
+    history.replaceState(null, "", location.pathname);
+    return desc.replace(/\+/g, " ");
+  }
+
   // ---------------- sincronización ----------------
   var refreshing = null;
+  var refreshAgain = false;
   function refresh(){
     if(!REMOTE || !session) return Promise.resolve();
-    if(refreshing) return refreshing;
+    if(refreshing){ refreshAgain = true; return refreshing; }
     refreshing = fetchRemote().then(function(){
       // Mantener lo que se esté cargando en el formulario.
       var prevWith = withSelect.value, prevSplit = currentSplit, prevCat = categoriaSel.value;
@@ -1338,19 +1400,47 @@
     }).catch(function(err){
       console.error(err);
       showToast("No se pudieron cargar los datos");
-    }).then(function(){ refreshing = null; });
+    }).then(function(){
+      refreshing = null;
+      if(refreshAgain){ refreshAgain = false; return refresh(); }
+    });
     return refreshing;
+  }
+
+  // ---------------- tiempo real ----------------
+  // Cuando otra persona (u otro dispositivo) cambia algo, Supabase avisa y se
+  // vuelven a traer los datos. Las reglas RLS filtran qué avisos llegan.
+  var realtimeChannel = null;
+  var realtimeTimer = null;
+  function scheduleRefresh(){
+    clearTimeout(realtimeTimer);
+    realtimeTimer = setTimeout(refresh, 400);
+  }
+  function startRealtime(){
+    stopRealtime();
+    realtimeChannel = sb.channel("cambios-" + session.user.id);
+    ["expenses", "settlements", "group_members", "groups"].forEach(function(table){
+      realtimeChannel.on("postgres_changes", {event:"*", schema:"public", table:table}, scheduleRefresh);
+    });
+    realtimeChannel.subscribe(function(status){
+      // Al reconectar (por ejemplo, después de perder señal) puede haber cambios perdidos.
+      if(status === "SUBSCRIBED") scheduleRefresh();
+    });
+  }
+  function stopRealtime(){
+    if(realtimeChannel){ sb.removeChannel(realtimeChannel); realtimeChannel = null; }
   }
 
   function onSession(s){
     session = s;
     document.getElementById("settingsBtn").hidden = !s;
     if(!s){
+      stopRealtime();
       state = emptyState();
       resetForm();
       populateFormSelects();
       renderAll();
-      setAuthMsg("");
+      if(!/No se pudo entrar/.test(authMsg.textContent)) setAuthMsg("");
       authPassword.value = "";
       authScreen.hidden = false;
       return;
@@ -1360,6 +1450,7 @@
     refresh().then(function(){
       if(state.groups.length === 0) openSettings();
     });
+    startRealtime();
   }
 
   function renderAll(){
@@ -1380,6 +1471,9 @@
       document.getElementById("signInBtn").disabled = true;
       document.getElementById("signUpBtn").disabled = true;
     } else {
+      var oauthError = oauthErrorFromUrl();
+      if(oauthError) setAuthMsg("No se pudo entrar: " + oauthError);
+      checkGoogleEnabled();
       var currentUserId;
       sb.auth.onAuthStateChange(function(event, s){
         var id = s ? s.user.id : null;

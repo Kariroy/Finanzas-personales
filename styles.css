@@ -623,3 +623,33 @@ nav.tabbar button.active{ color:var(--accent); font-weight:600; }
   padding:8px;
   cursor:pointer;
 }
+
+.btn-google{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  background:var(--surface);
+  color:var(--ink);
+  border:1px solid var(--border);
+  border-radius:9px;
+  padding:11px 12px;
+  font-family:inherit;
+  font-size:0.95rem;
+  font-weight:600;
+  cursor:pointer;
+}
+.auth-divider{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-top:14px;
+  color:var(--ink-soft);
+  font-size:0.78rem;
+}
+.auth-divider::before, .auth-divider::after{
+  content:"";
+  flex:1;
+  border-top:1px solid var(--border);
+}

@@ -17,7 +17,8 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 |---|---|
 | `index.html`, `styles.css`, `app.js` | La app (HTML/CSS/JS puro, sin build). |
 | `config.js` | URL y clave pública de Supabase. Vacío = modo local. |
-| `supabase/1-tablas.sql`, `2-funciones.sql`, `3-seguridad.sql` | Base de datos: tablas, funciones y reglas de seguridad (RLS). |
+| `supabase/1-tablas.sql` … `4-tiempo-real.sql` | Base de datos: tablas, funciones, reglas de seguridad (RLS) y tiempo real. |
+| `manifest.webmanifest`, `sw.js`, `icons/` | Para instalar la app en el celular. |
 | `_headers` | Cabeceras de seguridad para Cloudflare Pages. |
 
 ## Puesta en marcha
@@ -25,7 +26,7 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 ### 1. Supabase (base de datos)
 
 1. Creá un proyecto en [supabase.com](https://supabase.com).
-2. Corré los 3 archivos de la carpeta `supabase/` **en orden** (1, 2, 3). Para cada uno:
+2. Corré los 4 archivos de la carpeta `supabase/` **en orden** (1, 2, 3, 4). Para cada uno:
    - En GitHub abrí el archivo y usá el botón **Copy raw file** (el ícono de copiar arriba a la
      derecha del código), así se copia completo.
    - En Supabase: **SQL Editor → New query**, pegá, y apretá **Run**. Tiene que decir *Success*.
@@ -48,7 +49,19 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 4. Volvé a Supabase → **Authentication → URL Configuration** y poné esa URL en **Site URL**
    (así el link del email de confirmación vuelve a tu app).
 
-### 3. Compartir con otra persona
+### 3. Login con Google (opcional)
+
+El botón "Continuar con Google" aparece solo cuando Google está habilitado en Supabase.
+
+1. En [Google Cloud Console](https://console.cloud.google.com/): creá un proyecto →
+   **APIs & Services → OAuth consent screen** (tipo *External*, nombre de la app y tu email).
+2. **Credentials → Create credentials → OAuth client ID** → tipo **Web application**:
+   - *Authorized JavaScript origins*: la URL de Cloudflare (`https://….pages.dev`).
+   - *Authorized redirect URIs*: `https://<tu-proyecto>.supabase.co/auth/v1/callback`.
+3. Copiá el **Client ID** y el **Client secret** y pegalos en Supabase →
+   **Authentication → Sign In / Providers → Google** → habilitar → **Save**.
+
+### 4. Compartir con otra persona
 
 1. Entrá, abrí ⚙ y creá el grupo (por ejemplo "Casa", con el nombre de la otra persona).
 2. Pasale el **código para invitar** que aparece en ⚙.
@@ -61,8 +74,12 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 Con `config.js` vacío la app funciona en **modo local**: los datos quedan solo en ese navegador
 (`localStorage`) y arranca con datos de ejemplo. Sirve para abrir `index.html` directo y probar.
 
+## Instalar en el celular
+
+- **Android (Chrome)**: ⚙ → **Instalar app**, o menú ⋮ → *Instalar app*.
+- **iPhone (Safari)**: botón **Compartir** → **Agregar a inicio**.
+
 ## Próximos pasos
 
-- Actualización en tiempo real (Supabase Realtime) en vez de recargar al volver a la pestaña.
 - Varios grupos a la vez (hoy la pestaña Grupos muestra el primero).
 - Exportar datos.
