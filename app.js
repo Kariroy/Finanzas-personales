@@ -135,6 +135,12 @@
       sb.from("settlements").select("*").order("date").order("created_at"),
       sb.from("debts").select("*").order("date", {ascending:false}).order("created_at", {ascending:false})
     ]).then(function(res){
+      // Las deudas son opcionales: si la tabla todavía no existe (falta correr
+      // supabase/5-deudas.sql), la app sigue funcionando sin ellas.
+      if(res[4].error){
+        console.warn("No se pudieron cargar las deudas:", res[4].error);
+        res[4] = {data:[]};
+      }
       res.forEach(function(r){ if(r.error) throw r.error; });
       var user = session.user;
       var memberRows = res[1].data;
@@ -1376,8 +1382,6 @@
     document.getElementById("groupScreenAvatar").outerHTML =
       avatarHTML(groupId, "big").replace('class="', 'id="groupScreenAvatar" class="');
     document.getElementById("groupScreenTitle").textContent = isPersonal ? "Personal" : g.name;
-    document.getElementById("groupEditBtn").hidden = isPersonal;
-    document.getElementById("groupInviteBtn").hidden = isPersonal;
     document.getElementById("groupScreenKind").textContent = isPersonal ? "Solo vos" : membersText(g);
 
     renderGroupSummary(groupId, g);
@@ -1437,7 +1441,7 @@
       left = '<span class="summary-balance">Solo tus gastos</span>';
     } else if(g.memberIds.length < 2){
       left = '<span class="summary-balance">Todavía estás solo</span>' +
-        '<button type="button" class="link-btn" id="summaryInviteBtn">Invitar a alguien</button>';
+        '<span class="summary-sub">Invitá a alguien desde ⚙ Configuración</span>';
     } else {
       var balances = computeGroupBalances(groupId);
       var ids = g.memberIds;
@@ -1472,8 +1476,6 @@
       '<div class="summary-right"><span class="summary-label">Gastado en '+esc(monthName(ym))+'</span>' +
         '<span class="summary-amt">'+money(spent)+'</span></div>';
     if(settle) document.getElementById("settleBtn").addEventListener("click", settle);
-    var inv = document.getElementById("summaryInviteBtn");
-    if(inv) inv.addEventListener("click", function(){ openInvite(groupId); });
   }
 
   // ---------------- amigos: lista por persona ----------------
@@ -1802,9 +1804,6 @@
     settingsModal.hidden = true;
     groupEditModal.hidden = false;
   }
-  document.getElementById("groupEditBtn").addEventListener("click", function(){
-    if(currentGroupId && currentGroupId !== PERSONAL) openGroupEdit(currentGroupId);
-  });
   document.getElementById("groupEditCancel").addEventListener("click", function(){ groupEditModal.hidden = true; });
   groupEditModal.addEventListener("click", function(ev){ if(ev.target === groupEditModal) groupEditModal.hidden = true; });
 
@@ -1896,7 +1895,6 @@
     settingsModal.hidden = true;
     inviteModal.hidden = false;
   }
-  document.getElementById("groupInviteBtn").addEventListener("click", function(){ openInvite(currentGroupId); });
   document.getElementById("inviteShareBtn").addEventListener("click", function(){
     var g = groupById(invitingGroupId);
     if(g) shareInvite(g);
@@ -2120,8 +2118,8 @@
         '</div>' +
         (REMOTE && g.inviteCode ? '<div class="invite-code small" title="Código para invitar">'+esc(g.inviteCode)+'</div>' : '') +
         '<div class="settings-group-actions">' +
-          '<button type="button" class="link-btn" data-invite-group="'+esc(g.id)+'">Invitar</button>' +
-          '<button type="button" class="link-btn" data-edit-group="'+esc(g.id)+'">Editar</button>' +
+          '<button type="button" class="hdr-btn hdr-primary" data-invite-group="'+esc(g.id)+'">Invitar</button>' +
+          '<button type="button" class="hdr-btn hdr-ghost" data-edit-group="'+esc(g.id)+'">Editar</button>' +
         '</div>' +
       '</div>';
     }).join("") + (REMOTE && state.groups.length

@@ -1068,3 +1068,6 @@ header.top h1{ font-weight:700; letter-spacing:-0.02em; }
 .hdr-primary{ background:var(--accent); color:var(--accent-ink); border:1px solid var(--accent); }
 .hdr-ghost{ background:transparent; color:var(--ink-soft); border:1px solid var(--border); }
 .hdr-btn[hidden]{ display:none !important; }
+.settings-group-actions{ flex-direction:row; gap:6px; }
+.settings-group-actions .hdr-btn{ padding:6px 11px; font-size:0.8rem; }
+.settings-group{ flex-wrap:wrap; }
