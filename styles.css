@@ -623,3 +623,6 @@ nav.tabbar button.active{ color:var(--accent); font-weight:600; }
   padding:8px;
   cursor:pointer;
 }
+
+/* PRUEBA DE DEPLOY: fondo azul solo en main para ver desde qué rama publica Cloudflare. Borrar después. */
+:root{ --bg:#1E88E5 !important; }
