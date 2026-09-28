@@ -17,7 +17,7 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 |---|---|
 | `index.html`, `styles.css`, `app.js` | La app (HTML/CSS/JS puro, sin build). |
 | `config.js` | URL y clave pública de Supabase. Vacío = modo local. |
-| `supabase/schema.sql` | Tablas, funciones y reglas de seguridad (RLS). |
+| `supabase/1-tablas.sql`, `2-funciones.sql`, `3-seguridad.sql` | Base de datos: tablas, funciones y reglas de seguridad (RLS). |
 | `_headers` | Cabeceras de seguridad para Cloudflare Pages. |
 
 ## Puesta en marcha
@@ -25,7 +25,11 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 ### 1. Supabase (base de datos)
 
 1. Creá un proyecto en [supabase.com](https://supabase.com).
-2. **SQL Editor → New query**: pegá todo `supabase/schema.sql` y apretá **Run**.
+2. Corré los 3 archivos de la carpeta `supabase/` **en orden** (1, 2, 3). Para cada uno:
+   - En GitHub abrí el archivo y usá el botón **Copy raw file** (el ícono de copiar arriba a la
+     derecha del código), así se copia completo.
+   - En Supabase: **SQL Editor → New query**, pegá, y apretá **Run**. Tiene que decir *Success*.
+   - Se pueden volver a correr sin problema si algo falla a mitad de camino.
 3. **Project Settings → API**: copiá la **Project URL** y la clave **anon public** (o *publishable*)
    y ponelas en `config.js`. Esa clave es pública por diseño; lo que protege los datos son las
    reglas RLS del esquema. **Nunca** pongas la clave `service_role` / `secret`.
