@@ -628,6 +628,31 @@
     );
   }
 
+  // ---------------- pantallas completas con "atrás" ----------------
+  // Cada pantalla abierta agrega una entrada al historial, así el botón atrás del
+  // celular/navegador la cierra en vez de salir de la app.
+  var screenStack = [];
+  function openScreen(el){
+    el.hidden = false;
+    el.querySelector(".modal-sheet").scrollTop = 0;
+    if(screenStack.indexOf(el) !== -1) return;
+    screenStack.push(el);
+    history.pushState({screenDepth: screenStack.length}, "");
+  }
+  function goBack(){
+    if(screenStack.length) history.back();
+  }
+  function closeAllScreens(){
+    var n = screenStack.length;
+    screenStack.forEach(function(el){ el.hidden = true; });
+    screenStack = [];
+    if(n) history.go(-n);
+  }
+  window.addEventListener("popstate", function(ev){
+    var depth = (ev.state && ev.state.screenDepth) || 0;
+    while(screenStack.length > depth){ screenStack.pop().hidden = true; }
+  });
+
   // ---------------- detalle del gasto (estilo Splitwise) ----------------
   var detailModal = document.getElementById("detailModal");
   var confirmDeleteModal = document.getElementById("confirmDeleteModal");
@@ -667,19 +692,15 @@
     } else {
       bd.innerHTML = '<div class="line"><span>Gasto individual</span></div>';
     }
-    detailModal.hidden = false;
+    openScreen(detailModal);
   }
-  function closeDetail(){ detailModal.hidden = true; }
 
-  document.getElementById("detailCloseBtn").addEventListener("click", closeDetail);
-  detailModal.addEventListener("click", function(ev){ if(ev.target === detailModal) closeDetail(); });
+  document.getElementById("detailCloseBtn").addEventListener("click", goBack);
 
   document.getElementById("detailEditBtn").addEventListener("click", function(){
     var e = state.expenses.filter(function(x){ return x.id === currentDetailId; })[0];
     if(!e) return;
-    closeDetail();
-    var catModal = document.getElementById("categoryDetailModal");
-    if(catModal) catModal.hidden = true;
+    closeAllScreens();
     tabButtons.forEach(function(b){ b.classList.toggle("active", b.dataset.tab === "inicio"); });
     Object.keys(panels).forEach(function(k){ panels[k].classList.toggle("active", k === "inicio"); });
     loadExpenseIntoForm(e);
@@ -696,9 +717,7 @@
     state.expenses = state.expenses.filter(function(e){ return e.id !== deletedId; });
     persist(function(){ return sb.from("expenses").delete().eq("id", deletedId); });
     confirmDeleteModal.hidden = true;
-    closeDetail();
-    var catModal = document.getElementById("categoryDetailModal");
-    if(catModal) catModal.hidden = true;
+    closeAllScreens();
     if(editingId === currentDetailId) resetForm();
     renderAll();
     showToast("Gasto eliminado");
@@ -1074,7 +1093,7 @@
       : rows.map(function(item){ return item.html; }).join("");
     attachRowClickHandlers(listEl);
 
-    categoryDetailModal.hidden = false;
+    openScreen(categoryDetailModal);
   }
 
   function openGroupCategoryDetail(catId, groupExpensesByDate, groupSettlementsByDate, byCat, totalAmount){
@@ -1099,14 +1118,10 @@
       : rows.map(function(item){ return item.html; }).join("");
     attachRowClickHandlers(listEl);
 
-    categoryDetailModal.hidden = false;
+    openScreen(categoryDetailModal);
   }
 
-  function closeCategoryDetail(){ categoryDetailModal.hidden = true; }
-  document.getElementById("categoryDetailCloseBtn").addEventListener("click", closeCategoryDetail);
-  categoryDetailModal.addEventListener("click", function(ev){
-    if(ev.target === categoryDetailModal) closeCategoryDetail();
-  });
+  document.getElementById("categoryDetailCloseBtn").addEventListener("click", goBack);
 
   // ---------------- render: mis gastos ----------------
   function renderIndividual(){
