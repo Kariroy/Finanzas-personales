@@ -784,3 +784,29 @@ main{ padding-bottom:160px; }
 .invite-code.small{ font-size:0.9rem; padding:6px 8px; letter-spacing:0.08em; }
 
 #toast{ z-index:100; }
+
+/* Mis gastos: Personal + tu parte en cada grupo */
+.my-breakdown{
+  display:flex; flex-direction:column;
+  margin-bottom:18px;
+  padding-bottom:6px;
+  border-bottom:1px solid var(--border);
+}
+.breakdown-row{
+  display:flex; align-items:center; gap:10px;
+  width:100%;
+  background:none; border:none;
+  padding:8px 0;
+  font-family:inherit; font-size:0.92rem; color:var(--ink);
+  text-align:left; cursor:pointer;
+}
+.breakdown-name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.breakdown-amt, .breakdown-total span:last-child{ font-family:'IBM Plex Mono', monospace; font-weight:600; }
+.breakdown-total{
+  display:flex; justify-content:space-between;
+  padding:10px 0 4px;
+  border-top:1px dashed var(--border);
+  font-weight:700;
+}
+.group-avatar.tiny{ width:26px; height:26px; border-radius:8px; font-size:0.8rem; }
+.group-avatar.tiny svg{ width:15px; height:15px; }

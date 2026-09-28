@@ -1355,6 +1355,26 @@
       .filter(function(c){ return byCat[c.id] > 0; })
       .map(function(c){ return {id:c.id, amount:byCat[c.id]}; });
 
+    // Desglose: Personal + tu parte en cada grupo = total.
+    var perGroup = {};
+    sharedByDate.forEach(function(x){ perGroup[x.expense.groupId] = (perGroup[x.expense.groupId]||0) + x.share; });
+    var lines = [{id:PERSONAL, name:"Personal", amount:totalPersonal}].concat(
+      state.groups.filter(function(g){ return perGroup[g.id] > 0; })
+        .map(function(g){ return {id:g.id, name:"Tu parte en " + g.name, amount:perGroup[g.id]}; })
+    );
+    var bdEl = document.getElementById("myBreakdown");
+    bdEl.innerHTML = lines.map(function(l){
+      return '<button type="button" class="breakdown-row" data-group="'+esc(l.id)+'">' +
+        avatarHTML(l.id, "tiny") +
+        '<span class="breakdown-name">'+esc(l.name)+'</span>' +
+        '<span class="breakdown-amt">'+money(l.amount)+'</span>' +
+      '</button>';
+    }).join("") +
+      '<div class="breakdown-total"><span>Total</span><span>'+money(total)+'</span></div>';
+    bdEl.querySelectorAll(".breakdown-row").forEach(function(row){
+      row.addEventListener("click", function(){ openGroupScreen(row.getAttribute("data-group")); });
+    });
+
     var barsEl = document.getElementById("categoryBars");
     if(catEntries.length === 0){
       barsEl.innerHTML = '<div class="empty-state">Sin gastos para este filtro.</div>';
