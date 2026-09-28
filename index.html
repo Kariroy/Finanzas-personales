@@ -89,36 +89,40 @@
       <div class="screen-head">
         <div class="group-avatar" id="groupScreenAvatar"></div>
         <div>
-          <div class="detail-cat" id="groupScreenKind"></div>
           <h2 class="screen-title" id="groupScreenTitle"></h2>
+          <div class="screen-sub" id="groupScreenKind"></div>
         </div>
       </div>
 
-      <div class="card">
-        <div class="balance-hero" id="balanceHero"></div>
+      <!-- saldo + gastado en el mes, en un renglón -->
+      <div class="group-summary" id="groupSummary"></div>
+
+      <div class="segmented tabs-seg" id="groupTabs" role="tablist">
+        <button type="button" data-gtab="mov" class="selected" role="tab">Movimientos</button>
+        <button type="button" data-gtab="cat" role="tab">Por categoría</button>
+        <button type="button" data-gtab="mes" role="tab">Resumen mensual</button>
       </div>
 
-      <div>
-        <h2 class="section-title">Por categoría</h2>
-        <div class="card">
-          <div class="field" style="margin-bottom:14px;">
-            <label for="groupFilterMonth">Fecha</label>
-            <select id="groupFilterMonth"></select>
-            <div class="day-row" id="groupFilterDayRow" hidden>
-              <input type="date" id="groupFilterDay" aria-label="Buscar día específico">
-              <button type="button" id="groupFilterDayBack" class="icon-btn" aria-label="Volver a meses">↺</button>
-            </div>
+      <div class="card" id="groupTabMov">
+        <div id="groupMovements"></div>
+      </div>
+
+      <div class="card" id="groupTabCat" hidden>
+        <div class="field" style="margin-bottom:14px;">
+          <label for="groupFilterMonth">Fecha</label>
+          <select id="groupFilterMonth"></select>
+          <div class="day-row" id="groupFilterDayRow" hidden>
+            <input type="date" id="groupFilterDay" aria-label="Buscar día específico">
+            <button type="button" id="groupFilterDayBack" class="icon-btn" aria-label="Volver a meses">↺</button>
           </div>
-          <div id="groupCategoryChart"></div>
         </div>
+        <div id="groupCategoryChart"></div>
       </div>
 
-      <div>
-        <h2 class="section-title">Movimientos</h2>
-        <div class="card">
-          <div id="groupMovements"></div>
-        </div>
+      <div class="card" id="groupTabMes" hidden>
+        <div id="groupMonthly"></div>
       </div>
+
       <button class="btn-primary" id="groupScreenAdd" type="button">＋ Añadir gasto</button>
     </div>
   </div>

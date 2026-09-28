@@ -1129,11 +1129,29 @@
   }
 
   // ---------------- pantalla de un grupo ----------------
+  var groupTab = "mov";
+  var groupTabs = document.getElementById("groupTabs");
+  function setGroupTab(tab){
+    groupTab = tab;
+    groupTabs.querySelectorAll("button").forEach(function(b){
+      var on = b.getAttribute("data-gtab") === tab;
+      b.classList.toggle("selected", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    document.getElementById("groupTabMov").hidden = tab !== "mov";
+    document.getElementById("groupTabCat").hidden = tab !== "cat";
+    document.getElementById("groupTabMes").hidden = tab !== "mes";
+  }
+  groupTabs.querySelectorAll("button").forEach(function(b){
+    b.addEventListener("click", function(){ setGroupTab(b.getAttribute("data-gtab")); });
+  });
+
   function openGroupScreen(groupId){
     currentGroupId = groupId;
     setGroupDateMode("month");
     groupFilterDayInput.value = "";
     groupFilterMonthSel.value = "";
+    setGroupTab("mov");
     renderGroupScreen();
     openScreen(groupScreen);
   }
@@ -1152,6 +1170,34 @@
     document.getElementById("groupScreenTitle").textContent = isPersonal ? "Personal" : g.name;
     document.getElementById("groupScreenKind").textContent = isPersonal ? "Solo vos" : membersText(g);
 
+    renderGroupSummary(groupId, g);
+
+    var all = expensesOf(groupId);
+    var allSettlements = isPersonal ? [] : state.settlements.filter(function(st){ return st.groupId === groupId; });
+
+    // ---- Movimientos: todo, separado por mes
+    var rows = all.map(function(e){ return {date:e.date, amount:e.amount, html: expenseLedgerRowHTML(e)}; })
+      .concat(allSettlements.map(function(st){ return {date:st.date, amount:0, html: settlementLedgerRowHTML(st)}; }))
+      .sort(function(a, b){ return b.date.localeCompare(a.date); });
+    var movEl = document.getElementById("groupMovements");
+    if(rows.length === 0){
+      movEl.innerHTML = '<div class="empty-state">Todavía no hay movimientos.</div>';
+    } else {
+      var html = "", lastYM = null, monthTotals = {};
+      all.forEach(function(e){ var ym = e.date.slice(0,7); monthTotals[ym] = (monthTotals[ym]||0) + e.amount; });
+      rows.forEach(function(r){
+        var ym = r.date.slice(0,7);
+        if(ym !== lastYM){
+          html += '<div class="month-header"><span>'+esc(monthLabel(ym))+'</span><span>'+money(monthTotals[ym]||0)+'</span></div>';
+          lastYM = ym;
+        }
+        html += r.html;
+      });
+      movEl.innerHTML = html;
+      attachRowClickHandlers(movEl);
+    }
+
+    // ---- Por categoría: con filtro de fecha
     populateGroupFilters(groupId);
     var selMonth = groupDateMode === "day" ? "all" : (groupFilterMonthSel.value || "all");
     var selDay = groupDateMode === "day" ? (groupFilterDayInput.value || "") : "";
@@ -1159,30 +1205,14 @@
       if(selDay) return dateStr === selDay;
       return selMonth === "all" || dateStr.slice(0,7) === selMonth;
     }
-
-    var hero = document.getElementById("balanceHero");
-    if(isPersonal){
-      var ym = currentYM();
-      hero.innerHTML =
-        '<span class="pill">'+esc(monthLabel(ym))+'</span>' +
-        '<div class="amount">'+ money(sumAmounts(expensesOf(PERSONAL).filter(function(e){ return e.date.slice(0,7) === ym; }))) +'</div>' +
-        '<div class="caption">gastados este mes</div>';
-    } else {
-      renderGroupHero(hero, g);
-    }
-
-    var byDate = expensesOf(groupId).filter(function(e){ return dateMatches(e.date); });
-    var settlementsByDate = isPersonal ? [] : state.settlements
-      .filter(function(st){ return st.groupId === groupId && dateMatches(st.date); });
-
-    // torta por categoría: gasto total del grupo (no tu parte), según el filtro de fecha
+    var byDate = all.filter(function(e){ return dateMatches(e.date); });
+    var settlementsByDate = allSettlements.filter(function(st){ return dateMatches(st.date); });
     var byCat = {};
     byDate.forEach(function(e){ byCat[e.categoryId] = (byCat[e.categoryId]||0) + e.amount; });
     var catEntries = state.categories
       .filter(function(c){ return byCat[c.id] > 0; })
       .map(function(c){ return {id:c.id, amount:byCat[c.id]}; });
     var total = catEntries.reduce(function(sum, c){ return sum + c.amount; }, 0);
-
     var chartEl = document.getElementById("groupCategoryChart");
     if(catEntries.length === 0){
       chartEl.innerHTML = '<div class="empty-state">Sin gastos para este filtro.</div>';
@@ -1195,14 +1225,37 @@
       });
     }
 
-    var rows = byDate.map(function(e){ return {date:e.date, html: expenseLedgerRowHTML(e)}; })
-      .concat(settlementsByDate.map(function(st){ return {date:st.date, html: settlementLedgerRowHTML(st)}; }))
-      .sort(function(a, b){ return b.date.localeCompare(a.date); });
-    var movEl = document.getElementById("groupMovements");
-    movEl.innerHTML = rows.length === 0
-      ? '<div class="empty-state">Todavía no hay movimientos.</div>'
-      : rows.map(function(r){ return r.html; }).join("");
-    attachRowClickHandlers(movEl);
+    // ---- Resumen mensual: total por mes (y tu parte en los grupos)
+    var months = {};
+    all.forEach(function(e){
+      var ym = e.date.slice(0,7);
+      if(!months[ym]) months[ym] = {total:0, mine:0};
+      months[ym].total += e.amount;
+      months[ym].mine += isPersonal ? e.amount : (myShareOf(e) || 0);
+    });
+    var yms = Object.keys(months).sort().reverse();
+    var max = yms.reduce(function(m, ym){ return Math.max(m, months[ym].total); }, 0) || 1;
+    var monthlyEl = document.getElementById("groupMonthly");
+    monthlyEl.innerHTML = yms.length === 0
+      ? '<div class="empty-state">Todavía no hay gastos.</div>'
+      : yms.map(function(ym){
+          var m = months[ym];
+          return '<button type="button" class="month-row" data-ym="'+ym+'">' +
+            '<div class="month-row-top"><span class="month-row-name">'+esc(monthLabel(ym))+'</span>' +
+              '<span class="month-row-amt">'+money(m.total)+'</span></div>' +
+            '<div class="month-bar"><span style="width:'+Math.max(2, Math.round(m.total / max * 100))+'%"></span></div>' +
+            (isPersonal ? '' : '<div class="month-row-sub">Tu parte: '+money(m.mine)+'</div>') +
+          '</button>';
+        }).join("");
+    monthlyEl.querySelectorAll(".month-row").forEach(function(row){
+      row.addEventListener("click", function(){
+        setGroupDateMode("month");
+        groupFilterDayInput.value = "";
+        groupFilterMonthSel.value = row.getAttribute("data-ym");
+        setGroupTab("cat");
+        renderGroupScreen();
+      });
+    });
   }
 
   function debtText(debtor, creditor){
@@ -1211,63 +1264,51 @@
     return memberName(debtor) + " le debe a " + memberName(creditor);
   }
 
-  function renderGroupHero(hero, g){
-    var groupId = g.id;
-    var balances = computeGroupBalances(groupId);
-    var ids = g.memberIds;
+  // Renglón resumen: a la izquierda quién le debe a quién (y Liquidar), a la derecha lo gastado en el mes.
+  function renderGroupSummary(groupId, g){
+    var ym = currentYM();
+    var spent = sumAmounts(expensesOf(groupId).filter(function(e){ return e.date.slice(0,7) === ym; }));
+    var left = "", settle = null;
 
-    if(ids.length < 2){
-      hero.innerHTML =
-        '<span class="pill">Solo vos</span>' +
-        '<div class="caption">Invitá a alguien para dividir gastos' +
-        (REMOTE && g.inviteCode ? ': pasale el código <strong class="mono">'+esc(g.inviteCode)+'</strong>' : '') +
-        '.</div>';
-      return;
-    }
-
-    if(ids.length === 2){
-      var a = ids[0], b = ids[1];
-      var owedAmount = Math.abs(balances[a] - balances[b]) / 2;
-      if(owedAmount < 1){
-        hero.innerHTML =
-          '<span class="pill">Al día</span>' +
-          '<div class="amount">'+ money(0) +'</div>' +
-          '<div class="caption">'+ esc(memberName(a)) +' y '+ esc(memberName(b)) +' están saldados</div>';
-        return;
+    if(!g){
+      left = '<span class="summary-balance">Solo tus gastos</span>';
+    } else if(g.memberIds.length < 2){
+      left = '<span class="summary-balance">Solo vos' +
+        (REMOTE && g.inviteCode ? ' · invitá con <strong class="mono">'+esc(g.inviteCode)+'</strong>' : '') + '</span>';
+    } else {
+      var balances = computeGroupBalances(groupId);
+      var ids = g.memberIds;
+      if(ids.length === 2){
+        var a = ids[0], b = ids[1];
+        var owed = Math.abs(balances[a] - balances[b]) / 2;
+        if(owed < 1){
+          left = '<span class="summary-balance">Al día</span>';
+        } else {
+          var debtor = balances[a] > balances[b] ? b : a;
+          var creditor = debtor === a ? b : a;
+          var cls = creditor === "me" ? "positive" : (debtor === "me" ? "negative" : "");
+          left = '<span class="summary-balance '+cls+'">'+esc(debtText(debtor, creditor))+' '+money(owed)+'</span>';
+          settle = function(){ openSettleModal(groupId, debtor, creditor, owed); };
+        }
+      } else {
+        var line = balanceLine(groupId);
+        left = '<span class="summary-balance '+line.cls+'">'+esc(line.text)+'</span>';
+        var sorted = ids.slice().sort(function(x, y){ return (balances[y]||0) - (balances[x]||0); });
+        var top = sorted[0], bottom = sorted[sorted.length - 1];
+        if((balances[top]||0) >= 1 && (balances[bottom]||0) <= -1){
+          settle = function(){ openSettleModal(groupId, bottom, top, Math.min(balances[top], -balances[bottom])); };
+        }
       }
-      var debtor = balances[a] > balances[b] ? b : a;
-      var creditor = debtor === a ? b : a;
-      hero.innerHTML =
-        '<span class="pill warn">Balance pendiente</span>' +
-        '<div class="amount">'+ money(owedAmount) +'</div>' +
-        '<div class="caption">'+ esc(debtText(debtor, creditor)) +'</div>' +
-        '<button class="btn-ghost" id="settleBtn" type="button" style="margin-top:6px;">Liquidar</button>';
-      document.getElementById("settleBtn").addEventListener("click", function(){
-        openSettleModal(groupId, debtor, creditor, owedAmount);
-      });
-      return;
     }
 
-    // Más de dos personas: cuánto le deben o debe cada uno.
-    var sorted = ids.slice().sort(function(x, y){ return (balances[y]||0) - (balances[x]||0); });
-    var rowsHTML = sorted.map(function(id){
-      var v = balances[id] || 0;
-      var who = id === "me" ? "Vos" : memberName(id);
-      var txt = Math.abs(v) < 1 ? "al día" : (v > 0 ? "le deben " + money(v) : "debe " + money(-v));
-      if(id === "me" && Math.abs(v) >= 1) txt = v > 0 ? "te deben " + money(v) : "debés " + money(-v);
-      return '<div class="member-balance"><span>'+esc(who)+'</span><span class="'+(Math.abs(v) < 1 ? "" : (v > 0 ? "positive" : "negative"))+'">'+txt+'</span></div>';
-    }).join("");
-    var top = sorted[0], bottom = sorted[sorted.length - 1];
-    var pending = (balances[top]||0) >= 1 && (balances[bottom]||0) <= -1;
-    hero.innerHTML =
-      '<span class="pill'+(pending ? " warn" : "")+'">'+(pending ? "Balance pendiente" : "Al día")+'</span>' +
-      '<div class="member-balances">'+rowsHTML+'</div>' +
-      (pending ? '<button class="btn-ghost" id="settleBtn" type="button" style="margin-top:6px;">Registrar un pago</button>' : '');
-    if(pending){
-      document.getElementById("settleBtn").addEventListener("click", function(){
-        openSettleModal(groupId, bottom, top, Math.min(balances[top], -balances[bottom]));
-      });
-    }
+    var el = document.getElementById("groupSummary");
+    el.innerHTML =
+      '<div class="summary-left">' + left +
+        (settle ? '<button type="button" class="link-btn" id="settleBtn">Liquidar</button>' : '') +
+      '</div>' +
+      '<div class="summary-right"><span class="summary-label">Gastado en '+esc(monthName(ym))+'</span>' +
+        '<span class="summary-amt">'+money(spent)+'</span></div>';
+    if(settle) document.getElementById("settleBtn").addEventListener("click", settle);
   }
 
   // ---------------- amigos: lista por persona ----------------

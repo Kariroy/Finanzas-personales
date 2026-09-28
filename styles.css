@@ -844,3 +844,52 @@ main{ padding-bottom:160px; }
   background:var(--surface-2); color:var(--ink-soft);
 }
 .group-avatar.debt{ background:var(--warn); color:#fff; font-family:inherit; }
+
+/* pantalla de grupo: renglón resumen + pestañas */
+.screen-sub{ font-size:0.82rem; color:var(--ink-soft); margin-top:2px; }
+.group-summary{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:12px 14px;
+  box-shadow:var(--shadow);
+}
+.summary-left{ min-width:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; }
+.summary-balance{ font-weight:700; font-size:0.95rem; }
+.summary-balance.positive{ color:var(--accent); }
+.summary-balance.negative{ color:var(--warn); }
+.summary-right{ display:flex; flex-direction:column; align-items:flex-end; flex-shrink:0; }
+.summary-label{ font-size:0.72rem; color:var(--ink-soft); }
+.summary-amt{ font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:1.05rem; }
+.link-btn{
+  background:none; border:none; padding:0;
+  color:var(--accent); font-family:inherit; font-size:0.85rem; font-weight:600;
+  text-decoration:underline; text-underline-offset:3px; cursor:pointer;
+}
+.tabs-seg button{ font-size:0.82rem; padding:9px 4px; }
+
+.month-header{
+  display:flex; justify-content:space-between;
+  font-size:0.74rem; font-weight:700; letter-spacing:0.05em; text-transform:uppercase;
+  color:var(--ink-soft);
+  padding:12px 0 6px;
+  border-bottom:1px solid var(--border);
+}
+.month-header:first-child{ padding-top:0; }
+.month-header span:last-child{ font-family:'IBM Plex Mono', monospace; letter-spacing:0; }
+
+.month-row{
+  display:flex; flex-direction:column; gap:6px;
+  width:100%;
+  background:none; border:none; border-bottom:1px solid var(--border);
+  padding:12px 0;
+  font-family:inherit; color:var(--ink); text-align:left; cursor:pointer;
+}
+.month-row:last-child{ border-bottom:none; }
+.month-row-top{ display:flex; justify-content:space-between; gap:10px; }
+.month-row-name{ font-weight:600; }
+.month-row-amt{ font-family:'IBM Plex Mono', monospace; font-weight:600; }
+.month-row-sub{ font-size:0.78rem; color:var(--ink-soft); }
+.month-bar{ height:8px; border-radius:99px; background:var(--surface-2); overflow:hidden; }
+.month-bar span{ display:block; height:100%; border-radius:99px; background:var(--accent); }
