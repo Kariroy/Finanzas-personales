@@ -1871,8 +1871,99 @@
 
   document.getElementById("categoryDetailCloseBtn").addEventListener("click", goBack);
 
-  // ---------------- render: mis gastos ----------------
+  // ---------------- render: resumen (mis gastos) ----------------
+  var myTabs = document.getElementById("myTabs");
+  function setMyTab(tab){
+    myTabs.querySelectorAll("button").forEach(function(b){
+      var on = b.getAttribute("data-mtab") === tab;
+      b.classList.toggle("selected", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    document.getElementById("myTabMov").hidden = tab !== "mov";
+    document.getElementById("myTabCat").hidden = tab !== "cat";
+    document.getElementById("myTabMes").hidden = tab !== "mes";
+  }
+  myTabs.querySelectorAll("button").forEach(function(b){
+    b.addEventListener("click", function(){ setMyTab(b.getAttribute("data-mtab")); });
+  });
+
+  // Todo lo que te costó a vos: gastos personales (a cualquier fecha) + tu parte de los compartidos.
+  function myCostItems(){
+    return personalExpenses().map(function(e){ return {expense:e, amount:e.amount, personal:true}; })
+      .concat(state.expenses
+        .filter(function(e){ return e.scope === "compartido"; })
+        .map(function(e){ return {expense:e, amount:myShareOf(e) || 0, personal:false}; })
+        .filter(function(x){ return x.amount > 0; }));
+  }
+
+  function renderMyOverview(){
+    var items = myCostItems();
+    var ym = currentYM();
+    var pMonth = 0, gMonth = 0;
+    items.forEach(function(x){
+      if(x.expense.date.slice(0,7) !== ym) return;
+      if(x.personal) pMonth += x.amount; else gMonth += x.amount;
+    });
+    document.getElementById("mySummary").innerHTML =
+      '<div class="summary-left"><span class="summary-balance">Tus gastos</span>' +
+        '<span class="summary-sub">Personal '+money(pMonth)+' · Grupos '+money(gMonth)+'</span></div>' +
+      '<div class="summary-right"><span class="summary-label">Gastado en '+esc(monthName(ym))+'</span>' +
+        '<span class="summary-amt">'+money(pMonth + gMonth)+'</span></div>';
+
+    // Movimientos: separados por mes, con lo que te costó a vos
+    var sorted = items.slice().sort(function(a, b){ return b.expense.date.localeCompare(a.expense.date); });
+    var months = {};
+    items.forEach(function(x){
+      var k = x.expense.date.slice(0,7);
+      if(!months[k]) months[k] = {total:0, personal:0, groups:0};
+      months[k].total += x.amount;
+      if(x.personal) months[k].personal += x.amount; else months[k].groups += x.amount;
+    });
+    var movEl = document.getElementById("myMovements");
+    if(sorted.length === 0){
+      movEl.innerHTML = '<div class="empty-state">Todavía no tenés gastos.</div>';
+    } else {
+      var html = "", last = null;
+      sorted.forEach(function(x){
+        var k = x.expense.date.slice(0,7);
+        if(k !== last){
+          html += '<div class="month-header"><span>'+esc(monthLabel(k))+'</span><span>'+money(months[k].total)+'</span></div>';
+          last = k;
+        }
+        html += expenseLedgerRowHTML(x.expense, {personalView:true});
+      });
+      movEl.innerHTML = html;
+      attachRowClickHandlers(movEl);
+    }
+
+    // Resumen mensual
+    var yms = Object.keys(months).sort().reverse();
+    var max = yms.reduce(function(m, k){ return Math.max(m, months[k].total); }, 0) || 1;
+    var mEl = document.getElementById("myMonthly");
+    mEl.innerHTML = yms.length === 0
+      ? '<div class="empty-state">Todavía no tenés gastos.</div>'
+      : yms.map(function(k){
+          var m = months[k];
+          return '<button type="button" class="month-row" data-ym="'+k+'">' +
+            '<div class="month-row-top"><span class="month-row-name">'+esc(monthLabel(k))+'</span>' +
+              '<span class="month-row-amt">'+money(m.total)+'</span></div>' +
+            '<div class="month-bar"><span style="width:'+Math.max(2, Math.round(m.total / max * 100))+'%"></span></div>' +
+            '<div class="month-row-sub">Personal '+money(m.personal)+' · Grupos '+money(m.groups)+'</div>' +
+          '</button>';
+        }).join("");
+    mEl.querySelectorAll(".month-row").forEach(function(row){
+      row.addEventListener("click", function(){
+        setIndividualDateMode("month");
+        filterDayInput.value = "";
+        filterMonthSel.value = row.getAttribute("data-ym");
+        setMyTab("cat");
+        renderIndividual();
+      });
+    });
+  }
+
   function renderIndividual(){
+    renderMyOverview();
     populateIndividualFilters();
     var selMonth = individualDateMode === "day" ? "all" : (filterMonthSel.value || "all");
     var selDay = individualDateMode === "day" ? (filterDayInput.value || "") : "";

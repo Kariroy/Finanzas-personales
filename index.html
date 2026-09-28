@@ -45,9 +45,22 @@
     <section class="panel" id="panel-individual">
       <div>
         <h2 class="section-title">Resumen</h2>
+        <div class="screen-sub">Tus gastos: Personal + tu parte en cada grupo</div>
       </div>
 
-      <div class="card">
+      <div class="group-summary" id="mySummary"></div>
+
+      <div class="segmented tabs-seg" id="myTabs" role="tablist">
+        <button type="button" data-mtab="mov" class="selected" role="tab">Movimientos</button>
+        <button type="button" data-mtab="cat" role="tab">Por categoría</button>
+        <button type="button" data-mtab="mes" role="tab">Resumen mensual</button>
+      </div>
+
+      <div class="card" id="myTabMov">
+        <div id="myMovements"></div>
+      </div>
+
+      <div class="card" id="myTabCat" hidden>
         <div class="field" style="margin-bottom:14px;">
           <label for="filterMonth">Fecha</label>
           <select id="filterMonth"></select>
@@ -58,6 +71,10 @@
         </div>
         <div class="my-breakdown" id="myBreakdown"></div>
         <div id="categoryBars"></div>
+      </div>
+
+      <div class="card" id="myTabMes" hidden>
+        <div id="myMonthly"></div>
       </div>
     </section>
   </main>

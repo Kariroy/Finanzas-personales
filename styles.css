@@ -893,3 +893,4 @@ main{ padding-bottom:160px; }
 .month-row-sub{ font-size:0.78rem; color:var(--ink-soft); }
 .month-bar{ height:8px; border-radius:99px; background:var(--surface-2); overflow:hidden; }
 .month-bar span{ display:block; height:100%; border-radius:99px; background:var(--accent); }
+.summary-sub{ flex-basis:100%; font-size:0.8rem; color:var(--ink-soft); }
