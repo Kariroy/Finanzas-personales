@@ -15,12 +15,13 @@
 <div class="layout">
   <aside class="side" id="side">
     <div class="side-head">
-      <span class="brand">▦ Plan · proyectos</span>
+      <span class="brand">▦ Plan · programas</span>
       <button class="icon-btn help-btn" data-help aria-label="Ayuda y reglas" title="Ayuda y reglas">?</button>
       <button class="icon-btn only-mobile" id="closeSide" aria-label="Cerrar panel">×</button>
     </div>
 
-    <div class="row2">
+    <div class="row3">
+      <button class="btn" id="newProgram">+ programa</button>
       <button class="btn" id="newProject">+ proyecto</button>
       <button class="btn" id="newTask">+ tarea</button>
     </div>
@@ -97,6 +98,7 @@
   <div class="ask-box" role="dialog" aria-modal="true" aria-labelledby="askTitle">
     <div class="ask-title" id="askTitle"></div>
     <input type="text" id="askInput" maxlength="120">
+    <label class="ask-sel" id="askSelWrap" hidden><span id="askSelLabel"></span><select id="askSelect"></select></label>
     <div class="ask-btns">
       <button type="button" class="btn" id="askCancel">cancelar</button>
       <button type="button" class="btn primary" id="askOk">aceptar</button>

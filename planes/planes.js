@@ -15,6 +15,7 @@ var $ = function(id){ return document.getElementById(id); };
 var canvas = $("canvas"), world = $("world"), wiresEl = $("wires"), cardsEl = $("cards");
 
 var state = load();
+if(!Array.isArray(state.programs)) state.programs = [];
 if(!state.mode) state.mode = matchMedia("(max-width: 800px)").matches ? "list" : "map";
 var hist = [], fut = [];
 var sel = null;          // {task: id} | {dep: {from, to}}
@@ -42,8 +43,8 @@ function demo(){
   return p;
 }
 
-function newProjectObj(name){
-  return { id: uid(), name: name, updated: Date.now(), tasks: [], deps: [], view: { x: 60, y: 120, z: 1 } };
+function newProjectObj(name, program){
+  return { id: uid(), name: name, program: program || null, updated: Date.now(), tasks: [], deps: [], view: { x: 60, y: 120, z: 1 } };
 }
 
 function load(){
@@ -51,8 +52,10 @@ function load(){
     var s = JSON.parse(localStorage.getItem(KEY));
     if(s && Array.isArray(s.projects)) return s;
   } catch(e){}
+  var g = { id: uid(), name: "Personal", open: true };
   var p = demo();
-  return { projects: [p], current: p.id, highlight: true };
+  p.program = g.id;
+  return { programs: [g], projects: [p], current: p.id, highlight: true };
 }
 
 function save(){
@@ -134,7 +137,7 @@ function makeTask(p, x, y, title){
 function snap(v){ return Math.round(v / GRID) * GRID; }
 
 // ---------- historial ----------
-function snapshot(){ return JSON.stringify({ projects: state.projects, current: state.current }); }
+function snapshot(){ return JSON.stringify({ programs: state.programs, projects: state.projects, current: state.current }); }
 function pushHist(s){
   hist.push(s || snapshot());
   if(hist.length > 200) hist.shift();
@@ -143,6 +146,7 @@ function pushHist(s){
 function restore(s){
   var o = JSON.parse(s);
   state.projects = o.projects;
+  state.programs = o.programs || [];
   state.current = o.current;
   sel = null;
   save();
@@ -346,55 +350,133 @@ function renderWires(){
   wiresEl.innerHTML = html;
 }
 
+function programById(id){
+  for(var i = 0; i < state.programs.length; i++) if(state.programs[i].id === id) return state.programs[i];
+  return null;
+}
+// Programa real del proyecto (null si no tiene o si el programa ya no existe).
+function progOf(p){ return programById(p.program) ? p.program : null; }
+
+function projStats(p){
+  var done = p.tasks.filter(function(t){ return t.status === "done"; }).length;
+  return { n: p.tasks.length, done: done, pending: p.tasks.length - done };
+}
+
+// Panel izquierdo: programas desplegables con sus proyectos adentro.
 function renderProjects(){
   var list = $("projects"), f = state.filter || "todo", s = state.sort || "edited";
   $("filter").value = f; $("sort").value = s;
-  var items = state.projects.map(function(p){
-    var done = p.tasks.filter(function(t){ return t.status === "done"; }).length;
-    return { p: p, pending: p.tasks.length - done, pct: p.tasks.length ? Math.round(done * 100 / p.tasks.length) : 0 };
-  }).filter(function(it){
-    if(f === "todo") return it.pending > 0 || !it.p.tasks.length || it.p.id === state.current;
-    if(f === "done") return it.p.tasks.length && !it.pending;
+  var visible = function(p){
+    var st = projStats(p);
+    if(f === "todo") return st.pending > 0 || !st.n || p.id === state.current;
+    if(f === "done") return st.n && !st.pending;
     return true;
-  });
-  items.sort(function(a, b){
-    if(s === "name") return a.p.name.localeCompare(b.p.name, "es");
-    if(s === "pending") return b.pending - a.pending;
-    return b.p.updated - a.p.updated;
-  });
+  };
+  var sortFn = function(a, b){
+    if(s === "name") return a.name.localeCompare(b.name, "es");
+    if(s === "pending") return projStats(b).pending - projStats(a).pending;
+    return b.updated - a.updated;
+  };
+  var groups = state.programs.slice().sort(function(a, b){ return a.name.localeCompare(b.name, "es"); });
+  var loose = state.projects.filter(function(p){ return !progOf(p); });
+  if(loose.length) groups.push({ id: null, name: "Sin programa", open: state.looseOpen !== false });
+
   list.innerHTML = "";
-  if(!items.length){
-    list.innerHTML = '<div class="no-projects">Sin proyectos en este filtro.</div>';
+  if(!groups.length){
+    list.innerHTML = '<div class="no-projects">Creá un programa y adentro tus proyectos.</div>';
     return;
   }
-  items.forEach(function(it){
-    var d = new Date(it.p.updated);
-    var el = document.createElement("div");
-    el.className = "proj" + (it.p.id === state.current ? " active" : "");
-    el.innerHTML = '<span class="ring" style="--p:' + it.pct + '"></span><div class="txt"><div class="name"></div>' +
-      '<div class="sub">' + it.pending + ' por hacer · ed. ' + d.toISOString().slice(0, 10) + '</div></div>' +
-      '<button class="x ren" title="Renombrar proyecto">✎</button><button class="x" title="Borrar proyecto">×</button>';
-    el.querySelector(".name").textContent = it.p.name;
-    el.title = "Doble clic para renombrar";
-    el.addEventListener("click", function(e){
-      if(e.target.closest(".ren")){ renameProject(it.p); return; }
-      if(e.target.closest(".x")){
-        ask({ title: "¿Borrar el proyecto «" + it.p.name + "» y todas sus tareas?", ok: "borrar", danger: true }, function(){
-          change(function(){
-            state.projects = state.projects.filter(function(x){ return x.id !== it.p.id; });
-            if(state.current === it.p.id) state.current = state.projects[0] ? state.projects[0].id : null;
-          });
-        });
-        return;
+  groups.forEach(function(g){
+    var all = state.projects.filter(function(p){ return progOf(p) === g.id; });
+    var shown = all.filter(visible).sort(sortFn);
+    var tot = all.reduce(function(acc, p){ var st = projStats(p); acc.n += st.n; acc.done += st.done; return acc; }, { n: 0, done: 0 });
+    var pct = tot.n ? Math.round(tot.done * 100 / tot.n) : 0;
+    var hasCurrent = all.some(function(p){ return p.id === state.current; });
+    var open = g.open !== false;
+
+    var box = document.createElement("div");
+    box.className = "prog" + (open ? " open" : "") + (g.id ? "" : " loose");
+    var head = document.createElement("div");
+    head.className = "prog-h" + (hasCurrent && !open ? " has-current" : "");
+    head.innerHTML = '<span class="caret">' + (open ? "▾" : "▸") + '</span><span class="ring" style="--p:' + pct + '"></span>' +
+      '<div class="txt"><div class="name"></div><div class="sub">' + all.length + " proyecto" + (all.length === 1 ? "" : "s") +
+      " · " + pct + "%</div></div>" +
+      (g.id ? '<button class="x add" title="Nuevo proyecto en este programa">＋</button>' +
+              '<button class="x ren" title="Renombrar programa">✎</button><button class="x del" title="Borrar programa">×</button>' : "");
+    head.querySelector(".name").textContent = g.name;
+    head.addEventListener("click", function(e){
+      if(e.target.closest(".add")){ newProject(g.id); return; }
+      if(e.target.closest(".ren")){ renameProgram(g); return; }
+      if(e.target.closest(".del")){ deleteProgram(g, all.length); return; }
+      if(g.id) g.open = !open; else state.looseOpen = !open;
+      save(); renderProjects();
+    });
+    box.appendChild(head);
+
+    if(open){
+      var inner = document.createElement("div");
+      inner.className = "prog-body";
+      if(!shown.length){
+        inner.innerHTML = '<div class="no-projects">' + (all.length ? "Ninguno en este filtro." : "Sin proyectos todavía.") + "</div>";
       }
-      if(state.current !== it.p.id){ state.current = it.p.id; sel = null; save(); renderAll(); }
-      closeSideMobile();
+      shown.forEach(function(p){ inner.appendChild(projectItem(p)); });
+      box.appendChild(inner);
+    }
+    list.appendChild(box);
+  });
+}
+
+function projectItem(p){
+  var st = projStats(p), pct = st.n ? Math.round(st.done * 100 / st.n) : 0;
+  var d = new Date(p.updated);
+  var el = document.createElement("div");
+  el.className = "proj" + (p.id === state.current ? " active" : "");
+  el.innerHTML = '<span class="ring" style="--p:' + pct + '"></span><div class="txt"><div class="name"></div>' +
+    '<div class="sub">' + st.pending + " por hacer · ed. " + d.toISOString().slice(0, 10) + "</div></div>" +
+    '<button class="x ren" title="Editar proyecto">✎</button><button class="x del" title="Borrar proyecto">×</button>';
+  el.querySelector(".name").textContent = p.name;
+  el.addEventListener("click", function(e){
+    if(e.target.closest(".ren")){ editProject(p); return; }
+    if(e.target.closest(".del")){
+      ask({ title: "¿Borrar el proyecto «" + p.name + "» y todas sus tareas?", ok: "borrar", danger: true }, function(){
+        change(function(){
+          state.projects = state.projects.filter(function(x){ return x.id !== p.id; });
+          if(state.current === p.id) state.current = state.projects[0] ? state.projects[0].id : null;
+        });
+      });
+      return;
+    }
+    if(state.current !== p.id){ state.current = p.id; sel = null; save(); renderAll(); }
+    closeSideMobile();
+  });
+  el.addEventListener("dblclick", function(e){ if(!e.target.closest(".x")) editProject(p); });
+  return el;
+}
+
+function programOptions(){
+  return [{ value: "", label: "Sin programa" }].concat(state.programs.slice()
+    .sort(function(a, b){ return a.name.localeCompare(b.name, "es"); })
+    .map(function(g){ return { value: g.id, label: g.name }; }));
+}
+
+function newProgram(){
+  closeSideMobile();
+  ask({ title: "Nuevo programa", input: "", placeholder: "Nombre del programa (ej. Mudarme)", ok: "crear" }, function(name){
+    change(function(){ state.programs.push({ id: uid(), name: name, open: true }); });
+    $("side").classList.add("open");
+  });
+}
+function renameProgram(g){
+  ask({ title: "Renombrar programa", input: g.name, ok: "guardar" }, function(name){
+    if(name !== g.name) change(function(){ g.name = name; });
+  });
+}
+function deleteProgram(g, n){
+  ask({ title: "¿Borrar el programa «" + g.name + "»?" + (n ? " Sus " + n + " proyecto(s) no se borran: pasan a «Sin programa»." : ""), ok: "borrar", danger: true }, function(){
+    change(function(){
+      state.programs = state.programs.filter(function(x){ return x.id !== g.id; });
+      state.projects.forEach(function(p){ if(p.program === g.id) p.program = null; });
     });
-    el.addEventListener("dblclick", function(e){
-      if(e.target.closest(".x")) return;
-      renameProject(it.p);
-    });
-    list.appendChild(el);
   });
 }
 
@@ -879,11 +961,17 @@ $("modeSeg").addEventListener("click", function(e){
 // Desplegable de proyectos de la barra de arriba (lo principal en el celular).
 function renderProjectPick(){
   var pick = $("projectPick");
-  var list = state.projects.slice().sort(function(a, b){ return b.updated - a.updated; });
-  pick.innerHTML = list.map(function(p){
-    var pending = p.tasks.filter(function(t){ return t.status !== "done"; }).length;
+  var opt = function(p){
+    var pending = projStats(p).pending;
     return '<option value="' + p.id + '">' + esc(p.name) + (pending ? " · " + pending : " ✓") + "</option>";
-  }).join("") + '<option value="__new">＋ nuevo proyecto…</option>';
+  };
+  var byEdit = function(a, b){ return b.updated - a.updated; };
+  var html = "";
+  programOptions().slice(1).concat([{ value: "", label: "Sin programa" }]).forEach(function(g){
+    var ps = state.projects.filter(function(p){ return (progOf(p) || "") === g.value; }).sort(byEdit);
+    if(ps.length) html += '<optgroup label="' + esc(g.label) + '">' + ps.map(opt).join("") + "</optgroup>";
+  });
+  pick.innerHTML = html + '<option value="__new">＋ nuevo proyecto…</option>';
   pick.value = state.current || "__new";
 }
 $("projectPick").addEventListener("change", function(e){
@@ -892,11 +980,14 @@ $("projectPick").addEventListener("change", function(e){
   state.current = v; sel = null; save(); renderAll();
 });
 
-function newProject(){
+function newProject(program){
   closeSideMobile();
-  ask({ title: "Nuevo proyecto", input: "", placeholder: "Nombre del proyecto", ok: "crear" }, function(name){
+  var cur = proj();
+  if(typeof program !== "string") program = cur ? progOf(cur) : null;
+  ask({ title: "Nuevo proyecto", input: "", placeholder: "Nombre del proyecto", ok: "crear",
+        select: { label: "Programa", options: programOptions(), value: program || "" } }, function(name, prog){
     change(function(){
-      var p = newProjectObj(name);
+      var p = newProjectObj(name, prog || null);
       state.projects.push(p);
       state.current = p.id;
       sel = null;
@@ -904,9 +995,14 @@ function newProject(){
   });
 }
 
-function renameProject(p){
-  ask({ title: "Renombrar proyecto", input: p.name, ok: "guardar" }, function(name){
-    if(name !== p.name) change(function(){ p.name = name; });
+function editProject(p){
+  ask({ title: "Editar proyecto", input: p.name, ok: "guardar",
+        select: { label: "Programa", options: programOptions(), value: progOf(p) || "" } }, function(name, prog){
+    prog = prog || null;
+    if(name !== p.name || prog !== progOf(p)) change(function(){
+      p.name = name; p.program = prog;
+      var g = programById(prog); if(g) g.open = true;
+    });
   });
 }
 
@@ -918,6 +1014,13 @@ function ask(o, onOk){
   input.hidden = o.input === undefined;
   input.value = o.input || "";
   input.placeholder = o.placeholder || "";
+  var selWrap = $("askSelWrap"), selEl = $("askSelect");
+  selWrap.hidden = !o.select;
+  if(o.select){
+    $("askSelLabel").textContent = o.select.label;
+    selEl.innerHTML = o.select.options.map(function(x){ return '<option value="' + esc(x.value) + '">' + esc(x.label) + "</option>"; }).join("");
+    selEl.value = o.select.value;
+  }
   $("askOk").textContent = o.ok || "aceptar";
   $("askOk").classList.toggle("danger", !!o.danger);
   box.hidden = false;
@@ -927,7 +1030,7 @@ function ask(o, onOk){
     var v = input.value.replace(/\s+/g, " ").trim();
     if(!input.hidden && !v){ input.focus(); return; }
     close();
-    onOk(v);
+    onOk(v, o.select ? selEl.value : undefined);
   }
   // Sin <form> submit: en vistas previas "sandbox" los formularios no se envían.
   $("askOk").onclick = accept;
@@ -938,7 +1041,8 @@ function ask(o, onOk){
     else if(e.key === "Enter" && e.target === input){ e.preventDefault(); accept(); }
   };
 }
-$("newProject").addEventListener("click", newProject);
+$("newProject").addEventListener("click", function(){ newProject(); });
+$("newProgram").addEventListener("click", newProgram);
 
 Array.prototype.forEach.call(document.querySelectorAll("[data-help]"), function(b){
   b.addEventListener("click", function(){ closeSideMobile(); $("helpDlg").showModal(); });
@@ -975,7 +1079,7 @@ $("zoomIn").addEventListener("click", function(){ var r = canvas.getBoundingClie
 $("zoomOut").addEventListener("click", function(){ var r = canvas.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2); });
 
 $("export").addEventListener("click", function(){
-  var blob = new Blob([JSON.stringify({ projects: state.projects }, null, 2)], { type: "application/json" });
+  var blob = new Blob([JSON.stringify({ programs: state.programs, projects: state.projects }, null, 2)], { type: "application/json" });
   var a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "planes-" + new Date().toISOString().slice(0, 10) + ".json";
@@ -992,7 +1096,11 @@ $("importFile").addEventListener("change", function(e){
     state.projects.forEach(function(p){ have[p.id] = 1; });
     var added = o.projects.filter(function(p){ return p && p.id && Array.isArray(p.tasks) && Array.isArray(p.deps) && !have[p.id]; });
     if(!added.length){ toast("No hay proyectos nuevos en ese archivo"); return; }
+    var haveG = {};
+    state.programs.forEach(function(g){ haveG[g.id] = 1; });
+    var newG = (Array.isArray(o.programs) ? o.programs : []).filter(function(g){ return g && g.id && g.name && !haveG[g.id]; });
     change(function(){
+      newG.forEach(function(g){ state.programs.push(g); });
       added.forEach(function(p){ p.view = p.view || { x: 60, y: 120, z: 1 }; state.projects.push(p); });
       state.current = added[0].id;
     });

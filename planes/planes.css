@@ -82,7 +82,7 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 }
 .proj:hover { background: var(--panel-2); }
 .proj.active { background: #132a2e; border-color: #2c6b6b; }
-.proj .ring {
+.ring {
   width: 18px; height: 18px; border-radius: 50%; flex: none;
   background: conic-gradient(var(--done) calc(var(--p) * 1%), var(--line-2) 0);
   -webkit-mask: radial-gradient(circle, transparent 4px, #000 5px);
@@ -91,11 +91,7 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .proj .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .proj .sub { color: var(--muted); font-size: 10px; }
 .proj .txt { min-width: 0; flex: 1; }
-.proj .x {
-  opacity: 0; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0 4px;
-}
-.proj:hover .x { opacity: 1; }
-.proj .x:hover { color: var(--danger); }
+
 .no-projects { color: var(--muted); padding: 8px 2px; }
 
 .check { display: flex; gap: 8px; align-items: center; color: var(--muted); cursor: pointer; }
@@ -362,3 +358,31 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .btn.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
 .btn.primary.danger { background: #b62324; border-color: #b62324; }
 .proj .ren { font-size: 12px; }
+
+/* ---------- programas (panel izquierdo) ---------- */
+.row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.row3 .btn { padding: 7px 4px; overflow: hidden; text-overflow: ellipsis; }
+.prog { border-radius: 8px; }
+.prog + .prog { margin-top: 4px; }
+.prog-h {
+  display: flex; align-items: center; gap: 8px; padding: 9px 8px; border-radius: 8px; cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.prog-h:hover { border-color: var(--line-2); }
+.prog-h .name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prog-h .sub { color: var(--muted); font-size: 10px; }
+.prog-h .txt { flex: 1; min-width: 0; }
+.prog-h .caret { color: var(--muted); width: 12px; flex: none; }
+.prog-h.has-current { border-color: #2c6b6b; }
+.prog-h .x, .proj .x { opacity: .55; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; flex: none; }
+.prog-h:hover .x, .proj:hover .x { opacity: 1; }
+.prog-h .x:hover, .proj .x:hover { color: var(--text); }
+.prog-h .del:hover, .proj .del:hover { color: var(--danger); }
+.prog.loose .prog-h { background: none; border-style: dashed; }
+.prog-body { margin: 4px 0 6px 13px; padding-left: 8px; border-left: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 2px; }
+.prog-body .no-projects { padding: 6px 4px; font-size: 11px; }
+.ask-sel { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 11px; }
+.ask-sel select { background: #0b0f14; border: 1px solid var(--line-2); border-radius: 6px; padding: 9px 10px; font-size: 15px; color: var(--text); }
+@media (max-width: 800px) {
+  .prog-h .x, .proj .x { opacity: 1; font-size: 15px; padding: 4px 6px; }
+}
