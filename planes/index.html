@@ -72,24 +72,46 @@
     </div>
   </aside>
 
-  <main class="canvas" id="canvas">
-    <button class="icon-btn menu only-mobile" id="openSide" aria-label="Abrir panel">☰</button>
-    <div class="project-title" id="projectTitle"></div>
-    <div class="world" id="world">
-      <svg class="wires" id="wires" xmlns="http://www.w3.org/2000/svg"></svg>
-      <div class="cards" id="cards"></div>
+  <div class="stage">
+    <div class="topbar">
+      <button class="icon-btn menu only-mobile" id="openSide" aria-label="Abrir panel">☰</button>
+      <div class="seg" id="modeSeg" role="tablist">
+        <button type="button" data-mode="map" role="tab">▦ Mapa</button>
+        <button type="button" data-mode="list" role="tab">☑ Lista</button>
+      </div>
+      <span class="project-title" id="projectTitle"></span>
     </div>
-    <div class="empty" id="empty" hidden>
-      <p>Doble clic en cualquier lugar para crear la primera tarea.</p>
-    </div>
-    <div class="toolbar">
-      <button class="btn" id="layout" title="Acomoda las tareas en columnas según sus dependencias">⇶ reordenar</button>
-      <button class="btn" id="fit" title="Ver todo">⤢ centrar</button>
-      <button class="btn sq" id="zoomOut" aria-label="Alejar">−</button>
-      <button class="btn sq" id="zoomIn" aria-label="Acercar">+</button>
-    </div>
+
+    <main class="canvas" id="canvas">
+      <div class="world" id="world">
+        <svg class="wires" id="wires" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="cards" id="cards"></div>
+      </div>
+      <div class="empty" id="empty" hidden>
+        <p>Doble clic en cualquier lugar para crear la primera tarea.</p>
+      </div>
+      <div class="toolbar">
+        <button class="btn" id="layout" title="Acomoda las tareas en columnas según sus dependencias">⇶ reordenar</button>
+        <button class="btn" id="fit" title="Ver todo">⤢ centrar</button>
+        <button class="btn sq" id="zoomOut" aria-label="Alejar">−</button>
+        <button class="btn sq" id="zoomIn" aria-label="Acercar">+</button>
+      </div>
+    </main>
+
+    <section class="list" id="list" hidden>
+      <div class="list-inner">
+        <div class="list-head" id="listHead"></div>
+        <form class="list-add" id="listAdd" autocomplete="off">
+          <input type="text" id="listNew" placeholder="Nueva tarea…" aria-label="Nueva tarea">
+          <select id="listAfter" aria-label="Depende de"></select>
+          <button class="btn" type="submit">agregar</button>
+        </form>
+        <div id="listBody"></div>
+      </div>
+    </section>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  </main>
+  </div>
 </div>
 <script src="planes.js"></script>
 </body>

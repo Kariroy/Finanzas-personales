@@ -15,6 +15,7 @@ var $ = function(id){ return document.getElementById(id); };
 var canvas = $("canvas"), world = $("world"), wiresEl = $("wires"), cardsEl = $("cards");
 
 var state = load();
+if(!state.mode) state.mode = matchMedia("(max-width: 800px)").matches ? "list" : "map";
 var hist = [], fut = [];
 var sel = null;          // {task: id} | {dep: {from, to}}
 var els = {};            // id de tarea → elemento de la card
@@ -272,7 +273,11 @@ function isSelTask(id){ return sel && sel.task === id; }
 function isSelDep(d){ return sel && sel.dep && sel.dep.from === d.from && sel.dep.to === d.to; }
 
 function renderAll(){
+  var list = state.mode === "list";
+  canvas.hidden = list;
+  Array.prototype.forEach.call($("modeSeg").children, function(b){ b.classList.toggle("on", b.dataset.mode === state.mode); });
   renderProjects();
+  renderList();
   renderCards();
   renderWires();
   applyView();
@@ -394,9 +399,13 @@ function renderProjects(){
 }
 
 // ---------- edición del título ----------
-function startEdit(id){
-  var c = els[id]; if(!c) return;
-  var span = c.querySelector(".title");
+function startEdit(id, span){
+  if(!span && state.mode === "list"){
+    var row = $("listBody").querySelector('.li[data-id="' + id + '"]');
+    span = row && row.querySelector(".li-title");
+  }
+  if(!span){ var c = els[id]; span = c && c.querySelector(".title"); }
+  if(!span) return;
   var p = proj(), t = byId(p, id);
   editing = id;
   span.contentEditable = "true";
@@ -410,7 +419,7 @@ function startEdit(id){
     var v = span.textContent.replace(/\s+/g, " ").trim();
     span.contentEditable = "false";
     if(ok && v && v !== t.title) change(function(){ t.title = v; });
-    else renderCards();
+    else { renderCards(); renderList(); }
   }
   span.addEventListener("keydown", function(e){
     e.stopPropagation();
@@ -457,11 +466,21 @@ function deleteSelected(){
 }
 
 function cycleStatus(id, shift){
+  var t = byId(proj(), id);
+  setStatus(id, shift ? (t.status === "paused" ? "todo" : "paused") : NEXT[t.status]);
+}
+
+// Cambia el estado y avisa qué tareas quedaron desbloqueadas gracias a eso.
+function setStatus(id, status){
   change(function(p){
+    var ready = {};
+    p.tasks.forEach(function(x){ if(info(p, x).unlocked) ready[x.id] = 1; });
     var t = byId(p, id);
-    t.status = shift ? (t.status === "paused" ? "todo" : "paused") : NEXT[t.status];
+    t.status = status;
     var i = info(p, t);
-    if(t.status === "doing" && i.pending) toast("Ojo: tiene " + i.pending + " prerequisito(s) sin terminar");
+    var freed = p.tasks.filter(function(x){ return x.id !== id && !ready[x.id] && info(p, x).unlocked; });
+    if(freed.length) toast("Desbloqueada" + (freed.length > 1 ? "s" : "") + ": " + freed.map(function(x){ return x.title; }).join(", "));
+    else if((status === "doing" || status === "done") && i.pending) toast("Ojo: tiene " + i.pending + " prerequisito(s) sin terminar");
   });
 }
 
@@ -661,12 +680,161 @@ document.addEventListener("keydown", function(e){
   var mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
   if(mod && k === "z" && !e.shiftKey){ e.preventDefault(); undo(); }
   else if(mod && (k === "y" || (k === "z" && e.shiftKey))){ e.preventDefault(); redo(); }
-  else if(mod) return;
+  else if(mod || state.mode === "list") return;
   else if(k === "delete" || k === "backspace"){ e.preventDefault(); deleteSelected(); }
   else if((k === "enter" || k === "f2") && sel && sel.task){ e.preventDefault(); startEdit(sel.task); }
   else if(k === "tab" && sel && sel.task){ e.preventDefault(); newChild(sel.task); }
   else if(k === " " && sel && sel.task){ e.preventDefault(); cycleStatus(sel.task, e.shiftKey); }
   else if(k === "escape"){ select(null); }
+});
+
+// ---------- vista lista (checklist) ----------
+var SECTIONS = [
+  { key: "ready", title: "▶ Para empezar", hint: "no esperan a ninguna otra" },
+  { key: "doing", title: "En curso" },
+  { key: "paused", title: "En pausa" },
+  { key: "blocked", title: "🔒 Bloqueadas", hint: "esperan a otras tareas" },
+  { key: "done", title: "✓ Hechas", fold: true }
+];
+
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return "&#" + c.charCodeAt(0) + ";"; }); }
+
+function bucket(p, t){
+  if(t.status === "done") return "done";
+  if(t.status === "doing") return "doing";
+  if(info(p, t).blocked) return "blocked";
+  return t.status === "paused" ? "paused" : "ready";
+}
+
+// Orden de las ramas: primero lo que va antes (orden topológico), desempate por posición en el mapa.
+function topoOrder(p){
+  var indeg = {}, out = [], pos = {};
+  p.tasks.forEach(function(t){ indeg[t.id] = 0; });
+  p.deps.forEach(function(d){ if(indeg[d.to] !== undefined) indeg[d.to]++; });
+  var byPos = function(a, b){ var A = byId(p, a), B = byId(p, b); return A.x - B.x || A.y - B.y; };
+  var queue = p.tasks.map(function(t){ return t.id; }).filter(function(id){ return !indeg[id]; }).sort(byPos);
+  while(queue.length){
+    var n = queue.shift();
+    out.push(n);
+    dependents(p, n).forEach(function(k){ if(--indeg[k] === 0){ queue.push(k); queue.sort(byPos); } });
+  }
+  out.forEach(function(id, i){ pos[id] = i; });
+  return pos;
+}
+
+function renderList(){
+  var box = $("list"), p = proj();
+  box.hidden = state.mode !== "list";
+  if(box.hidden) return;
+  var body = $("listBody"), head = $("listHead"), after = $("listAfter");
+  $("listAdd").hidden = !p;
+  if(!p){
+    head.innerHTML = "";
+    body.innerHTML = '<div class="list-empty">Creá un proyecto con «+ proyecto».</div>';
+    return;
+  }
+  var done = p.tasks.filter(function(t){ return t.status === "done"; }).length;
+  var pct = p.tasks.length ? Math.round(done * 100 / p.tasks.length) : 0;
+  head.innerHTML = "<h2>" + esc(p.name) + '</h2><div class="sub">' + done + " de " + p.tasks.length +
+    " hechas · " + pct + '%</div><div class="bar"><i style="width:' + pct + '%"></i></div>';
+
+  var order = topoOrder(p);
+  var sorted = p.tasks.slice().sort(function(a, b){ return order[a.id] - order[b.id]; });
+
+  var keep = after.value;
+  after.innerHTML = '<option value="">sin prerequisito</option>' + sorted.filter(function(t){ return t.status !== "done"; })
+    .map(function(t){ return '<option value="' + t.id + '">después de: ' + esc(t.title) + "</option>"; }).join("");
+  if(byId(p, keep)) after.value = keep;
+
+  if(!p.tasks.length){
+    body.innerHTML = '<div class="list-empty">Todavía no hay tareas. Escribí la primera arriba.</div>';
+    return;
+  }
+  var html = "";
+  SECTIONS.forEach(function(sec){
+    var items = sorted.filter(function(t){ return bucket(p, t) === sec.key; });
+    if(!items.length) return;
+    var open = !sec.fold || state.showDone;
+    html += '<div class="sec ' + sec.key + '"><button type="button" class="sec-h' + (sec.fold ? " fold" : "") + '"' +
+      (sec.fold ? ' data-act="fold"' : "") + ">" + (sec.fold ? (open ? "▾ " : "▸ ") : "") + sec.title +
+      ' <span class="n">' + items.length + "</span>" + (sec.hint ? '<span class="hint">' + sec.hint + "</span>" : "") + "</button>";
+    if(open) items.forEach(function(t){ html += listRow(p, t); });
+    html += "</div>";
+  });
+  body.innerHTML = html;
+}
+
+function listRow(p, t){
+  var i = info(p, t);
+  var names = function(ids){ return ids.map(function(id){ var x = byId(p, id); return x ? "<b>" + esc(x.title) + "</b>" : ""; }).join(", "); };
+  var waiting = prereqs(p, t.id).filter(function(id){ var x = byId(p, id); return x && x.status !== "done"; });
+  var next = dependents(p, t.id);
+  var meta = [];
+  if(waiting.length) meta.push("espera a " + names(waiting));
+  if(next.length && t.status !== "done") meta.push("→ luego " + names(next));
+  return '<div class="li s-' + t.status + (i.blocked ? " blocked" : "") + '" data-id="' + t.id + '">' +
+    '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (t.status === "done" ? " checked" : "") + ">" +
+    '<button type="button" class="st" data-act="status" title="Cambiar estado · Shift+clic: pausar">' + ICON[t.status] + "</button>" +
+    '<div class="li-main"><span class="li-title">' + esc(t.title) + "</span>" +
+    (meta.length ? '<span class="li-meta">' + meta.join(" · ") + "</span>" : "") + "</div>" +
+    '<button type="button" class="li-btn" data-act="rename" title="Renombrar">✎</button>' +
+    '<button type="button" class="li-btn" data-act="goto" title="Ver en el mapa">◎</button>' +
+    '<button type="button" class="li-btn" data-act="del" title="Borrar">×</button>' +
+    "</div>";
+}
+
+$("listBody").addEventListener("click", function(e){
+  var b = e.target.closest("[data-act]"); if(!b) return;
+  var act = b.dataset.act;
+  if(act === "fold"){ state.showDone = !state.showDone; save(); renderList(); return; }
+  var id = b.closest(".li").dataset.id, t = byId(proj(), id);
+  if(act === "done") setStatus(id, b.checked ? "done" : "todo");
+  else if(act === "status") cycleStatus(id, e.shiftKey);
+  else if(act === "rename") startEdit(id, b.closest(".li").querySelector(".li-title"));
+  else if(act === "del"){
+    var n = dependents(proj(), id).length;
+    if(n && !confirm("«" + t.title + "» tiene " + n + " tarea(s) que dependen de ella. ¿Borrarla igual?")) return;
+    sel = { task: id }; deleteSelected();
+  }
+  else if(act === "goto"){
+    state.mode = "map"; sel = { task: id }; save(); renderAll();
+    var v = view(), r = canvas.getBoundingClientRect();
+    v.x = r.width / 2 - (t.x + W / 2) * v.z;
+    v.y = r.height / 2 - (t.y + H / 2) * v.z;
+    applyView(); save();
+  }
+});
+$("listBody").addEventListener("dblclick", function(e){
+  var span = e.target.closest(".li-title");
+  if(span) startEdit(span.closest(".li").dataset.id, span);
+});
+
+$("listAdd").addEventListener("submit", function(e){
+  e.preventDefault();
+  var p = proj(), input = $("listNew"), title = input.value.replace(/\s+/g, " ").trim();
+  if(!p || !title) return;
+  var from = $("listAfter").value, parent = from && byId(p, from);
+  change(function(){
+    var t;
+    if(parent){
+      var ys = dependents(p, from).map(function(k){ return byId(p, k).y; });
+      t = makeTask(p, parent.x + W + GX, ys.length ? Math.max.apply(null, ys) + H + GY : parent.y, title);
+      p.deps.push({ from: from, to: t.id });
+    } else {
+      var x = p.tasks.length ? Math.min.apply(null, p.tasks.map(function(k){ return k.x; })) : 0;
+      var y = p.tasks.length ? Math.max.apply(null, p.tasks.map(function(k){ return k.y; })) + H + GY : 0;
+      t = makeTask(p, x, y, title);
+    }
+  });
+  input.value = "";
+  input.focus();
+});
+
+$("modeSeg").addEventListener("click", function(e){
+  var b = e.target.closest("[data-mode]"); if(!b || b.dataset.mode === state.mode) return;
+  state.mode = b.dataset.mode;
+  save();
+  renderAll();
 });
 
 // ---------- panel lateral ----------
@@ -684,6 +852,7 @@ $("newProject").addEventListener("click", function(){
 
 $("newTask").addEventListener("click", function(){
   var p = proj(); if(!p) return;
+  if(state.mode === "list"){ closeSideMobile(); $("listNew").focus(); return; }
   var r = canvas.getBoundingClientRect();
   var c = toWorld(r.left + r.width / 2, r.top + r.height / 2), t;
   change(function(){ t = makeTask(p, c.x - W / 2, c.y - H / 2); sel = { task: t.id }; });

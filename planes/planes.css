@@ -113,9 +113,10 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .help b { color: var(--muted); font-weight: 600; }
 
 /* ---------- lienzo ---------- */
+.stage { position: relative; flex: 1; overflow: hidden; }
 .canvas {
-  position: relative;
-  flex: 1;
+  position: absolute;
+  inset: 0;
   overflow: hidden;
   touch-action: none;
   cursor: grab;
@@ -127,10 +128,17 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .cards { position: absolute; left: 0; top: 0; }
 .wires { position: absolute; overflow: visible; pointer-events: none; }
 
+.topbar {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px; z-index: 6; max-width: calc(100% - 20px);
+}
+.seg { display: flex; background: #141a22; border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 2px; flex: none; }
+.seg button { background: none; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer; color: var(--muted); }
+.seg button:hover { color: var(--text); }
+.seg button.on { background: #1f2a36; color: var(--text); }
 .project-title {
-  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
   color: var(--muted); font-weight: 600; letter-spacing: .03em;
-  pointer-events: none; z-index: 2; white-space: nowrap;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
 
 .wire .line { fill: none; stroke: #3a4452; stroke-width: 1.6; }
@@ -225,14 +233,14 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .toolbar .sq { width: 34px; padding: 7px 0; }
 
 .toast {
-  position: absolute; top: 44px; left: 50%; transform: translate(-50%, -8px);
+  position: absolute; top: 56px; left: 50%; transform: translate(-50%, -8px);
   background: #1f2630; border: 1px solid var(--line-2); border-radius: 6px;
   padding: 7px 12px; opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; z-index: 4;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 .only-mobile { display: none; }
-.menu { position: absolute; top: 10px; left: 10px; z-index: 3; }
+.menu { flex: none; }
 
 @media (max-width: 800px) {
   .only-mobile { display: inline-block; }
@@ -242,6 +250,73 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
     box-shadow: 0 0 40px rgba(0, 0, 0, .5);
   }
   .side.open { transform: none; }
-  .project-title { left: 56px; transform: none; top: 18px; max-width: calc(100% - 72px); overflow: hidden; text-overflow: ellipsis; }
+  .topbar { left: 10px; transform: none; gap: 8px; }
+  .project-title { display: none; }
   .tools { opacity: 1; }
+}
+
+/* ---------- vista lista (checklist) ---------- */
+.list {
+  position: absolute; inset: 0; overflow-y: auto; background: var(--bg);
+  touch-action: pan-y; padding: 64px 16px 40px;
+}
+.list[hidden] { display: none; }
+.list-inner { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+.list-head h2 { margin: 0 0 6px; font-size: 16px; }
+.list-head .sub { color: var(--muted); }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.bar i { display: block; height: 100%; background: var(--done); }
+
+.list-add { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 190px) auto; gap: 6px; }
+.list-add input, .list-add select {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; min-width: 0;
+}
+.list-add input:focus, .list-add select:focus { outline: none; border-color: var(--doing); }
+
+.sec { margin-top: 8px; }
+.sec-h {
+  display: flex; align-items: baseline; gap: 8px; width: 100%;
+  background: none; border: 0; padding: 4px 2px 8px; text-align: left; cursor: default;
+  font-weight: 700; letter-spacing: .03em; color: var(--text);
+}
+.sec-h .n { color: var(--muted); font-weight: 400; }
+.sec-h .hint { color: var(--faint); font-weight: 400; font-size: 11px; margin-left: auto; }
+.sec-h.fold { cursor: pointer; }
+.sec.ready .sec-h { color: var(--ready); }
+.sec.doing .sec-h { color: var(--doing); }
+.sec.paused .sec-h { color: var(--paused); }
+.sec.blocked .sec-h { color: var(--muted); }
+.sec.done .sec-h { color: var(--done); }
+
+.li {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--line-2);
+  border-radius: 6px; padding: 10px 10px 10px 12px; margin-bottom: 6px;
+}
+.li.s-doing { border-left-color: var(--doing); }
+.li.s-paused { border-left-color: var(--paused); }
+.li.s-done { border-left-color: var(--done); }
+.li.s-done .li-title { text-decoration: line-through; color: var(--muted); }
+.li.blocked { opacity: .6; }
+.sec.ready .li { border-color: rgba(94, 234, 212, .35); }
+.chk { width: 20px; height: 20px; flex: none; accent-color: var(--done); cursor: pointer; margin: 0; }
+.li .st { width: 22px; height: 22px; font-size: 12px; }
+.li-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.li-title { font-weight: 600; overflow-wrap: anywhere; outline: none; }
+.li-title[contenteditable="true"] { background: #0b0f14; box-shadow: 0 0 0 1px var(--doing); border-radius: 3px; padding: 0 3px; }
+.li-meta { color: var(--faint); font-size: 10.5px; }
+.li-meta b { color: var(--muted); font-weight: 500; }
+.li-btn { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; padding: 4px 6px; border-radius: 4px; flex: none; }
+.li-btn:hover { color: var(--text); background: var(--panel-2); }
+.list-empty { color: var(--faint); text-align: center; padding: 30px 0; }
+
+@media (max-width: 800px) {
+  .list { padding: 60px 12px 40px; }
+  .list-add { grid-template-columns: minmax(0, 1fr) auto; }
+  .list-add select { grid-column: 1 / -1; grid-row: 2; }
+  .li { padding: 12px 8px 12px 12px; }
+  .chk { width: 24px; height: 24px; }
+  .li .st { width: 28px; height: 28px; font-size: 14px; }
+  .li-btn { font-size: 17px; padding: 6px 8px; }
+  .sec-h .hint { display: none; }
 }
