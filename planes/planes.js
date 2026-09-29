@@ -688,30 +688,19 @@ document.addEventListener("keydown", function(e){
   else if(k === "escape"){ select(null); }
 });
 
-// ---------- vista lista (checklist) ----------
-var SECTIONS = [
-  { key: "ready", title: "▶ Para empezar", hint: "no esperan a ninguna otra" },
-  { key: "doing", title: "En curso" },
-  { key: "paused", title: "En pausa" },
-  { key: "blocked", title: "🔒 Bloqueadas", hint: "esperan a otras tareas" },
-  { key: "done", title: "✓ Hechas", fold: true }
-];
+// ---------- vista lista (árbol de tareas y subtareas) ----------
+// Cada tarea cuelga de su prerequisito: sus dependientes son sus subtareas.
+// Si depende de varias, cuelga de la última en el orden de las ramas y
+// muestra "también espera a …" con las demás.
 
 function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return "&#" + c.charCodeAt(0) + ";"; }); }
-
-function bucket(p, t){
-  if(t.status === "done") return "done";
-  if(t.status === "doing") return "doing";
-  if(info(p, t).blocked) return "blocked";
-  return t.status === "paused" ? "paused" : "ready";
-}
 
 // Orden de las ramas: primero lo que va antes (orden topológico), desempate por posición en el mapa.
 function topoOrder(p){
   var indeg = {}, out = [], pos = {};
   p.tasks.forEach(function(t){ indeg[t.id] = 0; });
   p.deps.forEach(function(d){ if(indeg[d.to] !== undefined) indeg[d.to]++; });
-  var byPos = function(a, b){ var A = byId(p, a), B = byId(p, b); return A.x - B.x || A.y - B.y; };
+  var byPos = function(a, b){ var A = byId(p, a), B = byId(p, b); return A.y - B.y || A.x - B.x; };
   var queue = p.tasks.map(function(t){ return t.id; }).filter(function(id){ return !indeg[id]; }).sort(byPos);
   while(queue.length){
     var n = queue.shift();
@@ -720,6 +709,20 @@ function topoOrder(p){
   }
   out.forEach(function(id, i){ pos[id] = i; });
   return pos;
+}
+
+function buildTree(p){
+  var order = topoOrder(p), parent = {}, kids = {};
+  p.tasks.forEach(function(t){
+    var pre = prereqs(p, t.id).filter(function(id){ return byId(p, id); });
+    pre.sort(function(a, b){ return order[b] - order[a]; });
+    parent[t.id] = pre[0] || null;
+  });
+  var byOrder = function(a, b){ return order[a] - order[b]; };
+  var roots = p.tasks.map(function(t){ return t.id; }).filter(function(id){ return !parent[id]; }).sort(byOrder);
+  p.tasks.forEach(function(t){ var pa = parent[t.id]; if(pa) (kids[pa] = kids[pa] || []).push(t.id); });
+  Object.keys(kids).forEach(function(k){ kids[k].sort(byOrder); });
+  return { roots: roots, kids: kids, parent: parent, order: order };
 }
 
 function renderList(){
@@ -736,64 +739,107 @@ function renderList(){
   var done = p.tasks.filter(function(t){ return t.status === "done"; }).length;
   var pct = p.tasks.length ? Math.round(done * 100 / p.tasks.length) : 0;
   head.innerHTML = "<h2>" + esc(p.name) + '</h2><div class="sub">' + done + " de " + p.tasks.length +
-    " hechas · " + pct + '%</div><div class="bar"><i style="width:' + pct + '%"></i></div>';
+    " hechas · " + pct + '%<label class="check hide-done"><input type="checkbox" data-act="hidedone"' +
+    (state.hideDone ? " checked" : "") + '> ocultar ramas terminadas</label></div><div class="bar"><i style="width:' + pct + '%"></i></div>';
 
-  var order = topoOrder(p);
-  var sorted = p.tasks.slice().sort(function(a, b){ return order[a.id] - order[b.id]; });
-
+  var tree = buildTree(p);
   var keep = after.value;
-  after.innerHTML = '<option value="">sin prerequisito</option>' + sorted.filter(function(t){ return t.status !== "done"; })
-    .map(function(t){ return '<option value="' + t.id + '">después de: ' + esc(t.title) + "</option>"; }).join("");
+  after.innerHTML = '<option value="">tarea principal</option>' + p.tasks.slice()
+    .sort(function(a, b){ return tree.order[a.id] - tree.order[b.id]; })
+    .filter(function(t){ return t.status !== "done"; })
+    .map(function(t){ return '<option value="' + t.id + '">subtarea de: ' + esc(t.title) + "</option>"; }).join("");
   if(byId(p, keep)) after.value = keep;
 
   if(!p.tasks.length){
     body.innerHTML = '<div class="list-empty">Todavía no hay tareas. Escribí la primera arriba.</div>';
     return;
   }
+  // Cuántas tareas tiene cada rama y cuántas están hechas (incluida la propia).
+  var stats = {};
+  (function count(ids){
+    ids.forEach(function walk(id){
+      if(stats[id]) return;
+      var t = byId(p, id), s = { n: 1, done: t.status === "done" ? 1 : 0 };
+      (tree.kids[id] || []).forEach(function(k){ walk(k); s.n += stats[k].n; s.done += stats[k].done; });
+      stats[id] = s;
+    });
+  })(tree.roots);
+
   var html = "";
-  SECTIONS.forEach(function(sec){
-    var items = sorted.filter(function(t){ return bucket(p, t) === sec.key; });
-    if(!items.length) return;
-    var open = !sec.fold || state.showDone;
-    html += '<div class="sec ' + sec.key + '"><button type="button" class="sec-h' + (sec.fold ? " fold" : "") + '"' +
-      (sec.fold ? ' data-act="fold"' : "") + ">" + (sec.fold ? (open ? "▾ " : "▸ ") : "") + sec.title +
-      ' <span class="n">' + items.length + "</span>" + (sec.hint ? '<span class="hint">' + sec.hint + "</span>" : "") + "</button>";
-    if(open) items.forEach(function(t){ html += listRow(p, t); });
-    html += "</div>";
-  });
-  body.innerHTML = html;
+  (function nodes(ids){
+    ids.forEach(function(id){
+      var st = stats[id];
+      if(state.hideDone && st.done === st.n) return;
+      var t = byId(p, id), kids = tree.kids[id] || [];
+      html += '<div class="node">' + listRow(p, t, tree, st, kids.length);
+      if(kids.length && !t.fold){ html += '<div class="kids">'; nodes(kids); html += "</div>"; }
+      html += "</div>";
+    });
+  })(tree.roots);
+  body.innerHTML = html || '<div class="list-empty">Todo terminado 🎉</div>';
 }
 
-function listRow(p, t){
+function listRow(p, t, tree, st, nkids){
   var i = info(p, t);
-  var names = function(ids){ return ids.map(function(id){ var x = byId(p, id); return x ? "<b>" + esc(x.title) + "</b>" : ""; }).join(", "); };
-  var waiting = prereqs(p, t.id).filter(function(id){ var x = byId(p, id); return x && x.status !== "done"; });
-  var next = dependents(p, t.id);
-  var meta = [];
-  if(waiting.length) meta.push("espera a " + names(waiting));
-  if(next.length && t.status !== "done") meta.push("→ luego " + names(next));
-  return '<div class="li s-' + t.status + (i.blocked ? " blocked" : "") + '" data-id="' + t.id + '">' +
+  var others = prereqs(p, t.id).filter(function(id){
+    var x = byId(p, id); return x && id !== tree.parent[t.id] && x.status !== "done";
+  });
+  var meta = others.length ? '<span class="li-meta">también espera a ' + others.map(function(id){ return "<b>" + esc(byId(p, id).title) + "</b>"; }).join(", ") + "</span>" : "";
+  var fold = nkids
+    ? '<button type="button" class="tog" data-act="fold" aria-label="' + (t.fold ? "Mostrar" : "Ocultar") + ' subtareas">' + (t.fold ? "▸" : "▾") + "</button>"
+    : '<span class="tog"></span>';
+  var badge = nkids ? '<span class="li-count" title="Hechas en esta rama">' + st.done + "/" + st.n + "</span>" : "";
+  if(i.unlocked) badge = '<span class="li-ready">▶ lista</span>' + badge;
+  if(i.blocked) badge = '<span class="li-lock" title="Prerequisitos sin terminar">🔒</span>' + badge;
+  return '<div class="li s-' + t.status + (i.blocked ? " blocked" : "") + (i.unlocked ? " unlocked" : "") + '" data-id="' + t.id + '">' + fold +
     '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (t.status === "done" ? " checked" : "") + ">" +
     '<button type="button" class="st" data-act="status" title="Cambiar estado · Shift+clic: pausar">' + ICON[t.status] + "</button>" +
-    '<div class="li-main"><span class="li-title">' + esc(t.title) + "</span>" +
-    (meta.length ? '<span class="li-meta">' + meta.join(" · ") + "</span>" : "") + "</div>" +
+    '<div class="li-main"><span class="li-title">' + esc(t.title) + "</span>" + meta + "</div>" + badge +
+    '<span class="li-tools">' +
+    '<button type="button" class="li-btn" data-act="sub" title="Agregar subtarea">＋</button>' +
     '<button type="button" class="li-btn" data-act="rename" title="Renombrar">✎</button>' +
     '<button type="button" class="li-btn" data-act="goto" title="Ver en el mapa">◎</button>' +
     '<button type="button" class="li-btn" data-act="del" title="Borrar">×</button>' +
-    "</div>";
+    "</span></div>";
 }
+
+// Crea una tarea; con parentId queda como subtarea (depende de ella) y se ubica a su derecha en el mapa.
+function addTask(p, title, parentId){
+  var parent = parentId && byId(p, parentId), t;
+  if(parent){
+    var ys = dependents(p, parentId).map(function(k){ return byId(p, k).y; });
+    t = makeTask(p, parent.x + W + GX, ys.length ? Math.max.apply(null, ys) + H + GY : parent.y, title);
+    p.deps.push({ from: parentId, to: t.id });
+    parent.fold = false;
+  } else {
+    var x = p.tasks.length ? Math.min.apply(null, p.tasks.map(function(k){ return k.x; })) : 0;
+    var y = p.tasks.length ? Math.max.apply(null, p.tasks.map(function(k){ return k.y; })) + H + GY : 0;
+    t = makeTask(p, x, y, title);
+  }
+  return t;
+}
+
+$("listHead").addEventListener("change", function(e){
+  if(e.target.dataset.act === "hidedone"){ state.hideDone = e.target.checked; save(); renderList(); }
+});
 
 $("listBody").addEventListener("click", function(e){
   var b = e.target.closest("[data-act]"); if(!b) return;
-  var act = b.dataset.act;
-  if(act === "fold"){ state.showDone = !state.showDone; save(); renderList(); return; }
-  var id = b.closest(".li").dataset.id, t = byId(proj(), id);
-  if(act === "done") setStatus(id, b.checked ? "done" : "todo");
+  var act = b.dataset.act, p = proj();
+  var id = b.closest(".li").dataset.id, t = byId(p, id);
+  if(act === "fold"){ t.fold = !t.fold; save(); renderList(); }
+  else if(act === "done") setStatus(id, b.checked ? "done" : "todo");
   else if(act === "status") cycleStatus(id, e.shiftKey);
   else if(act === "rename") startEdit(id, b.closest(".li").querySelector(".li-title"));
+  else if(act === "sub"){
+    var n;
+    change(function(){ n = addTask(p, "Nueva subtarea", id); });
+    var row = $("listBody").querySelector('.li[data-id="' + n.id + '"]');
+    if(row){ row.scrollIntoView({ block: "nearest" }); startEdit(n.id, row.querySelector(".li-title")); }
+  }
   else if(act === "del"){
-    var n = dependents(proj(), id).length;
-    if(n && !confirm("«" + t.title + "» tiene " + n + " tarea(s) que dependen de ella. ¿Borrarla igual?")) return;
+    var k = dependents(p, id).length;
+    if(k && !confirm("«" + t.title + "» tiene " + k + " subtarea(s). Se borra solo esta tarea y sus subtareas quedan sueltas. ¿Seguir?")) return;
     sel = { task: id }; deleteSelected();
   }
   else if(act === "goto"){
@@ -813,19 +859,8 @@ $("listAdd").addEventListener("submit", function(e){
   e.preventDefault();
   var p = proj(), input = $("listNew"), title = input.value.replace(/\s+/g, " ").trim();
   if(!p || !title) return;
-  var from = $("listAfter").value, parent = from && byId(p, from);
-  change(function(){
-    var t;
-    if(parent){
-      var ys = dependents(p, from).map(function(k){ return byId(p, k).y; });
-      t = makeTask(p, parent.x + W + GX, ys.length ? Math.max.apply(null, ys) + H + GY : parent.y, title);
-      p.deps.push({ from: from, to: t.id });
-    } else {
-      var x = p.tasks.length ? Math.min.apply(null, p.tasks.map(function(k){ return k.x; })) : 0;
-      var y = p.tasks.length ? Math.max.apply(null, p.tasks.map(function(k){ return k.y; })) + H + GY : 0;
-      t = makeTask(p, x, y, title);
-    }
-  });
+  var from = $("listAfter").value;
+  change(function(){ addTask(p, title, from && byId(p, from) ? from : null); });
   input.value = "";
   input.focus();
 });
