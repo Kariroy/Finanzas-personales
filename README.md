@@ -87,7 +87,7 @@ en forma de ramas**. Cada tarea es una card en un lienzo y los wires marcan depe
 en curso o en pausa, y el botón **reordenar** acomoda todo en columnas.
 
 - Abrí `planes/index.html` (o `https://…pages.dev/planes/` una vez publicado).
-- Los datos quedan en ese navegador (`localStorage`); **exportar / importar** guarda un JSON.
+- Los datos quedan en ese navegador (`localStorage`).
 - No comparte código ni datos con la app de gastos: se puede mover a otro repo tal cual.
 
 ## Próximos pasos

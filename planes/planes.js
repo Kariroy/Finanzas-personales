@@ -1,6 +1,6 @@
 // Planes: planificador de tareas en forma de ramas.
 // Cada tarea es una card en un lienzo; un wire A→B significa "B depende de A".
-// Todo se guarda en localStorage (este navegador). Exportar/importar = JSON.
+// Todo se guarda en localStorage (este navegador).
 (function(){
 "use strict";
 
@@ -364,19 +364,8 @@ function projStats(p){
 
 // Panel izquierdo: programas desplegables con sus proyectos adentro.
 function renderProjects(){
-  var list = $("projects"), f = state.filter || "todo", s = state.sort || "edited";
-  $("filter").value = f; $("sort").value = s;
-  var visible = function(p){
-    var st = projStats(p);
-    if(f === "todo") return st.pending > 0 || !st.n || p.id === state.current;
-    if(f === "done") return st.n && !st.pending;
-    return true;
-  };
-  var sortFn = function(a, b){
-    if(s === "name") return a.name.localeCompare(b.name, "es");
-    if(s === "pending") return projStats(b).pending - projStats(a).pending;
-    return b.updated - a.updated;
-  };
+  var list = $("projects");
+  var sortFn = function(a, b){ return b.updated - a.updated; };  // últimos editados primero
   var groups = state.programs.slice().sort(function(a, b){ return a.name.localeCompare(b.name, "es"); });
   var loose = state.projects.filter(function(p){ return !progOf(p); });
   if(loose.length) groups.push({ id: null, name: "Sin programa", open: state.looseOpen !== false });
@@ -388,7 +377,7 @@ function renderProjects(){
   }
   groups.forEach(function(g){
     var all = state.projects.filter(function(p){ return progOf(p) === g.id; });
-    var shown = all.filter(visible).sort(sortFn);
+    var shown = all.slice().sort(sortFn);
     var tot = all.reduce(function(acc, p){ var st = projStats(p); acc.n += st.n; acc.done += st.done; return acc; }, { n: 0, done: 0 });
     var pct = tot.n ? Math.round(tot.done * 100 / tot.n) : 0;
     var hasCurrent = all.some(function(p){ return p.id === state.current; });
@@ -417,7 +406,7 @@ function renderProjects(){
       var inner = document.createElement("div");
       inner.className = "prog-body";
       if(!shown.length){
-        inner.innerHTML = '<div class="no-projects">' + (all.length ? "Ninguno en este filtro." : "Sin proyectos todavía.") + "</div>";
+        inner.innerHTML = '<div class="no-projects">' + "Sin proyectos todavía." + "</div>";
       }
       shown.forEach(function(p){ inner.appendChild(projectItem(p)); });
       box.appendChild(inner);
@@ -1064,8 +1053,6 @@ $("newTask").addEventListener("click", function(){
   startEdit(t.id);
 });
 
-$("filter").addEventListener("change", function(e){ state.filter = e.target.value; save(); renderProjects(); });
-$("sort").addEventListener("change", function(e){ state.sort = e.target.value; save(); renderProjects(); });
 $("undo").addEventListener("click", undo);
 $("redo").addEventListener("click", redo);
 $("highlight").addEventListener("change", function(e){ state.highlight = e.target.checked; save(); renderAll(); });
@@ -1077,37 +1064,6 @@ $("layout").addEventListener("click", function(){
 $("fit").addEventListener("click", fit);
 $("zoomIn").addEventListener("click", function(){ var r = canvas.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.2); });
 $("zoomOut").addEventListener("click", function(){ var r = canvas.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2); });
-
-$("export").addEventListener("click", function(){
-  var blob = new Blob([JSON.stringify({ programs: state.programs, projects: state.projects }, null, 2)], { type: "application/json" });
-  var a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "planes-" + new Date().toISOString().slice(0, 10) + ".json";
-  a.click();
-  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
-});
-$("import").addEventListener("click", function(){ $("importFile").click(); });
-$("importFile").addEventListener("change", function(e){
-  var f = e.target.files[0]; if(!f) return;
-  f.text().then(function(txt){
-    var o = JSON.parse(txt);
-    if(!o || !Array.isArray(o.projects)) throw new Error("formato");
-    var have = {};
-    state.projects.forEach(function(p){ have[p.id] = 1; });
-    var added = o.projects.filter(function(p){ return p && p.id && Array.isArray(p.tasks) && Array.isArray(p.deps) && !have[p.id]; });
-    if(!added.length){ toast("No hay proyectos nuevos en ese archivo"); return; }
-    var haveG = {};
-    state.programs.forEach(function(g){ haveG[g.id] = 1; });
-    var newG = (Array.isArray(o.programs) ? o.programs : []).filter(function(g){ return g && g.id && g.name && !haveG[g.id]; });
-    change(function(){
-      newG.forEach(function(g){ state.programs.push(g); });
-      added.forEach(function(p){ p.view = p.view || { x: 60, y: 120, z: 1 }; state.projects.push(p); });
-      state.current = added[0].id;
-    });
-    toast(added.length + " proyecto(s) importado(s)");
-  }).catch(function(){ toast("No se pudo leer el archivo"); });
-  e.target.value = "";
-});
 
 function closeSideMobile(){ $("side").classList.remove("open"); }
 $("openSide").addEventListener("click", function(){ $("side").classList.add("open"); });

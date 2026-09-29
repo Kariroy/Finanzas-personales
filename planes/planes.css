@@ -43,7 +43,7 @@ button, select, input { font: inherit; color: inherit; }
   gap: 10px;
   overflow-y: auto;
 }
-.side-head { display: flex; align-items: center; gap: 8px; }
+.side-head { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .side-head .brand { flex: 1; }
 .side { overflow-y: hidden; }
 .brand { font-weight: 600; letter-spacing: .02em; }

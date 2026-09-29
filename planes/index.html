@@ -15,7 +15,6 @@
 <div class="layout">
   <aside class="side" id="side">
     <div class="side-head">
-      <span class="brand">▦ Plan · programas</span>
       <button class="icon-btn help-btn" data-help aria-label="Ayuda y reglas" title="Ayuda y reglas">?</button>
       <button class="icon-btn only-mobile" id="closeSide" aria-label="Cerrar panel">×</button>
     </div>
@@ -25,19 +24,6 @@
       <button class="btn" id="newProject">+ proyecto</button>
       <button class="btn" id="newTask">+ tarea</button>
     </div>
-    <div class="row2">
-      <select class="btn" id="filter" aria-label="Filtrar proyectos">
-        <option value="todo">con tareas por hacer</option>
-        <option value="all">todos</option>
-        <option value="done">terminados</option>
-      </select>
-      <select class="btn" id="sort" aria-label="Ordenar proyectos">
-        <option value="edited">últimos editados</option>
-        <option value="name">nombre</option>
-        <option value="pending">más pendientes</option>
-      </select>
-    </div>
-
     <div class="projects" id="projects"></div>
 
     <div class="row2">
@@ -45,11 +31,6 @@
       <button class="btn" id="redo" title="Ctrl+Y">↷ rehacer</button>
     </div>
 
-    <div class="row2">
-      <button class="btn" id="export">exportar</button>
-      <button class="btn" id="import">importar</button>
-      <input type="file" id="importFile" accept="application/json,.json" hidden>
-    </div>
   </aside>
 
   <div class="stage">
