@@ -282,7 +282,7 @@ function renderAll(){
   renderWires();
   applyView();
   var p = proj();
-  $("projectTitle").textContent = p ? p.name : "";
+  renderProjectPick();
   $("undo").disabled = !hist.length;
   $("redo").disabled = !fut.length;
   $("newTask").disabled = !p;
@@ -772,7 +772,7 @@ function renderList(){
       if(state.hideDone && st.done === st.n) return;
       var t = byId(p, id), kids = tree.kids[id] || [];
       html += '<div class="node">' + listRow(p, t, tree, st, kids.length);
-      if(kids.length && !t.fold){ html += '<div class="kids">'; nodes(kids); html += "</div>"; }
+      if(kids.length && !t.fold){ html += '<div class="subs">'; nodes(kids); html += "</div>"; }
       html += "</div>";
     });
   })(tree.roots);
@@ -873,9 +873,25 @@ $("modeSeg").addEventListener("click", function(e){
 });
 
 // ---------- panel lateral ----------
-$("newProject").addEventListener("click", function(){
+// Desplegable de proyectos de la barra de arriba (lo principal en el celular).
+function renderProjectPick(){
+  var pick = $("projectPick");
+  var list = state.projects.slice().sort(function(a, b){ return b.updated - a.updated; });
+  pick.innerHTML = list.map(function(p){
+    var pending = p.tasks.filter(function(t){ return t.status !== "done"; }).length;
+    return '<option value="' + p.id + '">' + esc(p.name) + (pending ? " · " + pending : " ✓") + "</option>";
+  }).join("") + '<option value="__new">＋ nuevo proyecto…</option>';
+  pick.value = state.current || "__new";
+}
+$("projectPick").addEventListener("change", function(e){
+  var v = e.target.value;
+  if(v === "__new"){ if(!newProject()) renderProjectPick(); return; }
+  state.current = v; sel = null; save(); renderAll();
+});
+
+function newProject(){
   var name = prompt("Nombre del proyecto", "Nuevo proyecto");
-  if(!name || !name.trim()) return;
+  if(!name || !name.trim()) return false;
   change(function(){
     var p = newProjectObj(name.trim());
     state.projects.push(p);
@@ -883,6 +899,18 @@ $("newProject").addEventListener("click", function(){
     sel = null;
   });
   closeSideMobile();
+  return true;
+}
+$("newProject").addEventListener("click", newProject);
+
+Array.prototype.forEach.call(document.querySelectorAll("[data-help]"), function(b){
+  b.addEventListener("click", function(){ closeSideMobile(); $("helpDlg").showModal(); });
+});
+$("helpClose").addEventListener("click", function(){ $("helpDlg").close(); });
+// Clic en el fondo oscuro (fuera del recuadro) = cerrar.
+$("helpDlg").addEventListener("click", function(e){
+  var r = e.currentTarget.getBoundingClientRect();
+  if(e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) e.currentTarget.close();
 });
 
 $("newTask").addEventListener("click", function(){

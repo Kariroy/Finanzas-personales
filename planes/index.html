@@ -15,7 +15,8 @@
 <div class="layout">
   <aside class="side" id="side">
     <div class="side-head">
-      <span class="brand">▦ Plan · planificador de tareas</span>
+      <span class="brand">▦ Plan · proyectos</span>
+      <button class="icon-btn help-btn" data-help aria-label="Ayuda y reglas" title="Ayuda y reglas">?</button>
       <button class="icon-btn only-mobile" id="closeSide" aria-label="Cerrar panel">×</button>
     </div>
 
@@ -43,28 +44,6 @@
       <button class="btn" id="redo" title="Ctrl+Y">↷ rehacer</button>
     </div>
 
-    <label class="check"><input type="checkbox" id="highlight" checked> Resaltar desbloqueadas</label>
-
-    <ul class="legend">
-      <li><span class="dot todo"></span>por hacer</li>
-      <li><span class="dot doing"></span>en curso</li>
-      <li><span class="dot paused"></span>en pausa (Shift+clic)</li>
-      <li><span class="dot done"></span>hecha</li>
-      <li><span class="dot ready"></span>▶ desbloqueada (podés empezarla)</li>
-      <li><span class="dot blocked"></span>🔒 bloqueada (faltan prerequisitos)</li>
-    </ul>
-
-    <p class="help">
-      Tareas = <b>mini-cards</b>. Wire = dependencia (A→B = B depende de A).<br>
-      — arrastrá el <b>puerto ●</b> (borde derecho) a otra card = dependencia · a vacío = nueva tarea dependiente<br>
-      — arrastrá el <b>puerto de entrada</b> (borde izquierdo) = reconectar a otra card · a vacío = quitar la dependencia<br>
-      — arrastrá la card = moverla · <b>Shift+arrastrar</b> = mover con todo lo que depende de ella<br>
-      — clic en el círculo = por hacer → en curso → hecha · Shift+clic = pausar<br>
-      — doble clic = crear / renombrar · Tab = nueva tarea dependiente<br>
-      — clic en un wire + Supr = borrarlo · Supr = borrar tarea · rueda = zoom · arrastrar el fondo = mover<br>
-      — Ctrl+Z / Ctrl+Y
-    </p>
-
     <div class="row2">
       <button class="btn" id="export">exportar</button>
       <button class="btn" id="import">importar</button>
@@ -76,10 +55,11 @@
     <div class="topbar">
       <button class="icon-btn menu only-mobile" id="openSide" aria-label="Abrir panel">☰</button>
       <div class="seg" id="modeSeg" role="tablist">
-        <button type="button" data-mode="map" role="tab">▦ Mapa</button>
-        <button type="button" data-mode="list" role="tab">☑ Lista</button>
+        <button type="button" data-mode="map" role="tab" title="Mapa">▦<span class="lbl"> Mapa</span></button>
+        <button type="button" data-mode="list" role="tab" title="Lista">☑<span class="lbl"> Lista</span></button>
       </div>
-      <span class="project-title" id="projectTitle"></span>
+      <select class="pick" id="projectPick" aria-label="Proyecto"></select>
+      <button class="icon-btn help-btn only-mobile" data-help aria-label="Ayuda y reglas">?</button>
     </div>
 
     <main class="canvas" id="canvas">
@@ -113,6 +93,34 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </div>
 </div>
+<dialog class="help-dlg" id="helpDlg">
+  <div class="help-top">
+    <strong>Reglas y atajos</strong>
+    <button class="icon-btn" id="helpClose" aria-label="Cerrar">×</button>
+  </div>
+      <label class="check"><input type="checkbox" id="highlight" checked> Resaltar desbloqueadas</label>
+
+      <ul class="legend">
+        <li><span class="dot todo"></span>por hacer</li>
+        <li><span class="dot doing"></span>en curso</li>
+        <li><span class="dot paused"></span>en pausa (Shift+clic)</li>
+        <li><span class="dot done"></span>hecha</li>
+        <li><span class="dot ready"></span>▶ desbloqueada (podés empezarla)</li>
+        <li><span class="dot blocked"></span>🔒 bloqueada (faltan prerequisitos)</li>
+      </ul>
+
+      <p class="help">
+        Tareas = <b>mini-cards</b>. Wire = dependencia (A→B = B depende de A).<br>
+        — arrastrá el <b>puerto ●</b> (borde derecho) a otra card = dependencia · a vacío = nueva tarea dependiente<br>
+        — arrastrá el <b>puerto de entrada</b> (borde izquierdo) = reconectar a otra card · a vacío = quitar la dependencia<br>
+        — arrastrá la card = moverla · <b>Shift+arrastrar</b> = mover con todo lo que depende de ella<br>
+        — clic en el círculo = por hacer → en curso → hecha · Shift+clic = pausar<br>
+        — doble clic = crear / renombrar · Tab = nueva tarea dependiente<br>
+        — clic en un wire + Supr = borrarlo · Supr = borrar tarea · rueda = zoom · arrastrar el fondo = mover<br>
+        — Ctrl+Z / Ctrl+Y
+      </p>
+
+</dialog>
 <script src="planes.js"></script>
 </body>
 </html>
