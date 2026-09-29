@@ -134,15 +134,6 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .seg button { background: none; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer; color: var(--muted); }
 .seg button:hover { color: var(--text); }
 .seg button.on { background: #1f2a36; color: var(--text); }
-.pick {
-  min-width: 0; max-width: 280px; flex: 0 1 auto;
-  background: #141a22; border: 1px solid var(--line); border-radius: 8px;
-  padding: 8px 28px 8px 12px; font-weight: 600; cursor: pointer;
-  appearance: none; text-overflow: ellipsis;
-  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position: calc(100% - 15px) 50%, calc(100% - 11px) 50%; background-size: 4px 4px; background-repeat: no-repeat;
-}
-.pick:focus { outline: none; border-color: var(--doing); }
 .help-btn { font-size: 14px; font-weight: 700; flex: none; }
 
 .help-dlg {
@@ -259,15 +250,13 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 @media (max-width: 800px) {
   .only-mobile { display: inline-block; }
   .side {
-    position: fixed; inset: 0 auto 0 0; z-index: 10; width: min(300px, 88vw);
+    position: fixed; inset: 0; z-index: 10; width: 100%; padding: 14px 16px;
     transform: translateX(-100%); transition: transform .2s;
     box-shadow: 0 0 40px rgba(0, 0, 0, .5);
   }
   .side.open { transform: none; }
   .topbar { left: 10px; right: 10px; transform: none; gap: 6px; max-width: none; }
-  .seg .lbl { display: none; }
-  .seg button { padding: 6px 10px; font-size: 14px; }
-  .pick { flex: 1; max-width: none; }
+  .topbar .help-btn { margin-left: auto; }
   .tools { opacity: 1; }
 }
 
@@ -283,7 +272,7 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 8px; }
 .bar i { display: block; height: 100%; background: var(--done); }
 
-.list-add { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 190px) auto; gap: 6px; }
+.list-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
 .list-add input, .list-add select {
   background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; min-width: 0;
 }
@@ -326,8 +315,6 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 
 @media (max-width: 800px) {
   .list { padding: 60px 12px 40px; }
-  .list-add { grid-template-columns: minmax(0, 1fr) auto; }
-  .list-add select { grid-column: 1 / -1; grid-row: 2; }
   .li { padding: 12px 8px 12px 12px; }
   .chk { width: 24px; height: 24px; }
   .li .st { width: 28px; height: 28px; font-size: 14px; }

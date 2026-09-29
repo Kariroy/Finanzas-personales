@@ -40,7 +40,6 @@
         <button type="button" data-mode="map" role="tab" title="Mapa">▦<span class="lbl"> Mapa</span></button>
         <button type="button" data-mode="list" role="tab" title="Lista">☑<span class="lbl"> Lista</span></button>
       </div>
-      <select class="pick" id="projectPick" aria-label="Proyecto"></select>
       <button class="icon-btn help-btn only-mobile" data-help aria-label="Ayuda y reglas">?</button>
     </div>
 
@@ -64,8 +63,7 @@
       <div class="list-inner">
         <div class="list-head" id="listHead"></div>
         <div class="list-add" id="listAdd">
-          <input type="text" id="listNew" placeholder="Nueva tarea…" aria-label="Nueva tarea">
-          <select id="listAfter" aria-label="Depende de"></select>
+          <input type="text" id="listNew" placeholder="Nueva tarea… (subtareas con ＋)" aria-label="Nueva tarea">
           <button class="btn" type="button" id="listAddBtn">agregar</button>
         </div>
         <div id="listBody"></div>

@@ -286,7 +286,6 @@ function renderAll(){
   renderWires();
   applyView();
   var p = proj();
-  renderProjectPick();
   $("undo").disabled = !hist.length;
   $("redo").disabled = !fut.length;
   $("newTask").disabled = !p;
@@ -801,7 +800,7 @@ function renderList(){
   var box = $("list"), p = proj();
   box.hidden = state.mode !== "list";
   if(box.hidden) return;
-  var body = $("listBody"), head = $("listHead"), after = $("listAfter");
+  var body = $("listBody"), head = $("listHead");
   $("listAdd").hidden = !p;
   if(!p){
     head.innerHTML = "";
@@ -815,12 +814,6 @@ function renderList(){
     (state.hideDone ? " checked" : "") + '> ocultar ramas terminadas</label></div><div class="bar"><i style="width:' + pct + '%"></i></div>';
 
   var tree = buildTree(p);
-  var keep = after.value;
-  after.innerHTML = '<option value="">tarea principal</option>' + p.tasks.slice()
-    .sort(function(a, b){ return tree.order[a.id] - tree.order[b.id]; })
-    .filter(function(t){ return t.status !== "done"; })
-    .map(function(t){ return '<option value="' + t.id + '">subtarea de: ' + esc(t.title) + "</option>"; }).join("");
-  if(byId(p, keep)) after.value = keep;
 
   if(!p.tasks.length){
     body.innerHTML = '<div class="list-empty">Todavía no hay tareas. Escribí la primera arriba.</div>';
@@ -931,8 +924,7 @@ $("listBody").addEventListener("dblclick", function(e){
 function listAddTask(){
   var p = proj(), input = $("listNew"), title = input.value.replace(/\s+/g, " ").trim();
   if(!p || !title) return;
-  var from = $("listAfter").value;
-  change(function(){ addTask(p, title, from && byId(p, from) ? from : null); });
+  change(function(){ addTask(p, title, null); });
   input.value = "";
   input.focus();
 }
@@ -947,28 +939,6 @@ $("modeSeg").addEventListener("click", function(e){
 });
 
 // ---------- panel lateral ----------
-// Desplegable de proyectos de la barra de arriba (lo principal en el celular).
-function renderProjectPick(){
-  var pick = $("projectPick");
-  var opt = function(p){
-    var pending = projStats(p).pending;
-    return '<option value="' + p.id + '">' + esc(p.name) + (pending ? " · " + pending : " ✓") + "</option>";
-  };
-  var byEdit = function(a, b){ return b.updated - a.updated; };
-  var html = "";
-  programOptions().slice(1).concat([{ value: "", label: "Sin programa" }]).forEach(function(g){
-    var ps = state.projects.filter(function(p){ return (progOf(p) || "") === g.value; }).sort(byEdit);
-    if(ps.length) html += '<optgroup label="' + esc(g.label) + '">' + ps.map(opt).join("") + "</optgroup>";
-  });
-  pick.innerHTML = html + '<option value="__new">＋ nuevo proyecto…</option>';
-  pick.value = state.current || "__new";
-}
-$("projectPick").addEventListener("change", function(e){
-  var v = e.target.value;
-  if(v === "__new"){ renderProjectPick(); newProject(); return; }
-  state.current = v; sel = null; save(); renderAll();
-});
-
 function newProject(program){
   closeSideMobile();
   var cur = proj();
