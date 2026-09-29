@@ -342,3 +342,23 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
   .li-tools .li-btn[data-act="goto"] { display: none; }
   .hide-done { display: flex; margin: 6px 0 0; }
 }
+
+/* ---------- ventana para pedir texto / confirmar ---------- */
+.ask {
+  position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .55);
+  display: flex; align-items: flex-start; justify-content: center; padding: 18vh 16px 16px;
+}
+.ask[hidden] { display: none; }
+.ask-box {
+  width: min(380px, 100%); background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px;
+  padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+}
+.ask-title { font-weight: 600; line-height: 1.5; }
+.ask input {
+  background: #0b0f14; border: 1px solid var(--line-2); border-radius: 6px; padding: 10px; font-size: 16px;
+}
+.ask input:focus { outline: none; border-color: var(--doing); }
+.ask-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.btn.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.btn.primary.danger { background: #b62324; border-color: #b62324; }
+.proj .ren { font-size: 12px; }

@@ -373,17 +373,18 @@ function renderProjects(){
     el.className = "proj" + (it.p.id === state.current ? " active" : "");
     el.innerHTML = '<span class="ring" style="--p:' + it.pct + '"></span><div class="txt"><div class="name"></div>' +
       '<div class="sub">' + it.pending + ' por hacer · ed. ' + d.toISOString().slice(0, 10) + '</div></div>' +
-      '<button class="x" title="Borrar proyecto">×</button>';
+      '<button class="x ren" title="Renombrar proyecto">✎</button><button class="x" title="Borrar proyecto">×</button>';
     el.querySelector(".name").textContent = it.p.name;
     el.title = "Doble clic para renombrar";
     el.addEventListener("click", function(e){
+      if(e.target.closest(".ren")){ renameProject(it.p); return; }
       if(e.target.closest(".x")){
-        if(confirm("¿Borrar el proyecto «" + it.p.name + "» y todas sus tareas?")){
+        ask({ title: "¿Borrar el proyecto «" + it.p.name + "» y todas sus tareas?", ok: "borrar", danger: true }, function(){
           change(function(){
             state.projects = state.projects.filter(function(x){ return x.id !== it.p.id; });
             if(state.current === it.p.id) state.current = state.projects[0] ? state.projects[0].id : null;
           });
-        }
+        });
         return;
       }
       if(state.current !== it.p.id){ state.current = it.p.id; sel = null; save(); renderAll(); }
@@ -391,8 +392,7 @@ function renderProjects(){
     });
     el.addEventListener("dblclick", function(e){
       if(e.target.closest(".x")) return;
-      var name = prompt("Nombre del proyecto", it.p.name);
-      if(name && name.trim()) change(function(){ it.p.name = name.trim(); });
+      renameProject(it.p);
     });
     list.appendChild(el);
   });
@@ -676,6 +676,7 @@ canvas.addEventListener("wheel", function(e){
 // ---------- teclado ----------
 document.addEventListener("keydown", function(e){
   var tg = e.target;
+  if(!$("ask").hidden) return;
   if(editing || tg.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName)) return;
   var mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
   if(mod && k === "z" && !e.shiftKey){ e.preventDefault(); undo(); }
@@ -839,8 +840,9 @@ $("listBody").addEventListener("click", function(e){
   }
   else if(act === "del"){
     var k = dependents(p, id).length;
-    if(k && !confirm("«" + t.title + "» tiene " + k + " subtarea(s). Se borra solo esta tarea y sus subtareas quedan sueltas. ¿Seguir?")) return;
-    sel = { task: id }; deleteSelected();
+    var del = function(){ sel = { task: id }; deleteSelected(); };
+    if(k) ask({ title: "«" + t.title + "» tiene " + k + " subtarea(s). Se borra solo esta tarea y sus subtareas quedan sueltas. ¿Seguir?", ok: "borrar", danger: true }, del);
+    else del();
   }
   else if(act === "goto"){
     state.mode = "map"; sel = { task: id }; save(); renderAll();
@@ -855,15 +857,16 @@ $("listBody").addEventListener("dblclick", function(e){
   if(span) startEdit(span.closest(".li").dataset.id, span);
 });
 
-$("listAdd").addEventListener("submit", function(e){
-  e.preventDefault();
+function listAddTask(){
   var p = proj(), input = $("listNew"), title = input.value.replace(/\s+/g, " ").trim();
   if(!p || !title) return;
   var from = $("listAfter").value;
   change(function(){ addTask(p, title, from && byId(p, from) ? from : null); });
   input.value = "";
   input.focus();
-});
+}
+$("listAddBtn").addEventListener("click", listAddTask);
+$("listNew").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); listAddTask(); } });
 
 $("modeSeg").addEventListener("click", function(e){
   var b = e.target.closest("[data-mode]"); if(!b || b.dataset.mode === state.mode) return;
@@ -885,21 +888,55 @@ function renderProjectPick(){
 }
 $("projectPick").addEventListener("change", function(e){
   var v = e.target.value;
-  if(v === "__new"){ if(!newProject()) renderProjectPick(); return; }
+  if(v === "__new"){ renderProjectPick(); newProject(); return; }
   state.current = v; sel = null; save(); renderAll();
 });
 
 function newProject(){
-  var name = prompt("Nombre del proyecto", "Nuevo proyecto");
-  if(!name || !name.trim()) return false;
-  change(function(){
-    var p = newProjectObj(name.trim());
-    state.projects.push(p);
-    state.current = p.id;
-    sel = null;
-  });
   closeSideMobile();
-  return true;
+  ask({ title: "Nuevo proyecto", input: "", placeholder: "Nombre del proyecto", ok: "crear" }, function(name){
+    change(function(){
+      var p = newProjectObj(name);
+      state.projects.push(p);
+      state.current = p.id;
+      sel = null;
+    });
+  });
+}
+
+function renameProject(p){
+  ask({ title: "Renombrar proyecto", input: p.name, ok: "guardar" }, function(name){
+    if(name !== p.name) change(function(){ p.name = name; });
+  });
+}
+
+// Ventana propia para pedir un texto o confirmar. Reemplaza a prompt()/confirm(),
+// que muchos celulares y vistas previas bloquean.
+function ask(o, onOk){
+  var box = $("ask"), input = $("askInput");
+  $("askTitle").textContent = o.title;
+  input.hidden = o.input === undefined;
+  input.value = o.input || "";
+  input.placeholder = o.placeholder || "";
+  $("askOk").textContent = o.ok || "aceptar";
+  $("askOk").classList.toggle("danger", !!o.danger);
+  box.hidden = false;
+  setTimeout(function(){ if(input.hidden) $("askOk").focus(); else { input.focus(); input.select(); } }, 30);
+  function close(){ box.hidden = true; $("askOk").onclick = $("askCancel").onclick = box.onclick = box.onkeydown = null; }
+  function accept(){
+    var v = input.value.replace(/\s+/g, " ").trim();
+    if(!input.hidden && !v){ input.focus(); return; }
+    close();
+    onOk(v);
+  }
+  // Sin <form> submit: en vistas previas "sandbox" los formularios no se envían.
+  $("askOk").onclick = accept;
+  $("askCancel").onclick = close;
+  box.onclick = function(e){ if(e.target === box) close(); };
+  box.onkeydown = function(e){
+    if(e.key === "Escape"){ e.preventDefault(); close(); }
+    else if(e.key === "Enter" && e.target === input){ e.preventDefault(); accept(); }
+  };
 }
 $("newProject").addEventListener("click", newProject);
 

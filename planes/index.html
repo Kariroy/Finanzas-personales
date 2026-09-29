@@ -81,16 +81,26 @@
     <section class="list" id="list" hidden>
       <div class="list-inner">
         <div class="list-head" id="listHead"></div>
-        <form class="list-add" id="listAdd" autocomplete="off">
+        <div class="list-add" id="listAdd">
           <input type="text" id="listNew" placeholder="Nueva tarea…" aria-label="Nueva tarea">
           <select id="listAfter" aria-label="Depende de"></select>
-          <button class="btn" type="submit">agregar</button>
-        </form>
+          <button class="btn" type="button" id="listAddBtn">agregar</button>
+        </div>
         <div id="listBody"></div>
       </div>
     </section>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+</div>
+<div class="ask" id="ask" hidden>
+  <div class="ask-box" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+    <div class="ask-title" id="askTitle"></div>
+    <input type="text" id="askInput" maxlength="120">
+    <div class="ask-btns">
+      <button type="button" class="btn" id="askCancel">cancelar</button>
+      <button type="button" class="btn primary" id="askOk">aceptar</button>
+    </div>
   </div>
 </div>
 <dialog class="help-dlg" id="helpDlg">
