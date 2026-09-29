@@ -1,14 +1,13 @@
-// Service worker: permite instalar la app y abrirla sin conexión.
-// Los archivos de la app se piden siempre a la red primero (así cada deploy se ve
-// enseguida) y solo si no hay conexión se usa la copia guardada.
-// Las consultas a Supabase no pasan por acá.
-var CACHE = "libro-gastos-v1";
+// Service worker de Planes (alcance /planes/, separado del de finanzas).
+// Los archivos de la app se piden primero a la red (cada deploy se ve enseguida)
+// y solo sin conexión se usa la copia guardada. Supabase no pasa por acá.
+var CACHE = "planes-v1";
 var SHELL = [
   "./",
   "index.html",
-  "styles.css",
-  "app.js",
-  "config.js",
+  "planes.css",
+  "planes.js",
+  "../config.js",
   "manifest.webmanifest",
   "icons/icon-192.png"
 ];
@@ -23,8 +22,7 @@ self.addEventListener("install", function(ev){
 self.addEventListener("activate", function(ev){
   ev.waitUntil(
     caches.keys().then(function(keys){
-      // Solo las cachés propias: Planes (/planes/) tiene las suyas en el mismo sitio.
-      return Promise.all(keys.filter(function(k){ return k.indexOf("libro-gastos-") === 0 && k !== CACHE; })
+      return Promise.all(keys.filter(function(k){ return k.indexOf("planes-") === 0 && k !== CACHE; })
         .map(function(k){ return caches.delete(k); }));
     }).then(function(){ return self.clients.claim(); })
   );

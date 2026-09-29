@@ -10,6 +10,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="planes.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Planes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
 <div class="layout">
@@ -29,6 +36,14 @@
     <div class="row2">
       <button class="btn" id="undo" title="Ctrl+Z">↶ deshacer</button>
       <button class="btn" id="redo" title="Ctrl+Y">↷ rehacer</button>
+    </div>
+
+    <div class="account" id="account" hidden>
+      <div class="account-txt">
+        <span class="account-email" id="accountEmail"></span>
+        <span class="sync" id="syncState"></span>
+      </div>
+      <button class="btn" id="signOut">salir</button>
     </div>
 
   </aside>
@@ -112,6 +127,27 @@
       </p>
 
 </dialog>
+<!-- Login (solo con Supabase configurado). Misma cuenta que el Libro de Gastos. -->
+<div class="auth" id="auth" hidden>
+  <div class="auth-box">
+    <div class="auth-logo">▦ Planes</div>
+    <p class="auth-sub">Entrá con la misma cuenta que usás en el Libro de Gastos.</p>
+    <button type="button" class="btn google" id="googleBtn" hidden>Continuar con Google</button>
+    <input type="email" id="authEmail" placeholder="Email" autocomplete="email" inputmode="email">
+    <input type="password" id="authPass" placeholder="Contraseña" autocomplete="current-password">
+    <p class="auth-msg" id="authMsg" role="status"></p>
+    <button type="button" class="btn primary" id="signInBtn">Entrar</button>
+    <button type="button" class="btn" id="signUpBtn">Crear cuenta</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
 <script src="planes.js"></script>
+<script>
+  if("serviceWorker" in navigator && location.protocol === "https:"){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  }
+</script>
 </body>
 </html>

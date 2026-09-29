@@ -1,10 +1,12 @@
 // Planes: planificador de tareas en forma de ramas.
 // Cada tarea es una card en un lienzo; un wire A→B significa "B depende de A".
-// Todo se guarda en localStorage (este navegador).
+// Con Supabase configurado (../config.js) los datos se guardan en la cuenta y se
+// sincronizan entre dispositivos; sin él, quedan solo en este navegador (localStorage).
 (function(){
 "use strict";
 
 var KEY = "planes-v1";
+var storeKey = KEY;       // con cuenta: una copia local por usuario (KEY + ":" + id)
 var W = 230, H = 56;      // tamaño de la card (igual que --card-w / --card-h)
 var GX = 60, GY = 18;     // separación entre columnas / filas al reordenar
 var GRID = 10;
@@ -47,11 +49,17 @@ function newProjectObj(name, program){
   return { id: uid(), name: name, program: program || null, updated: Date.now(), tasks: [], deps: [], view: { x: 60, y: 120, z: 1 } };
 }
 
-function load(){
+function readStore(key){
   try {
-    var s = JSON.parse(localStorage.getItem(KEY));
+    var s = JSON.parse(localStorage.getItem(key));
     if(s && Array.isArray(s.projects)) return s;
   } catch(e){}
+  return null;
+}
+
+function load(){
+  var s = readStore(storeKey);
+  if(s) return s;
   var g = { id: uid(), name: "Personal", open: true };
   var p = demo();
   p.program = g.id;
@@ -59,7 +67,9 @@ function load(){
 }
 
 function save(){
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){}
+  if(REMOTE && !user) return;   // sin sesión no se guarda nada (evita pisar datos)
+  try { localStorage.setItem(storeKey, JSON.stringify(state)); } catch(e){}
+  if(user) schedulePush();
 }
 
 function proj(){
@@ -1040,8 +1050,191 @@ $("openSide").addEventListener("click", function(){ $("side").classList.add("ope
 $("closeSide").addEventListener("click", closeSideMobile);
 
 window.addEventListener("storage", function(e){
-  if(e.key === KEY){ state = load(); sel = null; renderAll(); }
+  if(e.key !== storeKey) return;
+  var s = readStore(storeKey); if(!s) return;
+  applyData(s);
+});
+
+// ---------- cuenta y sincronización (Supabase) ----------
+// Una fila por persona en planes_datos (ver supabase/7-planes.sql) con
+// { programs, projects }. Lo demás (vista elegida, pliegues) queda en el navegador.
+var CFG = window.APP_CONFIG || {};
+var REMOTE = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+var sb = (REMOTE && window.supabase && window.supabase.createClient)
+  ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey)
+  : null;
+var user = null;
+var sync = { at: null, timer: null, busy: false, pending: false };
+
+function setSync(text){ $("syncState").textContent = text; }
+
+function payload(){ return { programs: state.programs, projects: state.projects }; }
+
+// Reemplaza programas y proyectos por los de otra copia, conservando la vista local.
+function applyData(d){
+  state.programs = Array.isArray(d.programs) ? d.programs : [];
+  state.projects = Array.isArray(d.projects) ? d.projects : [];
+  if(!proj()) state.current = state.projects[0] ? state.projects[0].id : null;
+  hist = []; fut = []; sel = null;
+  try { localStorage.setItem(storeKey, JSON.stringify(state)); } catch(e){}
+  renderAll();
+}
+
+function schedulePush(){
+  sync.pending = true;
+  setSync("guardando…");
+  clearTimeout(sync.timer);
+  sync.timer = setTimeout(push, 800);
+}
+
+function push(){
+  if(!user) return;
+  if(sync.busy){ clearTimeout(sync.timer); sync.timer = setTimeout(push, 500); return; }
+  sync.busy = true; sync.pending = false;
+  sb.from("planes_datos").upsert({ user_id: user.id, data: payload() })
+    .select("updated_at").single()
+    .then(function(r){
+      sync.busy = false;
+      if(r.error) throw r.error;
+      sync.at = r.data.updated_at;
+      if(!sync.pending) setSync("guardado ✓");
+    })
+    .catch(function(){
+      sync.busy = false;
+      sync.pending = true;
+      setSync("sin conexión · se guarda al volver");
+      clearTimeout(sync.timer);
+      sync.timer = setTimeout(push, 15000);
+    });
+}
+
+// Trae la versión de la nube si otro dispositivo la cambió (y acá no hay cambios sin subir).
+function pull(){
+  if(!user || sync.pending || sync.busy || editing || drag) return;
+  sb.from("planes_datos").select("updated_at").eq("user_id", user.id).maybeSingle().then(function(r){
+    if(r.error || !r.data || r.data.updated_at === sync.at) return;
+    return sb.from("planes_datos").select("data, updated_at").eq("user_id", user.id).single().then(function(r2){
+      if(r2.error || sync.pending || sync.busy || editing || drag) return;
+      sync.at = r2.data.updated_at;
+      applyData(r2.data.data || {});
+      setSync("actualizado ✓");
+    });
+  }).catch(function(){});
+}
+
+function onSession(s){
+  user = s ? s.user : null;
+  $("auth").hidden = !!user;
+  $("account").hidden = !user;
+  if(!user){
+    // Sin sesión: no dejar a la vista datos de la cuenta anterior.
+    storeKey = KEY; sync.at = null; clearTimeout(sync.timer); sync.pending = false;
+    state.programs = []; state.projects = []; state.current = null;
+    hist = []; fut = []; sel = null;
+    renderAll();
+    return;
+  }
+  $("accountEmail").textContent = user.email || "";
+  storeKey = KEY + ":" + user.id;
+  var cached = readStore(storeKey);
+  if(cached){ state.mode = cached.mode || state.mode; state.hideDone = cached.hideDone; applyData(cached); }
+  setSync("sincronizando…");
+  sb.from("planes_datos").select("data, updated_at").eq("user_id", user.id).maybeSingle().then(function(r){
+    if(r.error) throw r.error;
+    if(r.data){
+      sync.at = r.data.updated_at;
+      applyData(r.data.data || {});
+      setSync("guardado ✓");
+      return;
+    }
+    // Primera vez con esta cuenta: se sube lo que haya en este navegador
+    // (lo que se usó sin cuenta, o el proyecto de muestra).
+    var local = cached || readStore(KEY) || load();
+    applyData(local);
+    push();
+    try { localStorage.removeItem(KEY); } catch(e){}
+  }).catch(function(){
+    setSync("sin conexión · usando la copia de este dispositivo");
+  });
+}
+
+// ---------- login ----------
+function authMsg(text, ok){ $("authMsg").textContent = text || ""; $("authMsg").classList.toggle("ok", !!ok); }
+function authErrorText(err){
+  var m = (err && err.message) || "";
+  if(/invalid login/i.test(m)) return "Email o contraseña incorrectos.";
+  if(/not confirmed/i.test(m)) return "Confirmá tu email antes de entrar (revisá tu casilla).";
+  if(/already registered/i.test(m)) return "Ese email ya tiene cuenta. Probá con Entrar.";
+  if(/password/i.test(m)) return "La contraseña tiene que tener al menos 6 caracteres.";
+  return "No se pudo conectar. Probá de nuevo.";
+}
+function credentials(){
+  var email = $("authEmail").value.trim(), password = $("authPass").value;
+  if(!email || password.length < 6){ authMsg("Poné tu email y una contraseña de al menos 6 caracteres."); return null; }
+  return { email: email, password: password };
+}
+function signIn(){
+  var c = credentials(); if(!c) return;
+  authMsg("Entrando…", true);
+  sb.auth.signInWithPassword(c).then(function(r){ if(r.error) authMsg(authErrorText(r.error)); });
+}
+$("signInBtn").addEventListener("click", signIn);
+$("authPass").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); signIn(); } });
+$("authEmail").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); $("authPass").focus(); } });
+$("signUpBtn").addEventListener("click", function(){
+  var c = credentials(); if(!c) return;
+  authMsg("Creando cuenta…", true);
+  sb.auth.signUp({ email: c.email, password: c.password, options: { emailRedirectTo: location.origin + location.pathname } })
+    .then(function(r){
+      if(r.error) authMsg(authErrorText(r.error));
+      else if(!r.data.session) authMsg("Te mandamos un email para confirmar la cuenta. Después volvé y entrá.", true);
+    });
+});
+$("googleBtn").addEventListener("click", function(){
+  authMsg("Abriendo Google…", true);
+  sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname } })
+    .then(function(r){ if(r.error) authMsg("No se pudo abrir Google. Probá de nuevo."); });
+});
+$("signOut").addEventListener("click", function(){
+  closeSideMobile();
+  var out = function(){ sb.auth.signOut(); };
+  if(sync.pending || sync.busy){
+    ask({ title: "Hay cambios que todavía no se subieron. Si salís ahora se pierden. ¿Salir igual?", ok: "salir", danger: true }, out);
+  } else out();
 });
 
 renderAll();
+
+if(REMOTE){
+  if(!sb){
+    $("auth").hidden = false;
+    authMsg("No se pudo cargar Supabase. Revisá tu conexión y recargá la página.");
+    $("signInBtn").disabled = $("signUpBtn").disabled = true;
+  } else {
+    // Mientras se sabe si hay sesión, no mostrar datos locales de nadie.
+    state.programs = []; state.projects = []; state.current = null;
+    renderAll();
+    var params = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));
+    if(params.get("error_description")){
+      authMsg("No se pudo entrar: " + params.get("error_description").replace(/\+/g, " "));
+      history.replaceState(null, "", location.pathname);
+    }
+    fetch(CFG.supabaseUrl + "/auth/v1/settings", { headers: { apikey: CFG.supabaseAnonKey } })
+      .then(function(r){ return r.json(); })
+      .then(function(st){ $("googleBtn").hidden = !(st && st.external && st.external.google); })
+      .catch(function(){});
+    var currentUserId;
+    sb.auth.onAuthStateChange(function(event, s){
+      var id = s ? s.user.id : null;
+      if(id === currentUserId) return;
+      currentUserId = id;
+      // Supabase recomienda no llamar a la API dentro de este callback.
+      setTimeout(function(){ onSession(s); }, 0);
+    });
+    document.addEventListener("visibilitychange", function(){ if(document.visibilityState === "visible") pull(); });
+    window.addEventListener("focus", pull);
+    window.addEventListener("online", function(){ if(sync.pending) push(); else pull(); });
+    setInterval(function(){ if(document.visibilityState === "visible") pull(); }, 30000);
+  }
+}
 })();

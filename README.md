@@ -18,6 +18,8 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 | `index.html`, `styles.css`, `app.js` | La app (HTML/CSS/JS puro, sin build). |
 | `config.js` | URL y clave pública de Supabase. Vacío = modo local. |
 | `supabase/1-tablas.sql` … `6-borrar-grupos.sql` | Base de datos: tablas, funciones, reglas de seguridad (RLS), tiempo real, deudas y borrado de grupos. |
+| `supabase/7-planes.sql` | Tabla de la app Planes (`planes/`). Solo hace falta si usás Planes. |
+| `planes/` | App Planes (planificador de tareas), aparte de la de gastos. |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Para instalar la app en el celular. |
 | `_headers` | Cabeceras de seguridad para Cloudflare Pages. |
 
@@ -79,16 +81,35 @@ Con `config.js` vacío la app funciona en **modo local**: los datos quedan solo 
 - **Android (Chrome)**: ⚙ → **Instalar app**, o menú ⋮ → *Instalar app*.
 - **iPhone (Safari)**: botón **Compartir** → **Agregar a inicio**.
 
-## Planes (proyecto aparte)
+## Planes (app aparte)
 
 La carpeta `planes/` es otra app, independiente de la de gastos: un **planificador de tareas
-en forma de ramas**. Cada tarea es una card en un lienzo y los wires marcan dependencias
-(A→B = B necesita que A esté hecha). Muestra qué tareas están desbloqueadas, bloqueadas,
-en curso o en pausa, y el botón **reordenar** acomoda todo en columnas.
+en forma de ramas**. Programas → proyectos → tareas; cada tarea es una card en un lienzo
+(**Mapa**) o una fila en un árbol de tareas y subtareas (**Lista**), y las dependencias marcan
+qué está desbloqueado, bloqueado, en curso o en pausa.
 
-- Abrí `planes/index.html` (o `https://…pages.dev/planes/` una vez publicado).
-- Los datos quedan en ese navegador (`localStorage`).
-- No comparte código ni datos con la app de gastos: se puede mover a otro repo tal cual.
+Comparte con la app de gastos solo la infraestructura:
+
+- **Cloudflare Pages**: el mismo proyecto. Se publica sola en `https://…pages.dev/planes/`
+  (la de gastos sigue en la raíz). Tiene su propio ícono, manifest y service worker, así que
+  en el celular se instala como una app aparte (abrí `/planes/` → *Instalar app* / *Agregar a inicio*).
+- **Supabase**: el mismo proyecto y **las mismas cuentas**, pero con su propia tabla
+  (`planes_datos`, una fila por persona). Lee `config.js` de la raíz, no hace falta otra clave.
+
+Para activarla en Supabase (una sola vez):
+
+1. **SQL Editor → New query**: pegá `supabase/7-planes.sql` completo → **Run**.
+2. **Authentication → URL Configuration → Redirect URLs**: agregá
+   `https://<tu-proyecto>.pages.dev/planes/` (así el login con Google y el email de
+   confirmación vuelven a Planes y no a la app de gastos).
+
+Cómo guarda: cada cambio se sube a la cuenta a los pocos segundos y al volver a abrir la app
+en otro dispositivo se trae lo último. Sin conexión sigue funcionando con la copia del
+dispositivo y sube los cambios cuando vuelve la red. La primera vez que entrás, se sube lo
+que hubieras cargado en ese navegador sin cuenta.
+
+Probar sin Supabase: `python3 scripts/build-planes-preview.py` arma `preview/planes.html`
+(un solo archivo, modo local).
 
 ## Próximos pasos
 
