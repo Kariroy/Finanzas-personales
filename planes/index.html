@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<meta name="description" content="Planificador de tareas con dependencias en forma de ramas">
+<title>Planes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="planes.css">
+</head>
+<body>
+<div class="layout">
+  <aside class="side" id="side">
+    <div class="side-head">
+      <span class="brand">▦ Plan · planificador de tareas</span>
+      <button class="icon-btn only-mobile" id="closeSide" aria-label="Cerrar panel">×</button>
+    </div>
+
+    <div class="row2">
+      <button class="btn" id="newProject">+ proyecto</button>
+      <button class="btn" id="newTask">+ tarea</button>
+    </div>
+    <div class="row2">
+      <select class="btn" id="filter" aria-label="Filtrar proyectos">
+        <option value="todo">con tareas por hacer</option>
+        <option value="all">todos</option>
+        <option value="done">terminados</option>
+      </select>
+      <select class="btn" id="sort" aria-label="Ordenar proyectos">
+        <option value="edited">últimos editados</option>
+        <option value="name">nombre</option>
+        <option value="pending">más pendientes</option>
+      </select>
+    </div>
+
+    <div class="projects" id="projects"></div>
+
+    <div class="row2">
+      <button class="btn" id="undo" title="Ctrl+Z">↶ deshacer</button>
+      <button class="btn" id="redo" title="Ctrl+Y">↷ rehacer</button>
+    </div>
+
+    <label class="check"><input type="checkbox" id="highlight" checked> Resaltar desbloqueadas</label>
+
+    <ul class="legend">
+      <li><span class="dot todo"></span>por hacer</li>
+      <li><span class="dot doing"></span>en curso</li>
+      <li><span class="dot paused"></span>en pausa (Shift+clic)</li>
+      <li><span class="dot done"></span>hecha</li>
+      <li><span class="dot ready"></span>▶ desbloqueada (podés empezarla)</li>
+      <li><span class="dot blocked"></span>🔒 bloqueada (faltan prerequisitos)</li>
+    </ul>
+
+    <p class="help">
+      Tareas = <b>mini-cards</b>. Wire = dependencia (A→B = B depende de A).<br>
+      — arrastrá el <b>puerto ●</b> (borde derecho) a otra card = dependencia · a vacío = nueva tarea dependiente<br>
+      — arrastrá el <b>puerto de entrada</b> (borde izquierdo) = reconectar a otra card · a vacío = quitar la dependencia<br>
+      — arrastrá la card = moverla · <b>Shift+arrastrar</b> = mover con todo lo que depende de ella<br>
+      — clic en el círculo = por hacer → en curso → hecha · Shift+clic = pausar<br>
+      — doble clic = crear / renombrar · Tab = nueva tarea dependiente<br>
+      — clic en un wire + Supr = borrarlo · Supr = borrar tarea · rueda = zoom · arrastrar el fondo = mover<br>
+      — Ctrl+Z / Ctrl+Y
+    </p>
+
+    <div class="row2">
+      <button class="btn" id="export">exportar</button>
+      <button class="btn" id="import">importar</button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
+    </div>
+  </aside>
+
+  <main class="canvas" id="canvas">
+    <button class="icon-btn menu only-mobile" id="openSide" aria-label="Abrir panel">☰</button>
+    <div class="project-title" id="projectTitle"></div>
+    <div class="world" id="world">
+      <svg class="wires" id="wires" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="cards" id="cards"></div>
+    </div>
+    <div class="empty" id="empty" hidden>
+      <p>Doble clic en cualquier lugar para crear la primera tarea.</p>
+    </div>
+    <div class="toolbar">
+      <button class="btn" id="layout" title="Acomoda las tareas en columnas según sus dependencias">⇶ reordenar</button>
+      <button class="btn" id="fit" title="Ver todo">⤢ centrar</button>
+      <button class="btn sq" id="zoomOut" aria-label="Alejar">−</button>
+      <button class="btn sq" id="zoomIn" aria-label="Acercar">+</button>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </main>
+</div>
+<script src="planes.js"></script>
+</body>
+</html>

@@ -79,6 +79,17 @@ Con `config.js` vacío la app funciona en **modo local**: los datos quedan solo 
 - **Android (Chrome)**: ⚙ → **Instalar app**, o menú ⋮ → *Instalar app*.
 - **iPhone (Safari)**: botón **Compartir** → **Agregar a inicio**.
 
+## Planes (proyecto aparte)
+
+La carpeta `planes/` es otra app, independiente de la de gastos: un **planificador de tareas
+en forma de ramas**. Cada tarea es una card en un lienzo y los wires marcan dependencias
+(A→B = B necesita que A esté hecha). Muestra qué tareas están desbloqueadas, bloqueadas,
+en curso o en pausa, y el botón **reordenar** acomoda todo en columnas.
+
+- Abrí `planes/index.html` (o `https://…pages.dev/planes/` una vez publicado).
+- Los datos quedan en ese navegador (`localStorage`); **exportar / importar** guarda un JSON.
+- No comparte código ni datos con la app de gastos: se puede mover a otro repo tal cual.
+
 ## Próximos pasos
 
 - Varios grupos a la vez (hoy la pestaña Grupos muestra el primero).
