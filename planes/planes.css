@@ -400,3 +400,28 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .auth .google[hidden] { display: none; }
 .auth-msg { min-height: 1.4em; margin: 0; color: var(--danger); font-size: 11.5px; line-height: 1.4; }
 .auth-msg.ok { color: var(--muted); }
+
+/* ---------- portafolios (pestañas) ---------- */
+.tabs {
+  display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: none;
+  margin: 0 -2px; padding: 2px;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  flex: none; background: none; border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 12px; cursor: pointer; color: var(--muted); white-space: nowrap;
+}
+.tab:hover { color: var(--text); border-color: var(--line-2); }
+.tab.on { background: #132a2e; border-color: #2c6b6b; color: var(--text); font-weight: 600; }
+.tab.add { padding: 6px 10px; }
+.tab-info { display: flex; align-items: center; gap: 8px; padding: 0 4px; flex: none; }
+.tab-info[hidden] { display: none; }
+.tab-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.tab-sub { color: var(--muted); font-size: 10.5px; margin-right: auto; white-space: nowrap; }
+.tab-info .x { opacity: .55; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; }
+.tab-info .x:hover { opacity: 1; color: var(--text); }
+.tab-info .del:hover { color: var(--danger); }
+@media (max-width: 800px) {
+  .tab { padding: 8px 14px; }
+  .tab-info .x { opacity: 1; font-size: 15px; padding: 4px 6px; }
+}

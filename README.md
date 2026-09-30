@@ -84,7 +84,7 @@ Con `config.js` vacío la app funciona en **modo local**: los datos quedan solo 
 ## Planes (app aparte)
 
 La carpeta `planes/` es otra app, independiente de la de gastos: un **planificador de tareas
-en forma de ramas**. Programas → proyectos → tareas; cada tarea es una card en un lienzo
+en forma de ramas**. Portafolios (pestañas, ej. Trabajo / Personal) → programas → proyectos → tareas; cada tarea es una card en un lienzo
 (**Mapa**) o una fila en un árbol de tareas y subtareas (**Lista**), y las dependencias marcan
 qué está desbloqueado, bloqueado, en curso o en pausa.
 

@@ -18,6 +18,7 @@ var canvas = $("canvas"), world = $("world"), wiresEl = $("wires"), cardsEl = $(
 
 var state = load();
 if(!Array.isArray(state.programs)) state.programs = [];
+if(!Array.isArray(state.portfolios)) state.portfolios = [];
 if(!state.mode) state.mode = matchMedia("(max-width: 800px)").matches ? "list" : "map";
 var hist = [], fut = [];
 var sel = null;          // {task: id} | {dep: {from, to}}
@@ -147,7 +148,7 @@ function makeTask(p, x, y, title){
 function snap(v){ return Math.round(v / GRID) * GRID; }
 
 // ---------- historial ----------
-function snapshot(){ return JSON.stringify({ programs: state.programs, projects: state.projects, current: state.current }); }
+function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, current: state.current }); }
 function pushHist(s){
   hist.push(s || snapshot());
   if(hist.length > 200) hist.shift();
@@ -157,6 +158,7 @@ function restore(s){
   var o = JSON.parse(s);
   state.projects = o.projects;
   state.programs = o.programs || [];
+  state.portfolios = o.portfolios || [];
   state.current = o.current;
   sel = null;
   save();
@@ -375,13 +377,17 @@ function projStats(p){
 function renderProjects(){
   var list = $("projects");
   var sortFn = function(a, b){ return b.updated - a.updated; };  // últimos editados primero
-  var groups = state.programs.slice().sort(function(a, b){ return a.name.localeCompare(b.name, "es"); });
+  var tab = activeTab();
+  renderTabs(tab);
+  var groups = state.programs.filter(function(g){ return tab === "all" || portOf(g) === tab; })
+    .sort(function(a, b){ return a.name.localeCompare(b.name, "es"); });
   var loose = state.projects.filter(function(p){ return !progOf(p); });
-  if(loose.length) groups.push({ id: null, name: "Sin programa", open: state.looseOpen !== false });
+  if(loose.length && tab === "all") groups.push({ id: null, name: "Sin programa", open: state.looseOpen !== false });
 
   list.innerHTML = "";
   if(!groups.length){
-    list.innerHTML = '<div class="no-projects">Creá un programa y adentro tus proyectos.</div>';
+    list.innerHTML = '<div class="no-projects">' + (tab === "all" ? "Creá un programa y adentro tus proyectos." :
+      "Este portafolio no tiene programas. Creá uno con «+ programa» o pasá uno existente con ✎.") + "</div>";
     return;
   }
   groups.forEach(function(g){
@@ -400,7 +406,7 @@ function renderProjects(){
       '<div class="txt"><div class="name"></div><div class="sub">' + all.length + " proyecto" + (all.length === 1 ? "" : "s") +
       " · " + pct + "%</div></div>" +
       (g.id ? '<button class="x add" title="Nuevo proyecto en este programa">＋</button>' +
-              '<button class="x ren" title="Renombrar programa">✎</button><button class="x del" title="Borrar programa">×</button>' : "");
+              '<button class="x ren" title="Editar programa">✎</button><button class="x del" title="Borrar programa">×</button>' : "");
     head.querySelector(".name").textContent = g.name;
     head.addEventListener("click", function(e){
       if(e.target.closest(".add")){ newProject(g.id); return; }
@@ -458,17 +464,98 @@ function programOptions(){
 }
 
 function newProgram(){
-  closeSideMobile();
-  ask({ title: "Nuevo programa", input: "", placeholder: "Nombre del programa (ej. Mudarme)", ok: "crear" }, function(name){
-    change(function(){ state.programs.push({ id: uid(), name: name, open: true }); });
-    $("side").classList.add("open");
+  var tab = activeTab();
+  ask({ title: "Nuevo programa", input: "", placeholder: "Nombre del programa (ej. Mudarme)", ok: "crear",
+        select: { label: "Portafolio", options: portfolioOptions(), value: tab === "all" ? "" : tab } }, function(name, port){
+    change(function(){ state.programs.push({ id: uid(), name: name, open: true, portfolio: port || null }); });
   });
 }
 function renameProgram(g){
-  ask({ title: "Renombrar programa", input: g.name, ok: "guardar" }, function(name){
-    if(name !== g.name) change(function(){ g.name = name; });
+  ask({ title: "Editar programa", input: g.name, ok: "guardar",
+        select: { label: "Portafolio", options: portfolioOptions(), value: portOf(g) || "" } }, function(name, port){
+    port = port || null;
+    if(name !== g.name || port !== portOf(g)) change(function(){ g.name = name; g.portfolio = port; });
   });
 }
+
+// ---------- portafolios (pestañas arriba del panel) ----------
+// Cada programa pertenece a un portafolio (o a ninguno). La pestaña elegida
+// filtra el panel; "Todos" muestra todo. La pestaña se recuerda en este navegador.
+function portfolioById(id){
+  for(var i = 0; i < state.portfolios.length; i++) if(state.portfolios[i].id === id) return state.portfolios[i];
+  return null;
+}
+function portOf(g){ return portfolioById(g.portfolio) ? g.portfolio : null; }
+function activeTab(){ return portfolioById(state.portfolioTab) ? state.portfolioTab : "all"; }
+function sortedPortfolios(){ return state.portfolios.slice().sort(function(a, b){ return a.name.localeCompare(b.name, "es"); }); }
+function portfolioOptions(){
+  return [{ value: "", label: "Sin portafolio" }].concat(sortedPortfolios().map(function(f){ return { value: f.id, label: f.name }; }));
+}
+
+// Progreso de un conjunto de programas (todas las tareas de sus proyectos).
+function progressOf(programIds){
+  var n = 0, done = 0;
+  state.projects.forEach(function(p){
+    if(programIds.indexOf(progOf(p)) < 0) return;
+    var st = projStats(p); n += st.n; done += st.done;
+  });
+  return n ? Math.round(done * 100 / n) : 0;
+}
+
+function renderTabs(tab){
+  var box = $("tabs");
+  var html = '<button type="button" class="tab' + (tab === "all" ? " on" : "") + '" data-tab="all">Todos</button>';
+  sortedPortfolios().forEach(function(f){
+    html += '<button type="button" class="tab' + (tab === f.id ? " on" : "") + '" data-tab="' + f.id + '">' + esc(f.name) + "</button>";
+  });
+  html += '<button type="button" class="tab add" data-tab="new" title="Nuevo portafolio">＋</button>';
+  box.innerHTML = html;
+  var info = $("tabInfo"), f = portfolioById(tab);
+  info.hidden = !f;
+  if(f){
+    var ids = state.programs.filter(function(g){ return portOf(g) === f.id; }).map(function(g){ return g.id; });
+    info.innerHTML = '<span class="ring" style="--p:' + progressOf(ids) + '"></span><span class="tab-name"></span>' +
+      '<span class="tab-sub">' + ids.length + " programa" + (ids.length === 1 ? "" : "s") + " · " + progressOf(ids) + "%</span>" +
+      '<button type="button" class="x" data-tab-act="ren" title="Renombrar portafolio">✎</button>' +
+      '<button type="button" class="x del" data-tab-act="del" title="Borrar portafolio">×</button>';
+    info.querySelector(".tab-name").textContent = f.name;
+  }
+}
+
+$("tabs").addEventListener("click", function(e){
+  var b = e.target.closest("[data-tab]"); if(!b) return;
+  var t = b.dataset.tab;
+  if(t === "new"){
+    ask({ title: "Nuevo portafolio", input: "", placeholder: "Ej. Trabajo, Personal, Estudio", ok: "crear" }, function(name){
+      var f = { id: uid(), name: name };
+      change(function(){ state.portfolios.push(f); state.portfolioTab = f.id; });
+    });
+    return;
+  }
+  state.portfolioTab = t;
+  save();
+  renderProjects();
+  b.scrollIntoView({ block: "nearest", inline: "nearest" });
+});
+
+$("tabInfo").addEventListener("click", function(e){
+  var b = e.target.closest("[data-tab-act]"); if(!b) return;
+  var f = portfolioById(activeTab()); if(!f) return;
+  if(b.dataset.tabAct === "ren"){
+    ask({ title: "Renombrar portafolio", input: f.name, ok: "guardar" }, function(name){
+      if(name !== f.name) change(function(){ f.name = name; });
+    });
+  } else {
+    var n = state.programs.filter(function(g){ return portOf(g) === f.id; }).length;
+    ask({ title: "¿Borrar el portafolio «" + f.name + "»?" + (n ? " Sus " + n + " programa(s) y proyectos no se borran: quedan en «Todos»." : ""), ok: "borrar", danger: true }, function(){
+      change(function(){
+        state.portfolios = state.portfolios.filter(function(x){ return x.id !== f.id; });
+        state.programs.forEach(function(g){ if(g.portfolio === f.id) g.portfolio = null; });
+        state.portfolioTab = "all";
+      });
+    });
+  }
+});
 function deleteProgram(g, n){
   ask({ title: "¿Borrar el programa «" + g.name + "»?" + (n ? " Sus " + n + " proyecto(s) no se borran: pasan a «Sin programa»." : ""), ok: "borrar", danger: true }, function(){
     change(function(){
@@ -1057,7 +1144,7 @@ window.addEventListener("storage", function(e){
 
 // ---------- cuenta y sincronización (Supabase) ----------
 // Una fila por persona en planes_datos (ver supabase/7-planes.sql) con
-// { programs, projects }. Lo demás (vista elegida, pliegues) queda en el navegador.
+// { portfolios, programs, projects }. Lo demás (vista elegida, pliegues) queda en el navegador.
 var CFG = window.APP_CONFIG || {};
 var REMOTE = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
 var sb = (REMOTE && window.supabase && window.supabase.createClient)
@@ -1068,10 +1155,11 @@ var sync = { at: null, timer: null, busy: false, pending: false };
 
 function setSync(text){ $("syncState").textContent = text; }
 
-function payload(){ return { programs: state.programs, projects: state.projects }; }
+function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects }; }
 
 // Reemplaza programas y proyectos por los de otra copia, conservando la vista local.
 function applyData(d){
+  state.portfolios = Array.isArray(d.portfolios) ? d.portfolios : [];
   state.programs = Array.isArray(d.programs) ? d.programs : [];
   state.projects = Array.isArray(d.projects) ? d.projects : [];
   if(!proj()) state.current = state.projects[0] ? state.projects[0].id : null;
@@ -1129,7 +1217,7 @@ function onSession(s){
   if(!user){
     // Sin sesión: no dejar a la vista datos de la cuenta anterior.
     storeKey = KEY; sync.at = null; clearTimeout(sync.timer); sync.pending = false;
-    state.programs = []; state.projects = []; state.current = null;
+    state.portfolios = []; state.programs = []; state.projects = []; state.current = null;
     hist = []; fut = []; sel = null;
     renderAll();
     return;
@@ -1212,7 +1300,7 @@ if(REMOTE){
     $("signInBtn").disabled = $("signUpBtn").disabled = true;
   } else {
     // Mientras se sabe si hay sesión, no mostrar datos locales de nadie.
-    state.programs = []; state.projects = []; state.current = null;
+    state.portfolios = []; state.programs = []; state.projects = []; state.current = null;
     renderAll();
     var params = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));
     if(params.get("error_description")){
