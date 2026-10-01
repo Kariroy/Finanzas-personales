@@ -326,10 +326,10 @@ function renderCards(){
     c.innerHTML =
       '<span class="port in" data-port="in" title="Arrastrá para reconectar o quitar la dependencia"></span>' +
       '<div class="head"><button class="st" data-act="status" title="Clic: cambiar estado · Shift+clic: pausar">' + ICON[t.status] + '</button>' +
-      '<span class="title"></span>' + noteDot(t) + '</div>' +
+      '<span class="title"></span></div>' +
       '<div class="meta">' +
         (i.blocked ? '<span class="lock" title="Prerequisitos sin terminar">🔒 ' + i.pending + '</span>' : kids ? '<span class="kids" title="Tareas que dependen de esta">→ ' + kids + '</span>' : '') +
-        '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nueva tarea dependiente (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
+        noteDot(t) + '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nueva tarea dependiente (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
         (i.unlocked ? '<span class="ready">▶ lista</span>' : '') +
       '</div>' +
       '<span class="port out" data-port="out" title="Arrastrá para crear una dependencia"></span>';

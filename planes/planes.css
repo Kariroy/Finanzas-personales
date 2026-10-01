@@ -444,7 +444,7 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .note-dot::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; }
 .note-dot:hover { border-color: var(--paused); opacity: 1; }
 .note-dot.has { background: var(--paused); border-color: var(--paused); opacity: 1; }
-.card .note-dot { margin-left: 2px; }
+.card .note-dot { margin-right: -4px; }
 .card .note-dot:not(.has) { opacity: 0; }
 .card:hover .note-dot, .card.selected .note-dot { opacity: .7; }
 .card .note-dot.has { opacity: 1; }
