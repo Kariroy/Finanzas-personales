@@ -59,12 +59,17 @@
     ];
     // Meses anteriores, para que el resumen mensual tenga historia (cada mes quedó saldado).
     var settlements = [];
+    // Fecha en el mes de hace m meses (día fijo), así cada ejemplo cae en un mes distinto.
+    function monthsAgo(m, day){
+      var d = new Date();
+      return localDateStr(new Date(d.getFullYear(), d.getMonth() - m, day));
+    }
     [[1, 5200, 3100], [2, 4300, 2600], [3, 6100, 3300], [4, 3900, 2900], [5, 4700, 3500]].forEach(function(m){
-      var base = daysAgo(m[0] * 30 + 3);
+      var base = monthsAgo(m[0], 8);
       var meNet = (m[0] % 2 ? m[1] / 2 : -m[1] / 2) - 1600;
       settlements.push(meNet < 0
-        ? {id:uid(), groupId:"g-casa", from:"me", to:"partner", amount:-meNet, date:daysAgo(m[0] * 30 - 2)}
-        : {id:uid(), groupId:"g-casa", from:"partner", to:"me", amount:meNet, date:daysAgo(m[0] * 30 - 2)});
+        ? {id:uid(), groupId:"g-casa", from:"me", to:"partner", amount:-meNet, date:monthsAgo(m[0], 26)}
+        : {id:uid(), groupId:"g-casa", from:"partner", to:"me", amount:meNet, date:monthsAgo(m[0], 26)});
       expenses.push(
         {id:uid(), date:base, amount:m[1], categoryId:"cat-comida", description:"Supermercado", scope:"compartido", groupId:"g-casa", paidBy:m[0] % 2 ? "me" : "partner", splitType:"equitativo"},
         {id:uid(), date:base, amount:3200, categoryId:"cat-vivienda", description:"Alquiler", scope:"compartido", groupId:"g-casa", paidBy:"partner", splitType:"equitativo"},
@@ -366,14 +371,15 @@
   // ---------------- tabs ----------------
   var tabButtons = document.querySelectorAll(".tab-btn");
   var panels = {
+    nuevo: document.getElementById("panel-nuevo"),
     grupos: document.getElementById("panel-grupos"),
     deudas: document.getElementById("panel-deudas"),
     individual: document.getElementById("panel-individual")
   };
   var fab = document.getElementById("addExpenseBtn");
-  var currentTab = "grupos";
+  var currentTab = "nuevo";
   function updateFab(){
-    fab.hidden = currentTab === "individual";
+    fab.hidden = currentTab === "individual" || currentTab === "nuevo";
   }
   tabButtons.forEach(function(btn){
     btn.addEventListener("click", function(){
@@ -383,6 +389,7 @@
       panels[btn.dataset.tab].classList.add("active");
       currentTab = btn.dataset.tab;
       updateFab();
+      if(currentTab === "nuevo") focusAmount();
       if(btn.dataset.tab === "grupos") renderGroupList();
       if(btn.dataset.tab === "deudas") renderDebts();
       if(btn.dataset.tab === "individual") renderIndividual();
@@ -568,7 +575,21 @@
     onWithChange();
   }
 
+  // El mismo formulario se usa en la pestaña "Nuevo gasto" y en pantalla completa
+  // (editar un gasto o agregar desde un grupo); se mueve entre los dos lugares.
+  var expenseFormCard = document.getElementById("expenseFormCard");
+  function mountExpenseForm(where){
+    var slot = document.getElementById(where === "screen" ? "expenseScreenSlot" : "newExpenseSlot");
+    if(expenseFormCard.parentNode !== slot) slot.appendChild(expenseFormCard);
+  }
+  function onExpenseScreenClosed(){
+    mountExpenseForm("panel");
+    resetForm();
+    focusAmount();
+  }
+
   function openNewExpense(groupId){
+    mountExpenseForm("screen");
     resetForm(groupId);
     openScreen(expenseScreen);
     setTimeout(function(){ try{ cantidadInput.focus(); }catch(e){} }, 50);
@@ -613,8 +634,15 @@
         ? sb.from("expenses").update(expenseToRow(exp)).eq("id", exp.id)
         : sb.from("expenses").insert(Object.assign({id:exp.id}, expenseToRow(exp)));
     });
-    goBack();
-    showToast(editingId ? "Gasto actualizado" : "Gasto guardado");
+    var wasEdit = !!editingId;
+    if(isScreenOpen(expenseScreen)){
+      goBack();
+    } else {
+      var keepGroup = withSelect.value;
+      resetForm(keepGroup);
+      focusAmount();
+    }
+    showToast(wasEdit ? "Gasto actualizado" : "Gasto guardado");
     renderAll();
   });
 
@@ -842,16 +870,21 @@
       catch(e){ historyOk = false; }
     }
   }
+  function hideScreen(el){
+    el.hidden = true;
+    if(el === expenseScreen) onExpenseScreenClosed();
+    if(el === debtScreen) onDebtScreenClosed();
+  }
   function goBack(){
     if(!screenStack.length) return;
     if(historyOk) history.back();
-    else screenStack.pop().hidden = true;
+    else hideScreen(screenStack.pop());
   }
   // Cambia la pantalla de arriba por otra (ej.: detalle → editar) sin tocar el historial.
   function replaceTopScreen(el){
     var top = screenStack.pop();
     if(!top){ openScreen(el); return; }
-    top.hidden = true;
+    hideScreen(top);
     el.hidden = false;
     el.querySelector(".modal-sheet").scrollTop = 0;
     screenStack.push(el);
@@ -861,13 +894,14 @@
 
   function closeAllScreens(){
     var n = screenStack.length;
-    screenStack.forEach(function(el){ el.hidden = true; });
+    var closing = screenStack;
     screenStack = [];
+    closing.forEach(hideScreen);
     if(n && historyOk) history.go(-n);
   }
   window.addEventListener("popstate", function(ev){
     var depth = (ev.state && ev.state.screenDepth) || 0;
-    while(screenStack.length > depth){ screenStack.pop().hidden = true; }
+    while(screenStack.length > depth){ hideScreen(screenStack.pop()); }
   });
 
   // ---------------- detalle del gasto (estilo Splitwise) ----------------
@@ -922,6 +956,7 @@
     var e = findExpense(currentDetailId);
     if(!e) return;
     if(e.fromDebt){ var d = debtById(e.debtId); if(d) openDebtForm(d); return; }
+    mountExpenseForm("screen");
     loadExpenseIntoForm(e);
     replaceTopScreen(expenseScreen);
   });
@@ -1702,7 +1737,22 @@
     if(debtPersonSel.value === OTHER_PERSON) debtPersonOther.focus();
   });
 
+  var debtFormCard = document.getElementById("debtFormCard");
+  function mountDebtForm(where){
+    var slot = document.getElementById(where === "screen" ? "debtScreenSlot" : "newDebtSlot");
+    if(debtFormCard.parentNode !== slot) slot.appendChild(debtFormCard);
+  }
+  function onDebtScreenClosed(){
+    mountDebtForm("panel");
+    prepareDebtForm(null);
+  }
   function openDebtForm(d, presetKey){
+    mountDebtForm("screen");
+    prepareDebtForm(d, presetKey);
+    if(d && isScreenOpen(detailModal)) replaceTopScreen(debtScreen);
+    else openScreen(debtScreen);
+  }
+  function prepareDebtForm(d, presetKey){
     editingDebtId = d ? d.id : null;
     var opts = peopleOptions().map(function(p){ return {id:p.key, name:p.side.name}; })
       .concat([{id:OTHER_PERSON, name:"Otra persona…"}]);
@@ -1721,8 +1771,6 @@
     document.getElementById("debtScreenTitle").textContent = d ? "Editar deuda" : "Anotar deuda";
     document.getElementById("debtDeleteBtn").hidden = !d;
     updateDebtLabels();
-    if(d && isScreenOpen(detailModal)) replaceTopScreen(debtScreen);
-    else openScreen(debtScreen);
   }
   document.getElementById("debtScreenBack").addEventListener("click", function(){ goBack(); });
 
@@ -1753,7 +1801,8 @@
     };
     var wasEditing = !!editingDebtId;
     saveDebt(d, wasEditing);
-    goBack();
+    if(isScreenOpen(debtScreen)) goBack();
+    else { prepareDebtForm(null, debtPersonSel.value); focusAmount(); }
     showToast(wasEditing ? "Deuda actualizada" : "Deuda anotada");
     renderAll();
   });
@@ -2407,11 +2456,47 @@
     }
     authScreen.hidden = true;
     document.getElementById("modeNote").textContent = "Sincronizado con la nube · " + s.user.email;
-    refresh().then(joinFromLinkIfPending);
+    refresh().then(joinFromLinkIfPending).then(focusAmount);
     startRealtime();
   }
 
+  function renderTodayList(){
+    var today = todayStr();
+    var items = personalExpenses().concat(state.expenses.filter(function(e){ return e.scope === "compartido"; }))
+      .filter(function(e){ return e.date === today; });
+    var el = document.getElementById("todayList");
+    el.innerHTML = items.length === 0
+      ? '<div class="empty-state">Todavía no cargaste nada hoy.</div>'
+      : items.map(function(e){ return expenseLedgerRowHTML(e); }).join("");
+    attachRowClickHandlers(el);
+  }
+  // ---------------- pestaña "Nuevo gasto": gasto (principal) o deuda (secundaria) ----------------
+  var entryMode = "gasto";
+  function setEntryMode(mode){
+    entryMode = mode;
+    document.querySelectorAll(".es-btn").forEach(function(b){
+      var on = b.getAttribute("data-mode") === mode;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    document.getElementById("newExpenseSlot").hidden = mode !== "gasto";
+    document.getElementById("newDebtSlot").hidden = mode !== "deuda";
+    document.getElementById("todaySection").hidden = mode !== "gasto";
+    if(mode === "deuda"){ prepareDebtForm(null); mountDebtForm("panel"); }
+    focusAmount();
+  }
+  document.querySelectorAll(".es-btn").forEach(function(b){
+    b.addEventListener("click", function(){ setEntryMode(b.getAttribute("data-mode")); });
+  });
+  // Poner el cursor en Cantidad para escribir directo.
+  function focusAmount(){
+    if(currentTab !== "nuevo" || screenStack.length || !authScreen.hidden) return;
+    var el = entryMode === "deuda" ? document.getElementById("debtAmount") : cantidadInput;
+    setTimeout(function(){ try{ el.focus({preventScroll:true}); }catch(e){} }, 60);
+  }
+
   function renderAll(){
+    renderTodayList();
     renderGroupList();
     if(isScreenOpen(groupScreen)) renderGroupScreen();
     renderDebts();
@@ -2420,8 +2505,12 @@
   }
 
   // ---------------- init ----------------
+  mountExpenseForm("panel");
+  mountDebtForm("panel");
+  updateFab();
   populateFormSelects();
   renderAll();
+  focusAmount();
 
   if(REMOTE){
     if(!sb){
