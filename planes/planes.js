@@ -330,7 +330,6 @@ function renderCards(){
       '<div class="meta">' +
         (i.blocked ? '<span class="lock" title="Prerequisitos sin terminar">🔒 ' + i.pending + '</span>' : kids ? '<span class="kids" title="Tareas que dependen de esta">→ ' + kids + '</span>' : '') +
         noteDot(t) + '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nueva tarea dependiente (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
-        (i.unlocked ? '<span class="ready">▶ lista</span>' : '') +
       '</div>' +
       '<span class="port out" data-port="out" title="Arrastrá para crear una dependencia"></span>';
     c.querySelector(".title").textContent = t.title;
@@ -952,7 +951,6 @@ function listRow(p, t, tree, st, nkids){
     ? '<button type="button" class="tog" data-act="fold" aria-label="' + (t.fold ? "Mostrar" : "Ocultar") + ' subtareas">' + (t.fold ? "▸" : "▾") + "</button>"
     : '<span class="tog"></span>';
   var badge = nkids ? '<span class="li-count" title="Hechas en esta rama">' + st.done + "/" + st.n + "</span>" : "";
-  if(i.unlocked) badge = '<span class="li-ready">▶ lista</span>' + badge;
   if(i.blocked) badge = '<span class="li-lock" title="Prerequisitos sin terminar">🔒</span>' + badge;
   return '<div class="li s-' + t.status + (i.blocked ? " blocked" : "") + (i.unlocked ? " unlocked" : "") + '" data-id="' + t.id + '">' + fold +
     '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (t.status === "done" ? " checked" : "") + ">" +
