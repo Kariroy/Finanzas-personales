@@ -147,6 +147,9 @@ function makeTask(p, x, y, title){
 
 function snap(v){ return Math.round(v / GRID) * GRID; }
 
+// Alto real de la card en el mapa (crece si el nombre ocupa varias líneas).
+function cardH(id){ var el = els[id]; return (el && el.offsetHeight) || H; }
+
 // ---------- historial ----------
 function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, current: state.current }); }
 function pushHist(s){
@@ -211,7 +214,7 @@ function fit(){
   var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   p.tasks.forEach(function(t){
     minX = Math.min(minX, t.x); minY = Math.min(minY, t.y);
-    maxX = Math.max(maxX, t.x + W); maxY = Math.max(maxY, t.y + H);
+    maxX = Math.max(maxX, t.x + W); maxY = Math.max(maxY, t.y + cardH(t.id));
   });
   var pad = 60;
   var z = Math.min(1.2, (r.width - pad * 2) / (maxX - minX), (r.height - pad * 2 - 50) / (maxY - minY));
@@ -265,11 +268,13 @@ function layout(p){
       row[it.id] = r; last = r;
     });
   });
+  // Separación entre filas según la card más alta (nombres largos ocupan más alto).
+  var pitch = Math.max.apply(null, [H].concat(p.tasks.map(function(t){ return cardH(t.id); }))) + GY;
   var x0 = Infinity, y0 = Infinity;
   p.tasks.forEach(function(t){ x0 = Math.min(x0, t.x); y0 = Math.min(y0, t.y); });
   p.tasks.forEach(function(t){
     t.x = snap(x0 + level[t.id] * (W + GX));
-    t.y = snap(y0 + row[t.id] * (H + GY));
+    t.y = snap(y0 + row[t.id] * pitch);
   });
 }
 // Cuántas filas ocupa la rama que sale de una raíz (máximo de tareas en una misma columna).
@@ -351,7 +356,7 @@ function renderWires(){
       if(drag && drag.kind === "wire" && drag.hide && drag.hide.from === d.from && drag.hide.to === d.to) return;
       var a = byId(p, d.from), b = byId(p, d.to);
       if(!a || !b) return;
-      var path = wirePath(a.x + W, a.y + H / 2, b.x, b.y + H / 2);
+      var path = wirePath(a.x + W, a.y + cardH(a.id) / 2, b.x, b.y + cardH(b.id) / 2);
       html += '<g class="wire' + (a.status === "done" ? " done" : "") + (isSelDep(d) ? " selected" : "") +
         '" data-from="' + d.from + '" data-to="' + d.to + '"><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"/></g>';
     });
@@ -769,8 +774,8 @@ canvas.addEventListener("pointermove", function(e){
   } else if(drag.kind === "wire"){
     var a2 = byId(proj(), drag.from), w = toWorld(e.clientX, e.clientY);
     var target = dropTarget(e, drag.from);
-    if(target){ var tt = byId(proj(), target); w = { x: tt.x, y: tt.y + H / 2 }; }
-    tempWire = wirePath(a2.x + W, a2.y + H / 2, w.x, w.y);
+    if(target){ var tt = byId(proj(), target); w = { x: tt.x, y: tt.y + cardH(tt.id) / 2 }; }
+    tempWire = wirePath(a2.x + W, a2.y + cardH(a2.id) / 2, w.x, w.y);
     Object.keys(els).forEach(function(k){ els[k].classList.toggle("drop", k === target); });
     renderWires();
   }

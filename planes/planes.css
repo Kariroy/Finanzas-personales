@@ -156,7 +156,7 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .card {
   position: absolute;
   width: var(--card-w);
-  height: var(--card-h);
+  min-height: var(--card-h);
   background: var(--card);
   border: 1px solid var(--line);
   border-left: 3px solid var(--line-2);
@@ -180,7 +180,8 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .card.drop { border-color: var(--doing) !important; box-shadow: 0 0 0 2px var(--doing) !important; }
 .card.dragging { cursor: grabbing; z-index: 5; }
 
-.card .head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.card .head { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.card .head .st { margin-top: 1px; }
 .st {
   width: 16px; height: 16px; flex: none;
   display: grid; place-items: center;
@@ -193,12 +194,11 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .s-paused .st { color: var(--paused); }
 .s-done .st { color: var(--done); }
 .title {
-  font-weight: 600; font-size: 12px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  min-width: 0; flex: 1; outline: none;
+  font-weight: 600; font-size: 12px; line-height: 1.4;
+  min-width: 0; flex: 1; outline: none; overflow-wrap: anywhere;
+  /* el nombre se ve completo: la card crece en alto */
 }
 .title[contenteditable="true"] {
-  white-space: nowrap; overflow: hidden; text-overflow: clip;
   background: #0b0f14; border-radius: 3px; padding: 0 3px; margin: 0 -3px;
   box-shadow: 0 0 0 1px var(--doing); cursor: text; user-select: text; -webkit-user-select: text;
 }
