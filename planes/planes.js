@@ -90,7 +90,7 @@ function info(p, t){
   return {
     pending: pending,
     blocked: t.status !== "done" && pending > 0,
-    unlocked: pending === 0 && (t.status === "todo" || t.status === "paused")
+    unlocked: pending === 0 && t.status === "todo"   // amarillo: se puede hacer ya
   };
 }
 
@@ -325,7 +325,7 @@ function renderCards(){
     c.style.top = t.y + "px";
     c.innerHTML =
       '<span class="port in" data-port="in" title="Arrastrá para reconectar o quitar la dependencia"></span>' +
-      '<div class="head"><button class="st" data-act="status" title="Clic: cambiar estado · Shift+clic: pausar">' + ICON[t.status] + '</button>' +
+      '<div class="head"><button class="st" data-act="status" title="Toque: cambiar estado · Doble toque: pausar">' + ICON[t.status] + '</button>' +
       '<span class="title"></span></div>' +
       '<div class="meta">' +
         (i.blocked ? '<span class="lock" title="Prerequisitos sin terminar">🔒 ' + i.pending + '</span>' : kids ? '<span class="kids" title="Tareas que dependen de esta">→ ' + kids + '</span>' : '') +
@@ -631,6 +631,20 @@ function deleteSelected(){
   }
 }
 
+// Toque en el círculo: cambia el estado. Doble toque (o Shift+clic): pausa / saca de pausa.
+// El toque simple espera un instante para saber si viene un segundo toque.
+var statusTap = null;
+function statusClick(id, shift){
+  if(shift){ cycleStatus(id, true); return; }
+  if(statusTap && statusTap.id === id){
+    clearTimeout(statusTap.timer); statusTap = null;
+    cycleStatus(id, true);
+    return;
+  }
+  if(statusTap){ clearTimeout(statusTap.timer); cycleStatus(statusTap.id, false); }
+  statusTap = { id: id, timer: setTimeout(function(){ statusTap = null; cycleStatus(id, false); }, 260) };
+}
+
 function cycleStatus(id, shift){
   var t = byId(proj(), id);
   setStatus(id, shift ? (t.status === "paused" ? "todo" : "paused") : NEXT[t.status]);
@@ -813,7 +827,7 @@ canvas.addEventListener("click", function(e){
   var b = e.target.closest("[data-act]"); if(!b) return;
   var id = b.closest(".card").dataset.id;
   var act = b.dataset.act;
-  if(act === "status") cycleStatus(id, e.shiftKey);
+  if(act === "status") statusClick(id, e.shiftKey);
   else if(act === "edit"){ select({ task: id }); startEdit(id); }
   else if(act === "child") newChild(id);
   else if(act === "notes") openNotes(id);
@@ -954,7 +968,7 @@ function listRow(p, t, tree, st, nkids){
   if(i.blocked) badge = '<span class="li-lock" title="Prerequisitos sin terminar">🔒</span>' + badge;
   return '<div class="li s-' + t.status + (i.blocked ? " blocked" : "") + (i.unlocked ? " unlocked" : "") + '" data-id="' + t.id + '">' + fold +
     '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (t.status === "done" ? " checked" : "") + ">" +
-    '<button type="button" class="st" data-act="status" title="Cambiar estado · Shift+clic: pausar">' + ICON[t.status] + "</button>" +
+    '<button type="button" class="st" data-act="status" title="Toque: cambiar estado · Doble toque: pausar">' + ICON[t.status] + "</button>" +
     '<div class="li-main"><span class="li-tline"><span class="li-title">' + esc(t.title) + "</span>" + noteDot(t) + "</span>" + meta + "</div>" + badge +
     '<span class="li-tools">' +
     '<button type="button" class="li-btn" data-act="sub" title="Agregar subtarea">＋</button>' +
@@ -990,7 +1004,7 @@ $("listBody").addEventListener("click", function(e){
   var id = b.closest(".li").dataset.id, t = byId(p, id);
   if(act === "fold"){ t.fold = !t.fold; save(); renderList(); }
   else if(act === "done") setStatus(id, b.checked ? "done" : "todo");
-  else if(act === "status") cycleStatus(id, e.shiftKey);
+  else if(act === "status") statusClick(id, e.shiftKey);
   else if(act === "notes") openNotes(id);
   else if(act === "rename") startEdit(id, b.closest(".li").querySelector(".li-title"));
   else if(act === "sub"){
