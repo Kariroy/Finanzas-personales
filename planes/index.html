@@ -52,7 +52,7 @@
 
   <div class="stage">
     <div class="topbar">
-      <button class="icon-btn menu only-mobile" id="openSide" aria-label="Abrir panel">☰</button>
+      <button class="icon-btn menu" id="openSide" aria-label="Mostrar u ocultar el panel" title="Mostrar / ocultar panel">☰</button>
       <div class="seg" id="modeSeg" role="tablist">
         <button type="button" data-mode="map" role="tab" title="Mapa">▦<span class="lbl"> Mapa</span></button>
         <button type="button" data-mode="list" role="tab" title="Lista">☑<span class="lbl"> Lista</span></button>
@@ -101,6 +101,16 @@
     </div>
   </div>
 </div>
+<div class="ask" id="notesDlg" hidden>
+  <div class="ask-box notes-box" role="dialog" aria-modal="true" aria-labelledby="notesTitle">
+    <div class="notes-head">
+      <span class="notes-title" id="notesTitle"></span>
+      <button type="button" class="icon-btn" id="notesClose" aria-label="Cerrar">×</button>
+    </div>
+    <textarea id="notesText" placeholder="Notas, links, detalles…"></textarea>
+    <div class="ask-btns"><button type="button" class="btn primary" id="notesOk">listo</button></div>
+  </div>
+</div>
 <dialog class="help-dlg" id="helpDlg">
   <div class="help-top">
     <strong>Reglas y atajos</strong>
@@ -125,6 +135,8 @@
         — clic en el círculo = por hacer → en curso → hecha · Shift+clic = pausar<br>
         — doble clic = crear / renombrar · Tab = nueva tarea dependiente<br>
         — clic en un wire + Supr = borrarlo · Supr = borrar tarea · rueda = zoom · arrastrar el fondo = mover<br>
+        — <b>puntito</b> al lado del nombre = notas de la tarea (lleno = tiene notas)<br>
+        — ☰ = mostrar / ocultar este panel<br>
         — Ctrl+Z / Ctrl+Y
       </p>
 

@@ -326,7 +326,7 @@ function renderCards(){
     c.innerHTML =
       '<span class="port in" data-port="in" title="Arrastrá para reconectar o quitar la dependencia"></span>' +
       '<div class="head"><button class="st" data-act="status" title="Clic: cambiar estado · Shift+clic: pausar">' + ICON[t.status] + '</button>' +
-      '<span class="title"></span></div>' +
+      '<span class="title"></span>' + noteDot(t) + '</div>' +
       '<div class="meta">' +
         (i.blocked ? '<span class="lock" title="Prerequisitos sin terminar">🔒 ' + i.pending + '</span>' : kids ? '<span class="kids" title="Tareas que dependen de esta">→ ' + kids + '</span>' : '') +
         '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nueva tarea dependiente (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
@@ -817,6 +817,7 @@ canvas.addEventListener("click", function(e){
   if(act === "status") cycleStatus(id, e.shiftKey);
   else if(act === "edit"){ select({ task: id }); startEdit(id); }
   else if(act === "child") newChild(id);
+  else if(act === "notes") openNotes(id);
   else if(act === "del"){ sel = { task: id }; deleteSelected(); }
 });
 
@@ -843,7 +844,7 @@ canvas.addEventListener("wheel", function(e){
 // ---------- teclado ----------
 document.addEventListener("keydown", function(e){
   var tg = e.target;
-  if(!$("ask").hidden) return;
+  if(!$("ask").hidden || !$("notesDlg").hidden) return;
   if(editing || tg.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName)) return;
   var mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
   if(mod && k === "z" && !e.shiftKey){ e.preventDefault(); undo(); }
@@ -956,7 +957,7 @@ function listRow(p, t, tree, st, nkids){
   return '<div class="li s-' + t.status + (i.blocked ? " blocked" : "") + (i.unlocked ? " unlocked" : "") + '" data-id="' + t.id + '">' + fold +
     '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (t.status === "done" ? " checked" : "") + ">" +
     '<button type="button" class="st" data-act="status" title="Cambiar estado · Shift+clic: pausar">' + ICON[t.status] + "</button>" +
-    '<div class="li-main"><span class="li-title">' + esc(t.title) + "</span>" + meta + "</div>" + badge +
+    '<div class="li-main"><span class="li-tline"><span class="li-title">' + esc(t.title) + "</span>" + noteDot(t) + "</span>" + meta + "</div>" + badge +
     '<span class="li-tools">' +
     '<button type="button" class="li-btn" data-act="sub" title="Agregar subtarea">＋</button>' +
     '<button type="button" class="li-btn" data-act="rename" title="Renombrar">✎</button>' +
@@ -992,6 +993,7 @@ $("listBody").addEventListener("click", function(e){
   if(act === "fold"){ t.fold = !t.fold; save(); renderList(); }
   else if(act === "done") setStatus(id, b.checked ? "done" : "todo");
   else if(act === "status") cycleStatus(id, e.shiftKey);
+  else if(act === "notes") openNotes(id);
   else if(act === "rename") startEdit(id, b.closest(".li").querySelector(".li-title"));
   else if(act === "sub"){
     var n;
@@ -1133,7 +1135,51 @@ $("zoomIn").addEventListener("click", function(){ var r = canvas.getBoundingClie
 $("zoomOut").addEventListener("click", function(){ var r = canvas.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2); });
 
 function closeSideMobile(){ $("side").classList.remove("open"); }
-$("openSide").addEventListener("click", function(){ $("side").classList.add("open"); });
+function isMobile(){ return matchMedia("(max-width: 800px)").matches; }
+// En el celular ☰ abre el panel en pantalla completa; en la compu lo pliega o despliega.
+function applySide(){ document.querySelector(".layout").classList.toggle("side-collapsed", !!state.sideCollapsed); }
+$("openSide").addEventListener("click", function(){
+  if(isMobile()){ $("side").classList.add("open"); return; }
+  state.sideCollapsed = !state.sideCollapsed;
+  applySide();
+  save();
+});
+applySide();
+
+// ---------- notas de las tareas ----------
+// La tarea solo muestra un puntito (lleno si tiene notas); al tocarlo se abren las notas.
+function noteDot(t){
+  var has = !!(t.notes && t.notes.trim());
+  return '<button type="button" class="note-dot' + (has ? " has" : "") + '" data-act="notes" title="' +
+    (has ? "Ver notas" : "Agregar notas") + '" aria-label="Notas"></button>';
+}
+
+var notesId = null;
+function openNotes(id){
+  var p = proj(), t = p && byId(p, id); if(!t) return;
+  notesId = id;
+  $("notesTitle").textContent = t.title;
+  var ta = $("notesText");
+  ta.value = t.notes || "";
+  $("notesDlg").hidden = false;
+  // Con notas: se muestran sin abrir el teclado. Sin notas: listo para escribir.
+  if(!ta.value) ta.focus();
+  else { ta.scrollTop = 0; ta.blur(); }
+}
+function closeNotes(){
+  if(notesId === null) return;
+  var id = notesId, v = $("notesText").value.replace(/\s+$/, "");
+  notesId = null;
+  $("notesDlg").hidden = true;
+  var p = proj(), t = p && byId(p, id);
+  if(t && v !== (t.notes || "")) change(function(){ if(v) t.notes = v; else delete t.notes; });
+}
+$("notesOk").addEventListener("click", closeNotes);
+$("notesClose").addEventListener("click", closeNotes);
+$("notesDlg").addEventListener("click", function(e){ if(e.target === e.currentTarget) closeNotes(); });
+document.addEventListener("keydown", function(e){
+  if(e.key === "Escape" && !$("notesDlg").hidden){ e.preventDefault(); closeNotes(); }
+});
 $("closeSide").addEventListener("click", closeSideMobile);
 
 window.addEventListener("storage", function(e){

@@ -425,3 +425,48 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
   .tab { padding: 8px 14px; }
   .tab-info .x { opacity: 1; font-size: 15px; padding: 4px 6px; }
 }
+
+/* ---------- panel plegable (compu) ---------- */
+.topbar { pointer-events: none; }
+.topbar > * { pointer-events: auto; }
+@media (min-width: 801px) {
+  .topbar { left: 10px; right: 10px; transform: none; max-width: none; justify-content: center; }
+  .topbar .menu { position: absolute; left: 0; top: 0; }
+  .layout.side-collapsed .side { display: none; }
+}
+
+/* ---------- notas ---------- */
+.note-dot {
+  flex: none; width: 10px; height: 10px; padding: 0; border-radius: 50%;
+  background: none; border: 1.5px solid var(--line-2); cursor: pointer; position: relative;
+  opacity: .7;
+}
+.note-dot::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; }
+.note-dot:hover { border-color: var(--paused); opacity: 1; }
+.note-dot.has { background: var(--paused); border-color: var(--paused); opacity: 1; }
+.card .note-dot { margin-left: 2px; }
+.card .note-dot:not(.has) { opacity: 0; }
+.card:hover .note-dot, .card.selected .note-dot { opacity: .7; }
+.card .note-dot.has { opacity: 1; }
+.li .note-dot { width: 12px; height: 12px; }
+
+.notes-box { width: min(520px, 100%); }
+.notes-head { display: flex; align-items: center; gap: 10px; }
+.notes-title { flex: 1; font-weight: 700; overflow-wrap: anywhere; }
+.notes-box textarea {
+  min-height: 220px; max-height: 60vh; resize: vertical; line-height: 1.5;
+  background: #0b0f14; border: 1px solid var(--line-2); border-radius: 6px; padding: 10px; font-size: 14px; color: var(--text);
+}
+.notes-box textarea:focus { outline: none; border-color: var(--doing); }
+@media (max-width: 800px) {
+  .ask:has(.notes-box) { padding-top: 8vh; }
+  .notes-box textarea { font-size: 16px; }
+  .card .note-dot:not(.has) { opacity: .7; }
+}
+.li-tline { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.li-tline .li-title { min-width: 0; }
+@media (max-width: 800px) {
+  .li { gap: 4px; padding-right: 4px; }
+  .li .tog { width: 16px; }
+  .li-btn { padding: 6px 6px; }
+}
