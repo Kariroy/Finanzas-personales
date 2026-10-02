@@ -1,0 +1,1355 @@
+<title>Negociación para Principiantes</title>
+<meta name="description" content="Guía de estudio interactiva de negociación: conceptos, tácticas, comunicación, sesgos, casos reales y práctica.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: índice fijo a la izquierda + columna de lectura de ~70ch; en el celular el índice pasa a ser una barra horizontal pegada arriba. */
+:root {
+  --bg: #F3F5F2;
+  --surface: #FFFFFF;
+  --panel: #E9EEEA;
+  --ink: #17211D;
+  --muted: #56645D;
+  --line: #D5DDD8;
+  --accent: #1C6A55;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #DCEBE4;
+  --seller: #2F5E9E;
+  --seller-soft: #D9E4F3;
+  --buyer: #A0561B;
+  --buyer-soft: #F4E2D2;
+  --good: #22744A;
+  --good-soft: #DCEFE3;
+  --warn: #8F5E0A;
+  --warn-soft: #F5E9CF;
+  --bad: #AE3B2A;
+  --bad-soft: #F6DFDA;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111715; --surface: #18201D; --panel: #1F2925; --ink: #E4ECE7; --muted: #9AABA2; --line: #2D3934;
+    --accent: #5EC4A4; --accent-ink: #0D1A15; --accent-soft: #1C3229;
+    --seller: #82AEEB; --seller-soft: #1D2B40; --buyer: #E9A46A; --buyer-soft: #3A2818;
+    --good: #6FCB94; --good-soft: #1A3324; --warn: #E3B65E; --warn-soft: #3A2D12; --bad: #F08C7A; --bad-soft: #3E1F1A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111715; --surface: #18201D; --panel: #1F2925; --ink: #E4ECE7; --muted: #9AABA2; --line: #2D3934;
+  --accent: #5EC4A4; --accent-ink: #0D1A15; --accent-soft: #1C3229;
+  --seller: #82AEEB; --seller-soft: #1D2B40; --buyer: #E9A46A; --buyer-soft: #3A2818;
+  --good: #6FCB94; --good-soft: #1A3324; --warn: #E3B65E; --warn-soft: #3A2D12; --bad: #F08C7A; --bad-soft: #3E1F1A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition: none !important; animation: none !important; } }
+body { background: var(--bg); color: var(--ink); font: 400 17px/1.62 var(--body); -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+h1, h2, h3, h4 { font-family: var(--display); line-height: 1.15; text-wrap: balance; margin: 0; }
+p { margin: 0; }
+strong { font-weight: 700; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 56px; max-width: 1160px; margin: 0 auto; padding-inline: 24px; }
+
+/* Índice */
+.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; max-height: 100vh; overflow-y: auto; padding-block: 32px; }
+.toc-head { font-family: var(--display); font-weight: 800; font-size: 1.05rem; margin-bottom: 4px; }
+.toc-sub { color: var(--muted); font-size: .82rem; margin-bottom: 18px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.toc a { display: grid; grid-template-columns: 2.1em 1fr; align-items: baseline; padding: 6px 10px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: .9rem; line-height: 1.3; }
+.toc a .n { font-family: var(--mono); font-size: .75rem; }
+.toc a:hover { color: var(--ink); background: var(--panel); }
+.toc a.active { color: var(--accent-ink); background: var(--accent); }
+.toc .group { font-size: .7rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); padding: 14px 10px 6px; }
+
+main { min-width: 0; max-width: 740px; padding-block: 40px 120px; }
+
+/* Portada */
+.hero { padding-block: 16px 8px; display: grid; gap: 18px; }
+.eyebrow { font-family: var(--mono); font-size: .76rem; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.hero h1 { font-size: clamp(2.3rem, 6vw, 3.6rem); font-weight: 800; letter-spacing: -.02em; }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; }
+.cases { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; padding: 5px 12px; border-radius: 999px; background: var(--panel); color: var(--ink); border: 1px solid transparent; }
+.howto { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 6px; }
+.howto div { border-top: 2px solid var(--ink); padding-top: 10px; font-size: .9rem; color: var(--muted); }
+.howto b { display: block; color: var(--ink); font-family: var(--display); font-size: 1rem; margin-bottom: 2px; }
+
+/* Secciones */
+section { padding-top: 72px; scroll-margin-top: 8px; }
+.sec-head { display: grid; gap: 10px; margin-bottom: 22px; }
+.sec-num { font-family: var(--mono); font-size: .8rem; color: var(--accent); letter-spacing: .08em; }
+section h2 { font-size: clamp(1.7rem, 4vw, 2.3rem); font-weight: 800; letter-spacing: -.015em; }
+.intro { color: var(--muted); font-size: 1.05rem; max-width: 64ch; }
+.prose { display: grid; gap: 14px; max-width: 66ch; }
+
+/* Concepto */
+.concept { padding-block: 26px; border-top: 1px solid var(--line); display: grid; gap: 12px; }
+.concept-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.concept h3 { font-size: 1.32rem; font-weight: 700; }
+.en { font-family: var(--mono); font-size: .78rem; color: var(--muted); background: var(--panel); padding: 2px 8px; border-radius: 6px; }
+.concept > p { max-width: 66ch; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pair > div { padding: 12px 14px; border-radius: 10px; background: var(--panel); font-size: .95rem; min-width: 0; }
+.pair > div.tip { background: var(--accent-soft); }
+.lbl { display: block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 4px; }
+.tip .lbl { color: var(--accent); }
+.step-n { font-family: var(--mono); font-size: .8rem; color: var(--accent-ink); background: var(--accent); border-radius: 6px; padding: 1px 7px; }
+
+/* Tablas */
+.tbl-wrap { overflow-x: auto; margin-block: 8px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: .93rem; min-width: 520px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th { font-family: var(--display); font-size: .95rem; background: var(--panel); }
+tbody tr:last-child td { border-bottom: 0; }
+td:first-child { color: var(--muted); font-weight: 700; width: 24%; }
+
+.callout { padding: 14px 16px; border-radius: 10px; background: var(--warn-soft); font-size: .95rem; max-width: 66ch; }
+.callout b { color: var(--warn); }
+
+/* Widgets interactivos */
+.widget { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; margin-block: 28px; display: grid; gap: 16px; box-shadow: 0 1px 0 var(--line), 0 10px 30px -22px rgba(0,0,0,.35); }
+.widget-head { display: grid; gap: 4px; }
+.widget-head .eyebrow { font-size: .7rem; }
+.widget h3 { font-size: 1.3rem; }
+.widget .hint { color: var(--muted); font-size: .92rem; }
+
+.btn { font: 700 .92rem/1 var(--body); padding: 11px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.btn:hover { border-color: var(--ink); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--bad); }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ZOPA */
+.zopa-ctrls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.ctrl { display: grid; gap: 6px; min-width: 0; }
+.ctrl label { font-size: .82rem; font-weight: 700; display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.ctrl output { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.ctrl.seller label { color: var(--seller); }
+.ctrl.buyer label { color: var(--buyer); }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.ctrl.seller input { accent-color: var(--seller); }
+.ctrl.buyer input { accent-color: var(--buyer); }
+.zchart { position: relative; padding: 8px 0 28px; }
+.lane { position: relative; height: 30px; margin-bottom: 8px; background: var(--panel); border-radius: 6px; overflow: hidden; }
+.lane .fill { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; padding-inline: 8px; font-size: .74rem; font-weight: 700; white-space: nowrap; overflow: hidden; }
+.lane.s .fill { background: var(--seller-soft); color: var(--seller); border-left: 3px solid var(--seller); }
+.lane.b .fill { background: var(--buyer-soft); color: var(--buyer); border-right: 3px solid var(--buyer); justify-content: flex-end; }
+.lane.z .fill { background: var(--good-soft); color: var(--good); border-inline: 3px solid var(--good); justify-content: center; }
+.lane.z .fill.gap { background: repeating-linear-gradient(135deg, var(--bad-soft) 0 8px, transparent 8px 14px); color: var(--bad); border-color: var(--bad); }
+.zprop { position: absolute; top: 0; bottom: 22px; width: 0; border-left: 2px dashed var(--ink); }
+.zprop span { position: absolute; bottom: -22px; transform: translateX(-50%); font-family: var(--mono); font-size: .72rem; background: var(--ink); color: var(--bg); padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.zaxis { display: flex; justify-content: space-between; font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+.zstatus { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.zstatus > div { border-radius: 10px; padding: 10px 12px; font-size: .88rem; background: var(--panel); min-width: 0; }
+.zstatus b { display: block; font-family: var(--display); font-size: 1rem; }
+.ok { color: var(--good); } .no { color: var(--bad); }
+.zverdict { font-size: 1rem; padding: 12px 14px; border-radius: 10px; }
+.zverdict.yes { background: var(--good-soft); }
+.zverdict.nope { background: var(--bad-soft); }
+
+/* Frases */
+.filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.filters button { font: 700 .85rem/1 var(--body); padding: 8px 13px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.phrases { display: grid; gap: 12px; }
+.phrase { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.phrase > div { padding: 12px 14px; min-width: 0; font-size: .95rem; }
+.phrase .weak { background: var(--bad-soft); }
+.phrase .strong { background: var(--good-soft); }
+.phrase .weak .lbl { color: var(--bad); }
+.phrase .strong .lbl { color: var(--good); }
+.phrase .why { grid-column: 1 / -1; background: var(--surface); font-size: .87rem; color: var(--muted); border-top: 1px solid var(--line); }
+.phrase .ctx { font-family: var(--mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; float: right; color: var(--muted); }
+
+/* Errores */
+.errors { display: grid; gap: 0; counter-reset: e; }
+.err { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; padding-block: 14px; border-top: 1px solid var(--line); }
+.err > div { min-width: 0; }
+.err .bad-t { font-weight: 700; }
+.err .bad-t::before { content: "✕  "; color: var(--bad); }
+.err .fix::before { content: "→  "; color: var(--good); font-weight: 700; }
+.err .fix { color: var(--ink); font-size: .95rem; }
+
+/* Pestañas */
+.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); }
+.tabs button { font: 700 .92rem/1 var(--body); padding: 12px 14px; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tabpanel { display: grid; gap: 16px; padding-top: 18px; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 2.4rem minmax(0, 1fr); gap: 10px; padding-block: 11px; border-top: 1px solid var(--line); }
+.steps li::before { content: counter(s); font-family: var(--mono); font-weight: 600; font-size: .85rem; color: var(--accent); background: var(--accent-soft); border-radius: 8px; height: 1.9rem; display: grid; place-items: center; }
+.steps b { display: block; }
+.script { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; font-size: 1.02rem; font-style: italic; }
+.script .lbl { font-style: normal; }
+.walk { background: var(--bad-soft); padding: 12px 14px; border-radius: 10px; font-size: .93rem; }
+.walk .lbl { color: var(--bad); }
+
+/* Ética */
+.verdicts { display: grid; gap: 8px; }
+.verdict { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: .95rem; }
+.verdict small { display: block; color: var(--muted); font-size: .85rem; margin-top: 2px; }
+.pill { font: 700 .72rem/1 var(--body); text-transform: uppercase; letter-spacing: .06em; padding: 6px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.g { background: var(--good-soft); color: var(--good); }
+.pill.y { background: var(--warn-soft); color: var(--warn); }
+.pill.r { background: var(--bad-soft); color: var(--bad); }
+.tests { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tests > div { background: var(--panel); border-radius: 10px; padding: 12px 14px; font-size: .93rem; min-width: 0; }
+.tests b { display: block; font-family: var(--display); }
+
+/* Simulador */
+.sim-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: .85rem; color: var(--muted); }
+.dots { display: flex; gap: 5px; }
+.dots i { width: 22px; height: 6px; border-radius: 3px; background: var(--line); }
+.dots i.done { background: var(--accent); }
+.dots i.cur { background: var(--ink); }
+.case-box { background: var(--panel); border-radius: 10px; padding: 12px 14px; font-size: .92rem; }
+.bubble { max-width: 88%; padding: 12px 15px; border-radius: 16px; font-size: .98rem; }
+.bubble .who { display: block; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; color: var(--muted); }
+.bubble.them { background: var(--seller-soft); border-bottom-left-radius: 4px; justify-self: start; }
+.bubble.me { background: var(--accent-soft); border-bottom-right-radius: 4px; justify-self: end; }
+.chat { display: grid; gap: 10px; }
+.options { display: grid; gap: 8px; }
+.opt { text-align: left; font: 400 .97rem/1.45 var(--body); padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; display: grid; grid-template-columns: 1.6rem minmax(0, 1fr); gap: 8px; }
+.opt:hover:not(:disabled) { border-color: var(--accent); }
+.opt .k { font-family: var(--mono); font-weight: 600; color: var(--muted); }
+.opt:disabled { cursor: default; opacity: .55; }
+.opt.chosen { opacity: 1; border-width: 2px; }
+.opt.chosen.g { border-color: var(--good); } .opt.chosen.y { border-color: var(--warn); } .opt.chosen.r { border-color: var(--bad); }
+.feedback { border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; font-size: .95rem; }
+.feedback.g { background: var(--good-soft); } .feedback.y { background: var(--warn-soft); } .feedback.r { background: var(--bad-soft); }
+.feedback .tag { font-family: var(--display); font-weight: 700; font-size: 1.05rem; }
+.feedback.g .tag { color: var(--good); } .feedback.y .tag { color: var(--warn); } .feedback.r .tag { color: var(--bad); }
+.others { font-size: .88rem; color: var(--muted); display: grid; gap: 4px; }
+
+/* Plantilla */
+.tpl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.field { display: grid; gap: 5px; min-width: 0; }
+.field.full { grid-column: 1 / -1; }
+.field label { font-weight: 700; font-size: .9rem; }
+.field label small { font-weight: 400; color: var(--muted); }
+.field textarea { font: 400 .95rem/1.45 var(--body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; resize: vertical; min-height: 64px; width: 100%; }
+.field textarea:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+.field.key label::after { content: " · clave"; color: var(--accent); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
+.meter { display: grid; gap: 6px; }
+.meter-bar { height: 8px; border-radius: 4px; background: var(--panel); overflow: hidden; }
+.meter-bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+.meter-txt { font-size: .88rem; color: var(--muted); }
+.tpl-status { font-size: .85rem; color: var(--muted); min-height: 1.2em; }
+
+/* Fichas */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.flip { perspective: 1000px; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; font: inherit; color: inherit; min-height: 170px; display: grid; }
+.flip .inner { display: grid; transition: transform .5s cubic-bezier(.3,.7,.3,1); transform-style: preserve-3d; position: relative; }
+.flip.flipped .inner { transform: rotateY(180deg); }
+.face { grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 14px; padding: 16px; display: grid; align-content: space-between; gap: 10px; border: 1px solid var(--line); }
+.face.front { background: var(--surface); }
+.face.front b { font-family: var(--display); font-size: 1.2rem; line-height: 1.2; }
+.face.front .en { justify-self: start; }
+.face.front .tap { font-size: .75rem; color: var(--muted); }
+.face.back { background: var(--accent); color: var(--accent-ink); transform: rotateY(180deg); font-size: .93rem; border-color: var(--accent); }
+.face.back .lbl { color: inherit; opacity: .75; }
+@media (prefers-reduced-motion: reduce) {
+  .flip .face.back { transform: none; visibility: hidden; }
+  .flip.flipped .inner { transform: none; }
+  .flip.flipped .face.back { visibility: visible; }
+  .flip.flipped .face.front { visibility: hidden; }
+}
+
+/* Examen */
+.qprog { display: flex; justify-content: space-between; font-size: .85rem; color: var(--muted); }
+.qbar { height: 6px; background: var(--panel); border-radius: 3px; overflow: hidden; }
+.qbar i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.qtext { font-family: var(--display); font-size: 1.22rem; font-weight: 700; line-height: 1.3; }
+.qopt.right { border-color: var(--good); border-width: 2px; background: var(--good-soft); opacity: 1; }
+.qopt.wrong { border-color: var(--bad); border-width: 2px; background: var(--bad-soft); opacity: 1; }
+.score { display: grid; gap: 8px; justify-items: start; }
+.score .big { font-family: var(--display); font-weight: 800; font-size: 3.4rem; line-height: 1; }
+.score .big small { font-size: 1.4rem; color: var(--muted); }
+.review { display: grid; gap: 8px; }
+.review > div { background: var(--panel); border-radius: 10px; padding: 10px 14px; font-size: .9rem; }
+
+footer { margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; display: grid; gap: 6px; }
+
+/* Celular */
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 0; padding-inline: 16px; }
+  .toc { z-index: 20; max-height: none; overflow: visible; margin-inline: -16px; padding: calc(env(safe-area-inset-top, 0px) + 8px) 0 8px; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .toc-head, .toc-sub, .toc .group { display: none; }
+  .toc ol { display: flex; gap: 6px; overflow-x: auto; padding-inline: 16px; scrollbar-width: none; }
+  .toc ol::-webkit-scrollbar { display: none; }
+  .toc a { display: flex; gap: 6px; white-space: nowrap; padding: 7px 11px; background: var(--panel); border-radius: 999px; font-size: .85rem; }
+  main { padding-block: 24px 96px; }
+  section { padding-top: 56px; scroll-margin-top: 60px; }
+}
+@media (max-width: 620px) {
+  body { font-size: 16px; }
+  .pair, .zopa-ctrls, .zstatus, .tpl-grid, .tests, .err, .howto { grid-template-columns: minmax(0, 1fr); }
+  .err { gap: 4px; }
+  .phrase { grid-template-columns: minmax(0, 1fr); }
+  .widget { padding: 16px; }
+  .bubble { max-width: 100%; }
+}
+</style>
+
+<div class="layout">
+  <nav class="toc" aria-label="Índice">
+    <div class="toc-head">Negociación</div>
+    <div class="toc-sub">Guía de estudio · 14 secciones</div>
+    <ol id="tocList">
+      <li class="group" aria-hidden="true">Aprender</li>
+      <li><a href="#s1"><span class="n">01</span><span>Qué es negociar</span></a></li>
+      <li><a href="#s2"><span class="n">02</span><span>Conceptos clave</span></a></li>
+      <li><a href="#s3"><span class="n">03</span><span>Método de Harvard</span></a></li>
+      <li><a href="#s4"><span class="n">04</span><span>Etapas</span></a></li>
+      <li><a href="#s5"><span class="n">05</span><span>Tácticas y respuestas</span></a></li>
+      <li><a href="#s6"><span class="n">06</span><span>Comunicación</span></a></li>
+      <li><a href="#s7"><span class="n">07</span><span>Sesgos psicológicos</span></a></li>
+      <li><a href="#s8"><span class="n">08</span><span>Errores de principiante</span></a></li>
+      <li><a href="#s9"><span class="n">09</span><span>Casos reales</span></a></li>
+      <li><a href="#s10"><span class="n">10</span><span>Ética</span></a></li>
+      <li class="group" aria-hidden="true">Practicar</li>
+      <li><a href="#s11"><span class="n">11</span><span>Simulador de diálogo</span></a></li>
+      <li><a href="#s12"><span class="n">12</span><span>Plantilla de preparación</span></a></li>
+      <li><a href="#s13"><span class="n">13</span><span>Fichas de repaso</span></a></li>
+      <li><a href="#s14"><span class="n">14</span><span>Examen final</span></a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <div class="eyebrow">Guía de estudio · nivel principiante</div>
+      <h1>Negociar es <em>prepararse</em>, preguntar y saber cuándo irse.</h1>
+      <p class="lede">Los conceptos que usan los negociadores profesionales, explicados en simple y aplicados a situaciones que vas a vivir: pedir un aumento, renovar el alquiler, comprar un auto usado o aceptar una oferta de trabajo.</p>
+      <div class="cases" aria-label="Casos que cubre la guía">
+        <span class="chip">Pedir un aumento</span><span class="chip">Negociar el alquiler</span><span class="chip">Comprar un auto</span><span class="chip">Oferta de trabajo</span>
+      </div>
+      <div class="howto">
+        <div><b>Leé</b>Secciones 1 a 10. Cada concepto trae su término en inglés, un ejemplo y un consejo.</div>
+        <div><b>Probá</b>El diagrama de la ZOPA, las frases y el simulador de diálogo.</div>
+        <div><b>Repasá</b>Plantilla para tu próxima negociación, fichas y un examen de 10 preguntas.</div>
+      </div>
+    </header>
+
+    <!-- 1 -->
+    <section id="s1">
+      <div class="sec-head">
+        <span class="sec-num">01</span>
+        <h2>Qué es negociar</h2>
+        <p class="intro">Negociar es buscar un acuerdo con alguien que tiene intereses en parte comunes y en parte opuestos a los tuyos. Tiene sentido solo si el acuerdo te deja mejor que lo que obtendrías sin él. Negociás todo el tiempo: el precio en la feria, el horario con tu pareja, la fecha de entrega con un cliente.</p>
+      </div>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Negociación distributiva</h3><span class="en">Distributive negotiation · win-lose</span></div>
+        <p>Hay una cantidad fija para repartir, como una torta. Lo que una parte gana, la otra lo pierde. Suele haber un solo tema (casi siempre el precio) y una relación de una sola vez.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Le comprás un auto usado a un particular que no vas a volver a ver. Cada dólar que baja el precio es un dólar menos que cobra él.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Prepará bien tu precio de reserva y tu primera oferta con datos. En este tipo de negociación lo que más pesa es la información y el ancla.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Negociación integrativa</h3><span class="en">Integrative negotiation · win-win</span></div>
+        <p>Hay varios temas y cada parte los valora distinto. Eso permite intercambiar: cedés en lo que a vos te importa poco y ganás en lo que te importa mucho. Las dos partes pueden terminar mejor.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Querés pagar menos alquiler. La dueña quiere no tener el apartamento vacío. Firmás por dos años en lugar de uno y a cambio el aumento es menor.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Sumá temas a la mesa: plazo, forma de pago, fecha, extras, garantías. Con más temas hay más intercambios posibles.</div>
+        </div>
+      </article>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th></th><th>Distributiva</th><th>Integrativa</th></tr></thead>
+          <tbody>
+            <tr><td>Idea central</td><td>Repartir la torta</td><td>Agrandar la torta y después repartirla</td></tr>
+            <tr><td>Temas</td><td>Uno (precio)</td><td>Varios (precio, plazo, condiciones)</td></tr>
+            <tr><td>Información</td><td>Se protege</td><td>Se comparte con cuidado</td></tr>
+            <tr><td>Relación</td><td>Poco importante</td><td>Importa a futuro</td></tr>
+            <tr><td>Pregunta típica</td><td>¿Cuánto?</td><td>¿Qué es lo que más te importa?</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="callout"><b>En la vida real casi todas son mixtas.</b> Primero buscás crear valor (más temas, intercambios) y al final igual hay que repartir. Necesitás las dos habilidades.</p>
+    </section>
+
+    <!-- 2 -->
+    <section id="s2">
+      <div class="sec-head">
+        <span class="sec-num">02</span>
+        <h2>Conceptos clave</h2>
+        <p class="intro">Seis ideas que vas a usar en todas las negociaciones. Si aprendés solo una sección, que sea esta.</p>
+      </div>
+
+      <article class="concept">
+        <div class="concept-head"><h3>MAAN · Mejor alternativa a un acuerdo negociado</h3><span class="en">BATNA · Best Alternative To a Negotiated Agreement</span></div>
+        <p>Es lo que vas a hacer si no hay acuerdo. Es tu principal fuente de poder: cuanto mejor es tu MAAN, menos necesitás el acuerdo y más tranquilo negociás.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Pedís un aumento y tenés una oferta de otra empresa por 12% más. Esa oferta es tu MAAN. Si no tenés ninguna, tu MAAN es quedarte con el sueldo actual.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Escribí tu MAAN concreta antes de negociar y tratá de mejorarla: buscá otra oferta, otro auto, otro apartamento. Estimá también la MAAN del otro.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Precio de reserva</h3><span class="en">Reservation price · walk-away point</span></div>
+        <p>Es el peor acuerdo que aceptarías. Si el trato queda por debajo, te conviene más tu MAAN y te levantás de la mesa. Sale de comparar con tu MAAN.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Vendés tu bicicleta y una tienda ya te ofreció US$ 300 al contado. Tu precio de reserva con cualquier comprador ronda los US$ 300.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Decidilo antes, en frío, y no lo cambies en la mesa salvo que aparezca información nueva y real. Nunca lo digas.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Punto objetivo</h3><span class="en">Target point · aspiration</span></div>
+        <p>Es el resultado al que realmente aspirás. Tiene que ser ambicioso y a la vez defendible con argumentos. La reserva es tu piso; el objetivo es hacia donde apuntás.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Aceptarías un aumento del 5% como mínimo, pero el mercado paga 15% más por tu puesto. Tu objetivo es 15%.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Quienes apuntan más alto, con fundamentos, suelen conseguir más. Fijá el objetivo con datos de mercado, no con lo que creés que te van a dar.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>ZOPA · Zona de posible acuerdo</h3><span class="en">ZOPA · Zone Of Possible Agreement</span></div>
+        <p>Es el rango entre el mínimo que acepta el vendedor y el máximo que paga el comprador. Si esos dos números se superponen, hay acuerdo posible. Si no, ningún precio les sirve a los dos.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>El vendedor acepta desde US$ 8.800 y vos pagarías hasta US$ 10.000. La ZOPA va de 8.800 a 10.000. Cualquier precio ahí les conviene a ambos; la pelea es por dónde cae.</div>
+          <div class="tip"><span class="lbl">Consejo</span>No conocés la reserva del otro: estimala con preguntas e investigación. Si no hay ZOPA, sumá otros temas o retirate a tu MAAN.</div>
+        </div>
+      </article>
+
+      <div class="widget" id="zopaWidget">
+        <div class="widget-head">
+          <span class="eyebrow">Interactivo · diagrama de la ZOPA</span>
+          <h3>Compra de un auto usado</h3>
+          <p class="hint">Mové los precios de reserva de cada parte y una propuesta de precio. Mirá cuándo aparece la zona de acuerdo.</p>
+        </div>
+        <div class="zopa-ctrls">
+          <div class="ctrl seller"><label for="zSeller">Vendedor acepta desde <output id="oSeller"></output></label><input type="range" id="zSeller" min="6000" max="14000" step="100" value="8800"></div>
+          <div class="ctrl buyer"><label for="zBuyer">Comprador paga hasta <output id="oBuyer"></output></label><input type="range" id="zBuyer" min="6000" max="14000" step="100" value="10000"></div>
+          <div class="ctrl"><label for="zProp">Propuesta en la mesa <output id="oProp"></output></label><input type="range" id="zProp" min="6000" max="14000" step="100" value="9400"></div>
+        </div>
+        <div class="zchart" aria-hidden="true">
+          <div class="lane s"><div class="fill" id="fSeller"></div></div>
+          <div class="lane z"><div class="fill" id="fZopa"></div></div>
+          <div class="lane b"><div class="fill" id="fBuyer"></div></div>
+          <div class="zprop" id="zPropLine"><span id="zPropTag"></span></div>
+          <div class="zaxis"><span>US$ 6.000</span><span>8.000</span><span>10.000</span><span>12.000</span><span>14.000</span></div>
+        </div>
+        <div class="zstatus">
+          <div><b>Vendedor</b><span id="stSeller"></span></div>
+          <div><b>Comprador</b><span id="stBuyer"></span></div>
+          <div><b>Tamaño de la ZOPA</b><span id="stSize" class="mono"></span></div>
+        </div>
+        <p class="zverdict" id="zVerdict" aria-live="polite"></p>
+      </div>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Posiciones e intereses</h3><span class="en">Positions vs. interests</span></div>
+        <p>La posición es lo que alguien dice que quiere. El interés es por qué lo quiere: la necesidad, el miedo o el deseo de fondo. Dos posiciones opuestas pueden esconder intereses compatibles.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Dos hermanas pelean por una naranja y la cortan al medio. Una quería el jugo y la otra la cáscara para una torta. Si hubieran hablado de intereses, cada una tenía el 100% de lo que necesitaba.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Preguntá «¿por qué es importante eso para vos?» o «¿qué te preocupa?». Detrás de «quiero un 20% más» puede haber «quiero sentir que me valoran».</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Valor a repartir y valor a crear</h3><span class="en">Claiming value vs. creating value</span></div>
+        <p>Repartir valor es dividir lo que hay. Crear valor es agrandar lo disponible encontrando cosas que a uno le cuestan poco y al otro le valen mucho.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>En una oferta de trabajo, el sueldo es valor a repartir. Sumar dos días de trabajo remoto, que a vos te valen mucho y a la empresa le cuestan casi nada, es crear valor.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Primero creá y después repartí. Hacé una lista de cosas baratas para vos que podrían ser valiosas para el otro.</div>
+        </div>
+      </article>
+    </section>
+
+    <!-- 3 -->
+    <section id="s3">
+      <div class="sec-head">
+        <span class="sec-num">03</span>
+        <h2>El método de Harvard</h2>
+        <p class="intro">Lo propusieron Roger Fisher y William Ury en el libro <em>Sí, ¡de acuerdo!</em> (<em>Getting to Yes</em>, 1981). Lo llaman negociación por principios (<em>principled negotiation</em>): decidir según el fondo del asunto y no según quién aguanta más. Tiene cuatro principios, y se apoya en conocer tu MAAN.</p>
+      </div>
+
+      <article class="concept">
+        <div class="concept-head"><h3><span class="step-n">1</span> Separar a las personas del problema</h3><span class="en">Separate the people from the problem</span></div>
+        <p>Las emociones, el orgullo y los malentendidos se mezclan con el tema que se negocia. Tratá la relación y el problema por separado: suave con la persona, firme con el problema.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>La dueña está molesta porque te atrasaste con un pago. En vez de defenderte atacando, decís: «Entiendo que el atraso te complicó. Veamos cómo evitar que se repita».</div>
+          <div class="tip"><span class="lbl">Consejo</span>Imaginá que los dos están del mismo lado de la mesa, mirando el problema de frente. Hablá de lo que te pasa a vos («me preocupa») en lugar de acusar («vos siempre»).</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3><span class="step-n">2</span> Enfocarse en los intereses, no en las posiciones</h3><span class="en">Focus on interests, not positions</span></div>
+        <p>Las posiciones chocan; los intereses muchas veces se pueden combinar. Hay que descubrir qué hay detrás de cada pedido, el tuyo y el del otro.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>La empresa dice «no hay aumentos este año» (posición). El interés real es no pasarse del presupuesto del trimestre. Un aumento que empieza en seis meses puede servirles.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Hacé una lista de los intereses de cada parte antes de la reunión. En la mesa, confirmalos con preguntas.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3><span class="step-n">3</span> Generar opciones de beneficio mutuo</h3><span class="en">Invent options for mutual gain</span></div>
+        <p>No te quedes con la primera solución. Generá varias alternativas antes de decidir, buscando las que mejoran la situación de los dos.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Si no hay presupuesto para aumento: bono por objetivos, curso pago, más días libres, cambio de cargo o una revisión con fecha fija.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Separá generar de decidir. Primero tirá ideas sin juzgarlas; recién después elegí. Proponé con «¿Y si…?».</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3><span class="step-n">4</span> Usar criterios objetivos</h3><span class="en">Insist on using objective criteria</span></div>
+        <p>Basá el acuerdo en estándares externos que ninguna de las partes controla: precios de mercado, índices, tasaciones, leyes, costumbres del rubro. Así nadie cede ante el otro, sino ante un criterio justo.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>El precio del auto según una guía de precios y anuncios del mismo modelo, año y kilometraje. El alquiler según el índice de ajuste que marca la ley o el contrato.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Llevá dos o tres fuentes en el celular. Cuando te den un número, preguntá: «¿En qué te basás para llegar a ese valor?».</div>
+        </div>
+      </article>
+    </section>
+
+    <!-- 4 -->
+    <section id="s4">
+      <div class="sec-head">
+        <span class="sec-num">04</span>
+        <h2>Etapas de una negociación</h2>
+        <p class="intro">Toda negociación pasa por estas cinco etapas, en este orden. A veces duran cinco minutos y a veces meses.</p>
+      </div>
+
+      <article class="concept">
+        <div class="concept-head"><h3><span class="step-n">1</span> Preparación</h3><span class="en">Preparation</span></div>
+        <p>Es donde se decide la mayor parte del resultado. Definís objetivo, precio de reserva y MAAN; investigás criterios objetivos; pensás en tus intereses y en los del otro; y armás la lista de concesiones posibles.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Antes de ir a ver un auto, buscás diez anuncios del mismo modelo y anotás el rango de precios y lo que cuesta cada arreglo común.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Usá la plantilla de la sección 12. Si no podés escribir tu MAAN en una línea, todavía no estás listo.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3><span class="step-n">2</span> Apertura</h3><span class="en">Opening</span></div>
+        <p>Se crea el clima, se acuerda de qué se va a hablar y, a veces, se hace la primera oferta. Los primeros minutos marcan el tono del resto.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>«Gracias por el tiempo. Me gustaría hablar del sueldo y de mis responsabilidades para el próximo año. ¿Te parece si empiezo contándote cómo veo este año?»</div>
+          <div class="tip"><span class="lbl">Consejo</span>Empezá con algo cordial y una agenda clara. Si vas a anclar, que sea con un número concreto y una razón.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3><span class="step-n">3</span> Intercambio de información</h3><span class="en">Information exchange · exploration</span></div>
+        <p>Las dos partes preguntan, escuchan y descubren intereses, límites y prioridades. Quien pregunta más, entiende más y puede proponer mejor.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>«¿Hace cuánto está publicado el apartamento? ¿Qué buscás en un inquilino? ¿Qué pasó con el anterior?»</div>
+          <div class="tip"><span class="lbl">Consejo</span>Usá preguntas abiertas y aguantá el silencio después de cada una. Compartí información de a poco y a cambio de información.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3><span class="step-n">4</span> Concesiones</h3><span class="en">Bargaining · concessions</span></div>
+        <p>Cada parte se mueve hacia un punto común. Lo importante es cómo concedés: nunca gratis, cada vez en pasos más chicos y a cambio de algo.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>«Puedo subir a US$ 9.100 si incluís la transferencia y el service de los 100.000 km.»</div>
+          <div class="tip"><span class="lbl">Consejo</span>Usá la fórmula «si vos… entonces yo…». Concesiones de 500, 300 y 100 le dicen al otro que te estás acercando a tu límite.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3><span class="step-n">5</span> Cierre</h3><span class="en">Closing · agreement</span></div>
+        <p>Se confirma el acuerdo, se resume lo pactado y se pone por escrito con fechas y responsables. Un acuerdo que no está escrito todavía no está cerrado.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>«Para confirmar: aumento del 10% desde abril, revisión en septiembre y el curso de liderazgo pago. Te lo mando por mail hoy.»</div>
+          <div class="tip"><span class="lbl">Consejo</span>Escribí vos el resumen: quien redacta controla los detalles. Revisá que no quede nada ambiguo.</div>
+        </div>
+      </article>
+    </section>
+
+    <!-- 5 -->
+    <section id="s5">
+      <div class="sec-head">
+        <span class="sec-num">05</span>
+        <h2>Tácticas comunes y cómo responder</h2>
+        <p class="intro">No hace falta que las uses, pero sí que las reconozcas. Una táctica que identificás pierde casi toda su fuerza.</p>
+      </div>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Anclaje</h3><span class="en">Anchoring</span></div>
+        <p>El primer número que aparece en la conversación se vuelve la referencia, y las ofertas siguientes giran a su alrededor, aunque ese número sea arbitrario.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>El vendedor dice «pido US$ 12.500» por un auto que vale US$ 9.500. Sin darte cuenta, ofrecer 11.000 te parece una buena rebaja.</div>
+          <div class="tip"><span class="lbl">Cómo responder</span>No contraofertes cerca de un ancla extrema. Re-anclá con datos: «Los comparables están entre 9.000 y 9.800; ese número está fuera de mercado».</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Primera oferta</h3><span class="en">First offer · first-mover advantage</span></div>
+        <p>¿Conviene abrir o esperar? Abrir te permite anclar. Esperar te da información. Depende de cuánto sabés del valor real.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Si investigaste bien el mercado del alquiler, abrí vos con un número ambicioso y justificado. Si no tenés idea de cuánto vale algo, dejá que el otro diga primero.</div>
+          <div class="tip"><span class="lbl">Cómo responder</span>Si la primera oferta es del otro, no reacciones al número. Preguntá en qué se basa y contestá con tu propio ancla fundamentada.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Policía bueno y policía malo</h3><span class="en">Good cop / bad cop</span></div>
+        <p>Dos personas del otro lado: una se muestra dura y la otra comprensiva. El contraste hace que aceptes la propuesta del «bueno» como si fuera un alivio.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>En la concesionaria, el gerente rechaza tu oferta con mala cara y el vendedor te dice en voz baja: «Dejame ver qué consigo… si cerrás hoy en 9.900, lo convenzo».</div>
+          <div class="tip"><span class="lbl">Cómo responder</span>Tratá a los dos como una sola parte: lo que dice uno lo dice el equipo. Podés nombrarlo con humor y pedir hablar con quien decide.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Fecha límite</h3><span class="en">Deadline pressure · exploding offer</span></div>
+        <p>Una presión de tiempo, real o inventada, para que decidas antes de pensar o de comparar.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>«Este precio vale solo hasta hoy a las 18.» «Hay otra pareja interesada en el apartamento y mañana firma.»</div>
+          <div class="tip"><span class="lbl">Cómo responder</span>Preguntá qué pasa después del plazo y verificá si es real. Con una buena MAAN podés decir: «Si tiene que ser hoy, la respuesta es no. Si me das hasta el lunes, lo considero en serio».</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Lo tomás o lo dejás</h3><span class="en">Take it or leave it · ultimatum</span></div>
+        <p>Presentar una oferta como final e innegociable para cortar la conversación y quedarse con todo el excedente.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>«Es 30.000 al mes. No pienso bajar ni un peso. Lo tomás o lo dejás.»</div>
+          <div class="tip"><span class="lbl">Cómo responder</span>Compará con tu MAAN, no con tu ego. Podés ignorar el ultimátum y seguir hablando de intereses: «Entiendo que el precio es importante. ¿Hay algo en el plazo o las condiciones en lo que sí haya margen?».</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Morder al final</h3><span class="en">Nibbling</span></div>
+        <p>Cuando el acuerdo parece cerrado, la otra parte pide un extra pequeño. Como ya invertiste tiempo y no querés perder el trato, tendés a aceptar.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Ya acordaron el precio del auto y el comprador agrega: «Ah, y me dejás también las cubiertas de repuesto, ¿no?».</div>
+          <div class="tip"><span class="lbl">Cómo responder</span>Pedí algo a cambio («Sí, si pagás en efectivo hoy») o recordá el acuerdo («El precio ya incluye todo lo que hablamos»). Antes de cerrar, preguntá: «¿Hay algo más que quieras incluir?».</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Silencio</h3><span class="en">Strategic silence</span></div>
+        <p>Después de una oferta, la otra parte se queda callada. El silencio incomoda y muchas personas lo llenan haciendo concesiones que nadie pidió.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Decís «mi oferta es 9.000», el vendedor no responde, y a los cinco segundos agregás: «…bueno, podría llegar a 9.300». Negociaste contra vos mismo.</div>
+          <div class="tip"><span class="lbl">Cómo responder</span>Aguantá el silencio: contá mentalmente hasta diez. Si dura demasiado, preguntá «¿Qué te parece?» en vez de mejorar tu oferta. Y usalo vos después de escuchar una propuesta.</div>
+        </div>
+      </article>
+    </section>
+
+    <!-- 6 -->
+    <section id="s6">
+      <div class="sec-head">
+        <span class="sec-num">06</span>
+        <h2>Comunicación</h2>
+        <p class="intro">Varias de estas herramientas vienen de Chris Voss, ex negociador de rehenes del FBI, en <em>Rompe la barrera del no</em> (<em>Never Split the Difference</em>). Sirven igual para un rehén que para el dueño de tu apartamento.</p>
+      </div>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Escucha activa</h3><span class="en">Active listening</span></div>
+        <p>Escuchar para entender, no para contestar. Se demuestra resumiendo con tus palabras lo que dijo el otro y confirmando que entendiste.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>«A ver si entendí: el problema no es tanto el monto, sino que el presupuesto se cerró en enero y no podés tocarlo hasta julio. ¿Es así?»</div>
+          <div class="tip"><span class="lbl">Consejo</span>Cuando el otro responda «exacto» o «es así», vas por buen camino. Esa confirmación vale más que un «sí» de cortesía.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Preguntas abiertas</h3><span class="en">Open-ended questions · calibrated questions</span></div>
+        <p>Las preguntas que empiezan con «qué» o «cómo» no se contestan con sí o no. Obligan al otro a explicar, darte información y pensar en tu problema como si fuera suyo.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>En vez de «¿Es su precio final?», preguntá «¿Cómo llegaste a ese número?». En vez de «¿Me puede bajar?», «¿Qué haría falta para llegar a 27.000?».</div>
+          <div class="tip"><span class="lbl">Consejo</span>Evitá el «¿por qué?» directo, que suena a acusación. «¿Qué te lleva a…?» pide lo mismo con menos tensión.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Empatía táctica</h3><span class="en">Tactical empathy</span></div>
+        <p>Entender la situación y las emociones del otro, y decirlo en voz alta. No significa estar de acuerdo ni ceder: significa que el otro se siente entendido y baja la guardia.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>«Me imagino que con la suba de impuestos este año te está costando mantener el apartamento.»</div>
+          <div class="tip"><span class="lbl">Consejo</span>Antes de la reunión, hacé una «auditoría de acusaciones»: escribí las cosas negativas que el otro puede pensar de vos y nombralas primero. «Capaz pensás que te pido mucho…»</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Etiquetar emociones</h3><span class="en">Labeling</span></div>
+        <p>Ponerle nombre a la emoción que percibís en el otro con frases como «parece que…», «suena a que…», «da la impresión de que…». Nombrar una emoción negativa la desactiva.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>«Parece que te preocupa que, si me das el aumento, el resto del equipo pida lo mismo.»</div>
+          <div class="tip"><span class="lbl">Consejo</span>Después de etiquetar, callate y dejá que el otro hable. No digas «entiendo que estás enojado»: decí «parece que esto te enojó».</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Espejo</h3><span class="en">Mirroring</span></div>
+        <p>Repetir, con tono de pregunta, las últimas dos o tres palabras importantes que dijo el otro. Es una forma simple de invitarlo a seguir explicando.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>—Ese precio no lo puedo aceptar por cómo está el mercado.<br>—¿Cómo está el mercado?</div>
+          <div class="tip"><span class="lbl">Consejo</span>Ideal cuando no sabés qué responder. Ganás tiempo y el otro te da información.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>El poder del «no»</h3><span class="en">The power of “no” · no-oriented questions</span></div>
+        <p>Decir «sí» compromete y pone a la gente a la defensiva. Decir «no» da sensación de control y seguridad. Por eso funciona formular preguntas que se contestan con un «no», y también animarte a decir «no» vos.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>En vez de «¿Tenés cinco minutos?», preguntá «¿Es un mal momento para hablar?». En vez de «¿Estás de acuerdo?», «¿Sería una locura proponer dos años de contrato?».</div>
+          <div class="tip"><span class="lbl">Consejo</span>Un «no» del otro no es el final: es el comienzo de la conversación real. Y vos podés decir «no» sin justificarte de más.</div>
+        </div>
+      </article>
+
+      <div class="widget">
+        <div class="widget-head">
+          <span class="eyebrow">Interactivo · lado a lado</span>
+          <h3>Frases débiles y frases fuertes</h3>
+          <p class="hint">Filtrá por situación. A la izquierda, lo que solemos decir; a la derecha, cómo decirlo mejor.</p>
+        </div>
+        <div class="filters" id="phraseFilters" role="group" aria-label="Filtrar frases">
+          <button type="button" data-f="todas" aria-pressed="true">Todas</button>
+          <button type="button" data-f="aumento" aria-pressed="false">Aumento</button>
+          <button type="button" data-f="alquiler" aria-pressed="false">Alquiler</button>
+          <button type="button" data-f="auto" aria-pressed="false">Auto</button>
+          <button type="button" data-f="trabajo" aria-pressed="false">Oferta de trabajo</button>
+          <button type="button" data-f="general" aria-pressed="false">General</button>
+        </div>
+        <div class="phrases" id="phrases"></div>
+      </div>
+    </section>
+
+    <!-- 7 -->
+    <section id="s7">
+      <div class="sec-head">
+        <span class="sec-num">07</span>
+        <h2>Sesgos psicológicos</h2>
+        <p class="intro">Atajos mentales que afectan tus decisiones, y las del otro, sin que te des cuenta. Conocerlos no te vuelve inmune, pero te ayuda a frenar a tiempo.</p>
+      </div>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Sesgo de anclaje</h3><span class="en">Anchoring bias</span></div>
+        <p>Le damos demasiado peso a la primera cifra que escuchamos, incluso si sabemos que es arbitraria. Es la base psicológica de la táctica de anclaje.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Una campera «antes US$ 200, ahora 120» te parece barata, aunque nunca hubieras pagado 120 por ella sin ver el precio tachado.</div>
+          <div class="tip"><span class="lbl">Defensa</span>Antes de escuchar cualquier número, escribí tu propia estimación con datos. Después compará contra eso, no contra el ancla.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Aversión a la pérdida</h3><span class="en">Loss aversion</span></div>
+        <p>Perder algo duele más o menos el doble de lo que alegra ganar lo mismo (Kahneman y Tversky). Por eso nos cuesta soltar una negociación en la que ya invertimos tiempo, o algo que ya sentimos «nuestro».</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Probaste el auto, te imaginaste manejándolo y ahora te cuesta irte aunque el precio supere tu reserva. Sentís que lo estás perdiendo.</div>
+          <div class="tip"><span class="lbl">Defensa</span>Volvé a tu precio de reserva escrito. Preguntate: «Si no lo hubiera visto nunca, ¿pagaría esto?». Y usalo a tu favor: mostrá lo que el otro pierde si no hay acuerdo.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Efecto marco</h3><span class="en">Framing effect</span></div>
+        <p>La misma información, presentada de otra manera, cambia la decisión. No es lo mismo un «95% de éxito» que un «5% de fracaso».</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>«Pedir 4.000 pesos más por mes» suena a mucho; «menos de lo que te cuesta un mes de apartamento vacío» suena razonable. Es el mismo número.</div>
+          <div class="tip"><span class="lbl">Defensa</span>Ante una propuesta, reformulala en otro marco (ganancia o pérdida, por mes o por año) y mirá si tu opinión cambia. Al proponer, elegí el marco con cuidado.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Reciprocidad</h3><span class="en">Reciprocity</span></div>
+        <p>Sentimos la obligación de devolver lo que recibimos: un favor, un regalo o una concesión. Es útil para generar confianza, pero también se usa para hacerte ceder.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>El vendedor te invita un café, te «hace precio» con 50 dólares y de repente sentís que tenés que aceptar su oferta para no quedar mal.</div>
+          <div class="tip"><span class="lbl">Defensa</span>Agradecé el gesto y separalo de la decisión. Cuando concedas vos, nombralo («te bajé 300») para que el otro sienta que debe responder.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Exceso de confianza</h3><span class="en">Overconfidence bias</span></div>
+        <p>Sobreestimamos nuestras chances, nuestro poder y lo razonable que es nuestra postura. Eso lleva a rechazar buenos acuerdos o a no prepararse.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Estás seguro de que tu jefe no puede reemplazarte, pedís un 40% y amenazás con irte. Tu MAAN real era mucho peor de lo que creías.</div>
+          <div class="tip"><span class="lbl">Defensa</span>Buscá datos que contradigan tu idea. Pedile a alguien de confianza que haga de abogado del diablo y que te diga cuál es la MAAN del otro.</div>
+        </div>
+      </article>
+    </section>
+
+    <!-- 8 -->
+    <section id="s8">
+      <div class="sec-head">
+        <span class="sec-num">08</span>
+        <h2>Errores frecuentes de principiante</h2>
+        <p class="intro">A la izquierda el error; a la derecha cómo evitarlo.</p>
+      </div>
+      <div class="errors">
+        <div class="err"><div class="bad-t">Ir sin preparación</div><div class="fix">Dedicá a prepararte al menos el mismo tiempo que va a durar la reunión. Completá la plantilla.</div></div>
+        <div class="err"><div class="bad-t">No tener MAAN, o no saber cuál es</div><div class="fix">Escribila antes y mejorala. Sin alternativa, cualquier acuerdo te parece bueno.</div></div>
+        <div class="err"><div class="bad-t">Aceptar la primera oferta</div><div class="fix">Aunque te guste, preguntá y contraofertá. Además, el otro va a pensar que podría haber pedido más.</div></div>
+        <div class="err"><div class="bad-t">Revelar tu precio de reserva</div><div class="fix">Hablá de tu objetivo y de tus criterios, nunca de tu límite.</div></div>
+        <div class="err"><div class="bad-t">Conceder sin pedir nada a cambio</div><div class="fix">Cada concesión tiene precio: «si vos…, entonces yo…».</div></div>
+        <div class="err"><div class="bad-t">Partir la diferencia enseguida</div><div class="fix">El punto medio depende de las anclas. Si la del otro era exagerada, el medio también lo es.</div></div>
+        <div class="err"><div class="bad-t">Negociar un solo tema</div><div class="fix">Sumá plazo, forma de pago, fecha de inicio, extras. Más temas, más intercambios.</div></div>
+        <div class="err"><div class="bad-t">Negociar contra vos mismo</div><div class="fix">Después de una oferta, esperá respuesta. No bajes tu número antes de que el otro conteste.</div></div>
+        <div class="err"><div class="bad-t">Hablar demasiado y justificarse de más</div><div class="fix">Una o dos razones fuertes alcanzan. Cada explicación extra suena a inseguridad.</div></div>
+        <div class="err"><div class="bad-t">Tomarlo como algo personal</div><div class="fix">Un «no» al precio no es un «no» a vos. Pedí un descanso si sentís que te enojás.</div></div>
+        <div class="err"><div class="bad-t">Mentir sobre hechos</div><div class="fix">Una mentira descubierta destruye tu credibilidad y puede tener consecuencias legales. Callar no es mentir.</div></div>
+        <div class="err"><div class="bad-t">Cerrar de palabra</div><div class="fix">Mandá un resumen por escrito el mismo día y pedí confirmación.</div></div>
+      </div>
+    </section>
+
+    <!-- 9 -->
+    <section id="s9">
+      <div class="sec-head">
+        <span class="sec-num">09</span>
+        <h2>Guías paso a paso para casos reales</h2>
+        <p class="intro">Elegí una situación. Cada guía trae los pasos en orden, un guion para usar y señales de cuándo conviene retirarse.</p>
+      </div>
+      <div class="tabs" role="tablist" aria-label="Casos reales">
+        <button type="button" role="tab" id="tab-aumento" aria-controls="p-aumento" aria-selected="true">Pedir un aumento</button>
+        <button type="button" role="tab" id="tab-alquiler" aria-controls="p-alquiler" aria-selected="false" tabindex="-1">Negociar el alquiler</button>
+        <button type="button" role="tab" id="tab-auto" aria-controls="p-auto" aria-selected="false" tabindex="-1">Comprar un auto usado</button>
+        <button type="button" role="tab" id="tab-trabajo" aria-controls="p-trabajo" aria-selected="false" tabindex="-1">Oferta de trabajo</button>
+      </div>
+
+      <div class="tabpanel" role="tabpanel" id="p-aumento" aria-labelledby="tab-aumento">
+        <ol class="steps">
+          <li><div><b>Elegí el momento</b>Después de un logro visible o antes de que se arme el presupuesto anual. Evitá semanas de crisis.</div></li>
+          <li><div><b>Juntá evidencia</b>Logros con números (ventas, ahorro, tiempo), responsabilidades nuevas, felicitaciones por escrito.</div></li>
+          <li><div><b>Investigá el mercado</b>Rangos salariales de tu puesto en tu ciudad: portales de empleo, encuestas salariales del sector, colegas de confianza.</div></li>
+          <li><div><b>Definí objetivo, reserva y MAAN</b>¿Cuánto querés? ¿Cuál es tu mínimo? ¿Qué harías si te dicen que no: buscar otro trabajo, esperar seis meses?</div></li>
+          <li><div><b>Pedí una reunión específica</b>«Me gustaría que conversemos sobre mi desarrollo y mi remuneración.» No lo planteés al pasar en un pasillo.</div></li>
+          <li><div><b>Abrí con resultados y después el número</b>Una cifra concreta, no un rango. Si das rango, que el piso sea tu objetivo.</div></li>
+          <li><div><b>Si no hay presupuesto, explorá alternativas</b>Bono por objetivos, capacitación paga, días libres, cambio de cargo o una revisión con fecha fija.</div></li>
+          <li><div><b>Cerrá por escrito</b>Un mail con lo acordado, el monto y la fecha en que empieza o se revisa.</div></li>
+        </ol>
+        <p class="script"><span class="lbl">Guion</span>«En el último año lideré la migración del sistema de facturación, que bajó los errores un 18%, y además empecé a capacitar a los nuevos. Según los datos de mercado, mi puesto se paga entre $65.000 y $72.000. Por eso te propongo ajustar mi sueldo a $69.000. ¿Cómo lo ves?»</p>
+        <div class="walk"><span class="lbl">Evitá</span>Amenazar con irte si no estás dispuesto a hacerlo. Compararte con el sueldo de un compañero. Usar razones personales (el alquiler, los gastos) como argumento principal: la empresa paga por valor, no por necesidad.</div>
+      </div>
+
+      <div class="tabpanel" role="tabpanel" id="p-alquiler" aria-labelledby="tab-alquiler" hidden>
+        <ol class="steps">
+          <li><div><b>Investigá precios comparables</b>Guardá entre tres y cinco anuncios parecidos: zona, metros, estado, gastos comunes, garaje.</div></li>
+          <li><div><b>Conocé las reglas</b>Qué dice tu contrato y la ley local sobre ajustes, plazos y aviso previo.</div></li>
+          <li><div><b>Calculá tu MAAN real</b>Mudarte cuesta: flete, garantía, depósito, días sin trabajar, pintura. Sumalo y dividilo por los meses del contrato.</div></li>
+          <li><div><b>Pensá en los intereses del dueño</b>Cobrar seguro, no tener el apartamento vacío, un inquilino que cuide, pocas complicaciones.</div></li>
+          <li><div><b>Proponé con criterios</b>Mostrá los comparables y el índice de ajuste. Pedí que te expliquen cómo llegaron a su número.</div></li>
+          <li><div><b>Ofrecé valor a cambio</b>Contrato más largo, pago puntual por débito, adelantar un mes, ocuparte de arreglos menores.</div></li>
+          <li><div><b>Todo por escrito</b>El precio, el ajuste y también las reparaciones prometidas.</div></li>
+        </ol>
+        <p class="script"><span class="lbl">Guion</span>«Me gustaría seguir alquilando y cuidar el apartamento como hasta ahora. Vi que unidades parecidas en el barrio están entre $26.500 y $28.000. Si firmamos por dos años, ¿podemos dejarlo en $27.000?»</p>
+        <p class="callout"><b>Si es un apartamento nuevo:</b> preguntá cuánto tiempo lleva publicado. Si lleva varias semanas, el dueño está perdiendo plata cada mes y tenés más margen.</p>
+        <div class="walk"><span class="lbl">Retirate si</span>Te piden pagar una seña antes de ver el contrato, no te dejan visitar el lugar o el precio final supera tu MAAN (otra unidad similar más el costo de mudarte).</div>
+      </div>
+
+      <div class="tabpanel" role="tabpanel" id="p-auto" aria-labelledby="tab-auto" hidden>
+        <ol class="steps">
+          <li><div><b>Definí el presupuesto total</b>Precio, transferencia, seguro y arreglos iniciales. De ahí sale tu precio de reserva.</div></li>
+          <li><div><b>Investigá precios</b>Guías de precios y anuncios del mismo modelo, año y kilometraje.</div></li>
+          <li><div><b>Tené dos o tres opciones vivas</b>Esa es tu MAAN. Con un solo auto en la cabeza, negociás con miedo.</div></li>
+          <li><div><b>Inspeccioná y llevá a un mecánico</b>Revisión independiente, papeles al día, deudas de patente, multas, historial de service.</div></li>
+          <li><div><b>Preguntá antes de ofertar</b>«¿Por qué lo vendés? ¿Qué arreglos le hiciste? ¿Hace cuánto está publicado?»</div></li>
+          <li><div><b>Ofertá con fundamento</b>Precio de mercado menos el costo de los defectos encontrados, con el detalle de cada uno.</div></li>
+          <li><div><b>Concedé de a poco y a cambio de algo</b>Y no muestres demasiado entusiasmo, por mucho que te guste.</div></li>
+          <li><div><b>Cerrá con papeles</b>Compraventa firmada y transferencia en regla. Nunca pagues todo sin documentos.</div></li>
+        </ol>
+        <p class="script"><span class="lbl">Guion</span>«El auto me interesa. Los comparables con este kilometraje están en US$ 9.200. El mecánico encontró que necesita pastillas de freno y dos cubiertas, unos US$ 600. Puedo pagarte US$ 8.600 hoy mismo.»</p>
+        <div class="walk"><span class="lbl">Retirate si</span>No te dejan llevarlo a un mecánico, los papeles no están claros, el vendedor no es el titular o te presionan para dejar una seña «ya mismo».</div>
+      </div>
+
+      <div class="tabpanel" role="tabpanel" id="p-trabajo" aria-labelledby="tab-trabajo" hidden>
+        <ol class="steps">
+          <li><div><b>Agradecé, pero no aceptes en el momento</b>«Gracias, me entusiasma mucho. ¿Me das hasta el jueves para revisarla?»</div></li>
+          <li><div><b>Pedí la oferta completa por escrito</b>Sueldo, bono, beneficios, días de licencia, trabajo remoto, fecha de inicio, período de prueba.</div></li>
+          <li><div><b>Calculá el paquete total</b>Compará con el mercado y con tu situación actual, que es tu MAAN.</div></li>
+          <li><div><b>Buscá lo barato para ellos y valioso para vos</b>Remoto, horario, fecha de inicio, capacitación, cargo, equipo.</div></li>
+          <li><div><b>Contraofertá todo junto</b>Un número concreto con razones, y todos tus pedidos en un solo paquete. Si negociás tema por tema, cada pedido nuevo parece un nibbling.</div></li>
+          <li><div><b>Preguntá dónde hay flexibilidad</b>«¿En qué parte del paquete tienen más margen: sueldo, bono o beneficios?»</div></li>
+          <li><div><b>Confirmá por escrito antes de renunciar</b>No dejes tu trabajo actual con un acuerdo de palabra.</div></li>
+        </ol>
+        <p class="script"><span class="lbl">Guion</span>«Estoy muy entusiasmado con el puesto. Por mi experiencia en gestión de proyectos y lo que paga el mercado para este rol, esperaba un sueldo de $80.000. ¿Hay forma de acercarnos a ese número, o de compensar la diferencia con bono o dos días remotos?»</p>
+        <div class="walk"><span class="lbl">Ojo con</span>Las ofertas que «vencen mañana», que te pidan tu sueldo actual antes de decir el rango del puesto (podés responder con tu expectativa) y los beneficios prometidos solo de palabra.</div>
+      </div>
+    </section>
+
+    <!-- 10 -->
+    <section id="s10">
+      <div class="sec-head">
+        <span class="sec-num">10</span>
+        <h2>Ética: persuadir o manipular</h2>
+        <p class="intro">Persuadir es ayudar al otro a ver razones verdaderas para decidir. Manipular es llevarlo a decidir algo que no elegiría si supiera lo que estás haciendo. La diferencia está en la verdad y en el respeto por la decisión del otro.</p>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th></th><th>Persuadir</th><th>Manipular</th></tr></thead>
+          <tbody>
+            <tr><td>Información</td><td>Verdadera, aunque no digas todo</td><td>Falsa o engañosa</td></tr>
+            <tr><td>Emociones</td><td>Las reconoce y las calma</td><td>Las explota (miedo, culpa, urgencia)</td></tr>
+            <tr><td>Decisión del otro</td><td>La respeta, aunque sea «no»</td><td>La fuerza o la esquiva</td></tr>
+            <tr><td>Si se supiera todo</td><td>El acuerdo sigue en pie</td><td>El otro se sentiría estafado</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="font-size:1.2rem;margin-top:28px;margin-bottom:12px">Casos para pensar</h3>
+      <div class="verdicts">
+        <div class="verdict"><div>No decir tu precio de reserva<small>Tenés derecho a no revelar información estratégica.</small></div><span class="pill g">Legítimo</span></div>
+        <div class="verdict"><div>Abrir con un ancla ambiciosa, pero justificable<small>Es un pedido, no un engaño.</small></div><span class="pill g">Legítimo</span></div>
+        <div class="verdict"><div>Decir «es lo máximo que puedo pagar» cuando no es cierto<small>Mejor: «es lo máximo que estoy dispuesto a pagar», que es verdad.</small></div><span class="pill y">Zona gris</span></div>
+        <div class="verdict"><div>Etiquetar emociones para entender al otro<small>Es legítimo; usarlo para aprovecharte de un momento vulnerable, no.</small></div><span class="pill y">Depende</span></div>
+        <div class="verdict"><div>Decir «tengo otra oferta» cuando no la tenés<small>Es mentir sobre un hecho. Si te piden pruebas o te dicen «aceptala», quedás expuesto.</small></div><span class="pill r">Manipulación</span></div>
+        <div class="verdict"><div>Inventar una fecha límite o «otro interesado»<small>Crea urgencia falsa para que el otro no piense.</small></div><span class="pill r">Manipulación</span></div>
+        <div class="verdict"><div>Ocultar que el auto tuvo un choque grave<small>Además de antiético, puede ser fraude y anular la venta.</small></div><span class="pill r">Manipulación</span></div>
+      </div>
+
+      <h3 style="font-size:1.2rem;margin-top:28px;margin-bottom:12px">Cuatro pruebas rápidas</h3>
+      <div class="tests">
+        <div><b>Transparencia</b>¿Me molestaría que el otro supiera exactamente lo que estoy haciendo?</div>
+        <div><b>Reciprocidad</b>¿Me parecería bien si me lo hicieran a mí?</div>
+        <div><b>El diario</b>¿Me sentiría cómodo si esto saliera publicado con mi nombre?</div>
+        <div><b>Decisión informada</b>¿El otro puede decidir con información verdadera, o le estoy quitando esa posibilidad?</div>
+      </div>
+    </section>
+
+    <!-- 11 -->
+    <section id="s11">
+      <div class="sec-head">
+        <span class="sec-num">11</span>
+        <h2>Simulador de diálogo</h2>
+        <p class="intro">Una renovación de alquiler en seis pasos. Elegí qué responder: vas a ver por qué cada opción es buena, regular o mala y qué habrían provocado las demás.</p>
+      </div>
+      <div class="widget" id="sim"></div>
+    </section>
+
+    <!-- 12 -->
+    <section id="s12">
+      <div class="sec-head">
+        <span class="sec-num">12</span>
+        <h2>Plantilla de preparación</h2>
+        <p class="intro">Completala antes de cada negociación. Se guarda sola en este navegador. Si querés ver cómo queda, cargá el ejemplo de pedir un aumento.</p>
+      </div>
+      <form class="widget" id="tpl" autocomplete="off">
+        <div class="meter">
+          <div class="meter-bar"><i id="tplBar"></i></div>
+          <div class="meter-txt" id="tplMeter"></div>
+        </div>
+        <div class="tpl-grid">
+          <div class="field full"><label for="t-situacion">Situación <small>¿Qué negociás y con quién?</small></label><textarea id="t-situacion" rows="2" placeholder="Ej.: Renovar el alquiler con Marta, la dueña, antes del 1.º de mayo."></textarea></div>
+          <div class="field key"><label for="t-objetivo">Punto objetivo <small>lo que aspirás lograr</small></label><textarea id="t-objetivo" rows="2" placeholder="Ej.: $27.000 por mes, contrato de 2 años."></textarea></div>
+          <div class="field key"><label for="t-reserva">Precio de reserva <small>tu límite, no se dice</small></label><textarea id="t-reserva" rows="2" placeholder="Ej.: $28.600; más que eso me conviene mudarme."></textarea></div>
+          <div class="field key"><label for="t-maan">Mi MAAN <small>qué hago si no hay acuerdo</small></label><textarea id="t-maan" rows="2" placeholder="Ej.: Apartamento en la calle Rivera a $27.000 + $40.000 de mudanza."></textarea></div>
+          <div class="field"><label for="t-maan-otro">MAAN estimada del otro</label><textarea id="t-maan-otro" rows="2" placeholder="Ej.: Buscar inquilino nuevo: 1 a 3 meses vacío."></textarea></div>
+          <div class="field"><label for="t-int-mios">Mis intereses <small>por qué quiero lo que quiero</small></label><textarea id="t-int-mios" rows="3" placeholder="Ej.: Estabilidad, no mudarme, gasto previsible."></textarea></div>
+          <div class="field"><label for="t-int-otro">Sus intereses</label><textarea id="t-int-otro" rows="3" placeholder="Ej.: Cobrar seguro, no tener vacancia, cubrir impuestos."></textarea></div>
+          <div class="field full"><label for="t-criterios">Criterios objetivos y datos</label><textarea id="t-criterios" rows="2" placeholder="Ej.: 4 anuncios similares entre $26.500 y $28.000; índice de ajuste del contrato."></textarea></div>
+          <div class="field"><label for="t-dar">Concesiones que puedo dar <small>baratas para mí</small></label><textarea id="t-dar" rows="3" placeholder="Ej.: Contrato de 2 años, débito automático, pintar al irme."></textarea></div>
+          <div class="field"><label for="t-pedir">Lo que pido a cambio</label><textarea id="t-pedir" rows="3" placeholder="Ej.: Ajuste del 2.º año atado al índice, arreglar la estufa."></textarea></div>
+          <div class="field full"><label for="t-preguntas">Preguntas que voy a hacer</label><textarea id="t-preguntas" rows="2" placeholder="Ej.: ¿Cómo llegaste a ese número? ¿Qué es lo que más te importa en un inquilino?"></textarea></div>
+          <div class="field full"><label for="t-apertura">Mi frase de apertura</label><textarea id="t-apertura" rows="2" placeholder="Ej.: Me gustaría seguir acá dos años más y cuidar el apartamento como hasta ahora…"></textarea></div>
+        </div>
+        <div class="btns">
+          <button type="button" class="btn primary" id="tplCopy">Copiar resumen</button>
+          <button type="button" class="btn" id="tplExample">Cargar ejemplo: pedir un aumento</button>
+          <button type="button" class="btn danger" id="tplClear">Borrar todo</button>
+        </div>
+        <p class="tpl-status" id="tplStatus" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <!-- 13 -->
+    <section id="s13">
+      <div class="sec-head">
+        <span class="sec-num">13</span>
+        <h2>Fichas de repaso</h2>
+        <p class="intro">Tratá de decir la definición antes de dar vuelta la ficha. Tocá para girarla.</p>
+      </div>
+      <div class="btns" style="margin-bottom:14px">
+        <button type="button" class="btn" id="cardsShuffle">Mezclar</button>
+        <button type="button" class="btn" id="cardsReset">Dar vuelta todas al frente</button>
+      </div>
+      <div class="cards" id="cards"></div>
+    </section>
+
+    <!-- 14 -->
+    <section id="s14">
+      <div class="sec-head">
+        <span class="sec-num">14</span>
+        <h2>Examen final</h2>
+        <p class="intro">Diez preguntas elegidas al azar de un banco de 22. Cada respuesta trae su explicación y al final ves tu puntaje y qué repasar.</p>
+      </div>
+      <div class="widget" id="exam"></div>
+    </section>
+
+    <footer>
+      <p>Fuentes de las ideas: Fisher, Ury y Patton, <em>Sí, ¡de acuerdo!</em> (<em>Getting to Yes</em>); Chris Voss, <em>Rompe la barrera del no</em> (<em>Never Split the Difference</em>); Kahneman y Tversky sobre sesgos; Deepak Malhotra y Max Bazerman, <em>Negotiation Genius</em>.</p>
+      <p>Los montos son ejemplos. Antes de firmar un contrato, revisá la normativa de tu país.</p>
+    </footer>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const fmt = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  };
+
+  /* ---------- Índice activo ---------- */
+  const links = $$(".toc a");
+  const byId = {};
+  links.forEach(a => { byId[a.getAttribute("href").slice(1)] = a; });
+  function setActive(id) {
+    links.forEach(a => a.classList.toggle("active", a === byId[id]));
+    const a = byId[id];
+    if (a && window.matchMedia("(max-width: 900px)").matches) {
+      const ol = a.closest("ol");
+      const left = a.offsetLeft - ol.clientWidth / 2 + a.clientWidth / 2;
+      ol.scrollTo({ left, behavior: "smooth" });
+    }
+  }
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) setActive(e.target.id); });
+    }, { rootMargin: "-20% 0px -70% 0px" });
+    $$("main section").forEach(s => io.observe(s));
+  }
+
+  /* ---------- ZOPA ---------- */
+  const zS = $("#zSeller"), zB = $("#zBuyer"), zP = $("#zProp");
+  const MIN = 6000, MAX = 14000, pct = v => ((v - MIN) / (MAX - MIN)) * 100;
+  function drawZopa() {
+    const s = +zS.value, b = +zB.value, p = +zP.value;
+    $("#oSeller").textContent = "US$ " + fmt(s);
+    $("#oBuyer").textContent = "US$ " + fmt(b);
+    $("#oProp").textContent = "US$ " + fmt(p);
+    const fs = $("#fSeller"), fb = $("#fBuyer"), fz = $("#fZopa");
+    fs.style.left = pct(s) + "%"; fs.style.right = "0";
+    fs.textContent = "Vendedor acepta ≥ " + fmt(s);
+    fb.style.left = "0"; fb.style.width = pct(b) + "%";
+    fb.textContent = "Comprador acepta ≤ " + fmt(b);
+    const has = b >= s;
+    const lo = Math.min(s, b), hi = Math.max(s, b);
+    fz.style.left = pct(lo) + "%"; fz.style.width = Math.max(pct(hi) - pct(lo), 0.6) + "%";
+    fz.classList.toggle("gap", !has);
+    fz.textContent = has ? "ZOPA" : "sin zona";
+    $("#zPropLine").style.left = pct(p) + "%";
+    $("#zPropTag").textContent = fmt(p);
+    const sOk = p >= s, bOk = p <= b;
+    $("#stSeller").innerHTML = sOk ? '<span class="ok">Acepta: cobra ' + fmt(p - s) + " por encima de su mínimo</span>" : '<span class="no">Rechaza: le faltan ' + fmt(s - p) + "</span>";
+    $("#stBuyer").innerHTML = bOk ? '<span class="ok">Acepta: ahorra ' + fmt(b - p) + " respecto a su máximo</span>" : '<span class="no">Rechaza: se pasa por ' + fmt(p - b) + "</span>";
+    $("#stSize").textContent = has ? "US$ " + fmt(b - s) : "No hay (faltan " + fmt(s - b) + ")";
+    const v = $("#zVerdict");
+    v.className = "zverdict " + (has ? "yes" : "nope");
+    if (!has) v.innerHTML = "<b>No hay zona de acuerdo.</b> El máximo del comprador está por debajo del mínimo del vendedor. Ningún precio les sirve a los dos: la salida es sumar otros temas (forma de pago, extras, plazos) o que cada uno vaya a su MAAN.";
+    else if (sOk && bOk) v.innerHTML = "<b>Trato posible.</b> La propuesta cae dentro de la ZOPA y les conviene a ambos. Los US$ " + fmt(b - s) + " de la zona se reparten: " + fmt(p - s) + " para el vendedor y " + fmt(b - p) + " para el comprador.";
+    else v.innerHTML = "<b>Hay ZOPA, pero esta propuesta queda afuera.</b> Mové la propuesta entre " + fmt(s) + " y " + fmt(b) + " para que las dos partes la acepten.";
+  }
+  [zS, zB, zP].forEach(el => el.addEventListener("input", drawZopa));
+  drawZopa();
+
+  /* ---------- Frases ---------- */
+  const PHRASES = [
+    { c: "aumento", w: "Sé que es un mal momento, pero ¿habría alguna posibilidad de un pequeño aumento?", s: "Este año lideré el proyecto de facturación, que bajó los errores un 18%. Mi puesto se paga entre $65.000 y $72.000 en el mercado. Te propongo ajustar mi sueldo a $69.000.", y: "Pedir disculpas y achicar el pedido te ancla bajo. Logros con números y datos de mercado justifican un número concreto." },
+    { c: "aumento", w: "Lo que ustedes crean justo, a mí me parece bien.", s: "Por mis resultados y el mercado, busco llegar a $69.000. ¿Qué haría falta para que eso sea posible?", y: "Dejar el número en manos del otro le regala el ancla. La pregunta abierta lo pone a resolver tu problema." },
+    { c: "alquiler", w: "¿No me lo podría bajar un poquito?", s: "Encontré cuatro apartamentos parecidos en el barrio entre $26.500 y $28.000. ¿Podemos usar ese rango como referencia?", y: "«Un poquito» invita a una rebaja mínima. Un criterio objetivo cambia la discusión de «quién cede» a «qué es justo»." },
+    { c: "alquiler", w: "Si no me lo baja, me voy.", s: "Me gustaría quedarme dos años más. ¿Qué tendría que pasar para que el precio quede en $27.000?", y: "La amenaza pone al otro a la defensiva. Mostrar tu interés en quedarte y preguntar abre opciones." },
+    { c: "auto", w: "¡Me encanta, es justo lo que buscaba!", s: "Me interesa, aunque hay puntos a revisar: las cubiertas están gastadas y el service está atrasado.", y: "El entusiasmo le dice al vendedor que no te vas a ir. Mostrá interés moderado y fundamentos para bajar el precio." },
+    { c: "auto", w: "¿Cuál es su último precio?", s: "Según la guía de precios, este modelo con este kilometraje está en US$ 9.200. Con los frenos pendientes, puedo ofrecer US$ 8.600 hoy, en efectivo.", y: "Preguntar el «último precio» invita a una rebaja simbólica. Una oferta con datos y condiciones atractivas (efectivo, hoy) ancla a tu favor." },
+    { c: "trabajo", w: "Creo que tal vez podría aceptar un poco menos…", s: "Estoy muy entusiasmado con el puesto. Para aceptar, necesito que el paquete llegue a $80.000. ¿Dónde tienen flexibilidad: sueldo, bono o días remotos?", y: "Las palabras de duda («creo», «tal vez», «un poco») te debilitan. Un número claro más una pregunta abierta suma sin cerrar puertas." },
+    { c: "trabajo", w: "¡Sí, acepto! ¿Cuándo empiezo?", s: "Gracias, es una muy buena oferta. ¿Me dan hasta el jueves para revisarla con calma?", y: "Aceptar en el acto deja sin explorar el paquete. Pedir un plazo corto es normal y casi nunca se toma a mal." },
+    { c: "general", w: "Mi precio es más o menos $1.000, pero se puede hablar.", s: "Mi precio es $1.000.", y: "«Más o menos» y «se puede hablar» anuncian que vas a bajar. Decí el número y callate." },
+    { c: "general", w: "Bueno, supongo que podríamos partir la diferencia.", s: "Puedo moverme en el precio si vos te movés en la fecha de entrega.", y: "Partir la diferencia premia al que ancló más extremo. Una concesión condicionada intercambia valor." },
+    { c: "general", w: "No sé… dejame ver… bueno, está bien.", s: "Hoy no voy a decidir. Mañana a las 10 te doy una respuesta.", y: "Bajo presión, ganar tiempo con una fecha concreta es más fuerte que ceder por incomodidad." },
+    { c: "general", w: "Perdón que insista, pero…", s: "Quiero volver a un punto que para mí es importante:", y: "Disculparse por defender tus intereses les quita peso. Nombrar la importancia, sin agresividad, los sostiene." }
+  ];
+  const CTX = { aumento: "Aumento", alquiler: "Alquiler", auto: "Auto", trabajo: "Trabajo", general: "General" };
+  function drawPhrases(f) {
+    $("#phrases").innerHTML = PHRASES.filter(p => f === "todas" || p.c === f).map(p =>
+      '<div class="phrase"><div class="weak"><span class="lbl">Débil</span>«' + esc(p.w) + '»</div><div class="strong"><span class="lbl">Fuerte</span>«' + esc(p.s) + '»</div><div class="why"><span class="ctx">' + CTX[p.c] + '</span><b>Por qué:</b> ' + esc(p.y) + "</div></div>"
+    ).join("");
+  }
+  $$("#phraseFilters button").forEach(b => b.addEventListener("click", () => {
+    $$("#phraseFilters button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    drawPhrases(b.dataset.f);
+  }));
+  drawPhrases("todas");
+
+  /* ---------- Pestañas ---------- */
+  const tabs = $$('[role="tab"]');
+  function selectTab(t, focus) {
+    tabs.forEach(x => {
+      const on = x === t;
+      x.setAttribute("aria-selected", String(on));
+      x.tabIndex = on ? 0 : -1;
+      document.getElementById(x.getAttribute("aria-controls")).hidden = !on;
+    });
+    if (focus) t.focus();
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener("click", () => selectTab(t));
+    t.addEventListener("keydown", e => {
+      if (e.key === "ArrowRight") selectTab(tabs[(i + 1) % tabs.length], true);
+      if (e.key === "ArrowLeft") selectTab(tabs[(i - 1 + tabs.length) % tabs.length], true);
+    });
+  });
+
+  /* ---------- Simulador ---------- */
+  const SIM = [
+    { them: "Hola. Te aviso que cuando renovemos el contrato, el alquiler pasa de $25.000 a $31.000. Subió todo muchísimo.",
+      opts: [
+        { t: "Está bien, entiendo. Lo acepto.", q: "r", f: "Aceptás sin explorar nada. Los comparables están entre $26.500 y $28.000: estarías pagando unos $3.000 por mes de más, $72.000 en dos años.", re: "¡Perfecto! Te mando el contrato nuevo." },
+        { t: "¿$31.000? Es un abuso. Ni loco pago eso.", q: "r", f: "Atacás a la persona y te atás a una posición. Marta se pone a la defensiva y ahora cualquier rebaja va a parecer que ella perdió.", re: "Bueno, si no te sirve, podés buscar otro lugar." },
+        { t: "Gracias por avisarme con tiempo, Marta. Me gustaría seguir acá. ¿Me contás cómo llegaste a ese número?", q: "g", f: "Separás a la persona del problema, mostrás tu interés en quedarte y hacés una pregunta abierta que pide un criterio. No discutís el ancla: la ponés a prueba.", re: "" }
+      ] },
+    { them: "Vi que en el edificio de enfrente piden $31.000. Y además este año me subieron los impuestos.",
+      opts: [
+        { t: "Revisé cuatro anuncios parecidos en el barrio y están entre $26.500 y $28.000. El de enfrente tiene garaje y un dormitorio más. ¿Los miramos juntos?", q: "g", f: "Usás criterios objetivos y explicás por qué su comparable no aplica. Invitar a mirarlos juntos los pone del mismo lado de la mesa.", re: "" },
+        { t: "Entonces te ofrezco $25.500.", q: "y", f: "Contraofertar está bien, pero sin ningún argumento parece un regateo. Ella no tiene motivo para moverse de su ancla.", re: "Imposible, eso es lo mismo que ahora." },
+        { t: "¿Y si partimos la diferencia? $28.000.", q: "r", f: "Partir la diferencia tan pronto premia su ancla exagerada: el «medio» lo definió ella. Además concediste $3.000 sin recibir nada.", re: "Mmm, $28.000… podría ser, pero mejor $29.000." }
+      ] },
+    { them: "Puede ser, pero los impuestos subieron igual. Y la última vez el apartamento estuvo tres meses vacío, sin cobrar nada.",
+      opts: [
+        { t: "Parece que lo que más te preocupa es que el apartamento quede vacío otra vez.", q: "g", f: "Etiquetás la emoción y descubrís el interés real: ingresos estables, no tener vacancia. Ahora sabés qué ofrecerle que te cueste poco.", re: "" },
+        { t: "Eso no es mi problema.", q: "r", f: "Despreciás su preocupación justo cuando te estaba dando la información más valiosa de la conversación.", re: "Para mí sí es un problema, y por eso el precio es ese." },
+        { t: "Si me voy, vas a perder plata, así que te conviene bajarlo.", q: "y", f: "Es verdad, pero dicho como amenaza genera rechazo. La misma idea funciona mejor como pregunta o con una etiqueta.", re: "No me amenaces. Hay gente buscando." }
+      ] },
+    { them: "Exacto. Tres meses sin cobrar fue un desastre.",
+      opts: [
+        { t: "Te propongo esto: firmo por dos años en lugar de uno, a $27.000, y pago por débito automático el día 1. Así tenés ingreso seguro y sin vacancia.", q: "g", f: "Creás valor: le das lo que más le importa (estabilidad), que a vos te cuesta poco porque igual querías quedarte. Proponés un número con fundamento.", re: "" },
+        { t: "Pago $27.000 y listo, es lo justo.", q: "y", f: "El número está bien fundado, pero no le das nada que responda a su interés. Para ella es solo perder plata.", re: "Lo justo para vos, puede ser." },
+        { t: "Bueno, pago $30.000 para que no te preocupes.", q: "r", f: "Concesión unilateral de $1.000 sobre el ancla, por encima de tu precio de reserva. Calmás su miedo regalando plata.", re: "¡Trato hecho!" }
+      ] },
+    { them: "Dos años me sirve… pero $27.000 me queda bajo. ¿Y si son $28.500?",
+      opts: [
+        { t: "Está bien, $28.500.", q: "y", f: "Está por debajo de tu MAAN (mudarte te sale unos $28.700 por mes contando el costo de mudanza), así que no es un mal acuerdo. Pero cediste todo de una vez sin pedir nada.", re: "" },
+        { t: "Puedo llegar a $27.500 si el ajuste del segundo año queda atado al índice oficial y lo ponemos por escrito.", q: "g", f: "Concesión pequeña y condicionada («si… entonces»), con un criterio objetivo para el futuro. Tu paso chico le indica que estás cerca de tu límite.", re: "" },
+        { t: "Entonces me voy. Chau.", q: "r", f: "Tu MAAN es peor que $28.500: otro apartamento a $27.000 más $40.000 de mudanza. Irte por orgullo te deja peor.", re: "Como quieras. Lo publico mañana." }
+      ] },
+    { them: "Dale. $27.500, dos años, y el segundo año ajusta por el índice.",
+      opts: [
+        { t: "¡Perfecto, gracias! Te mando hoy por mail un resumen de lo que acordamos para que lo incluyamos en el contrato.", q: "g", f: "Cerrás por escrito y lo redactás vos. Así no hay malentendidos y controlás los detalles.", re: "" },
+        { t: "Genial, lo dejamos de palabra, no hace falta papel.", q: "r", f: "Sin papel, en un año nadie recuerda lo mismo. Lo acordado de palabra es muy difícil de reclamar.", re: "Bueno… después vemos." },
+        { t: "Ah, y ya que estamos, ¿me cambiás la heladera?", q: "y", f: "Es nibbling. Puede funcionar, pero arriesga reabrir el trato y dañar la confianza que construiste. Si la heladera importa, sumala antes de cerrar.", re: "Uy, eso no lo hablamos. Capaz hay que revisar el precio entonces." }
+      ] }
+  ];
+  const Q = { g: { tag: "Buena respuesta", pts: 2 }, y: { tag: "Regular", pts: 1 }, r: { tag: "Mala respuesta", pts: 0 } };
+  let sim = { i: 0, score: 0, choice: null, order: [] };
+  function simStart() { sim = { i: 0, score: 0, choice: null, order: SIM.map(st => shuffle(st.opts.map((_, k) => k))) }; drawSim(); }
+  function drawSim() {
+    const box = $("#sim");
+    if (sim.i >= SIM.length) {
+      const max = SIM.length * 2, pc = sim.score / max;
+      const msg = pc >= 0.85 ? "Excelente. Preguntaste, usaste criterios, creaste valor y cerraste por escrito." : pc >= 0.6 ? "Bien. Revisá los pasos donde elegiste «regular»: casi siempre faltó pedir algo a cambio o un criterio." : "Hay margen para mejorar. Repasá las secciones 2, 3 y 6 y volvé a intentarlo.";
+      box.innerHTML = '<div class="widget-head"><span class="eyebrow">Resultado</span><h3>Negociación terminada</h3></div><div class="score"><div class="big mono">' + sim.score + '<small> / ' + max + '</small></div><p>' + msg + '</p><p class="hint">Con las mejores respuestas: $27.500 por dos años, en vez de $31.000. Son $84.000 de ahorro en el contrato.</p><button type="button" class="btn primary" id="simAgain">Volver a empezar</button></div>';
+      $("#simAgain").addEventListener("click", simStart);
+      return;
+    }
+    const st = SIM[sim.i];
+    let html = '<div class="sim-meta"><span>Paso ' + (sim.i + 1) + " de " + SIM.length + '</span><span class="dots">' + SIM.map((_, k) => '<i class="' + (k < sim.i ? "done" : k === sim.i ? "cur" : "") + '"></i>').join("") + '</span><span class="mono">Puntos: ' + sim.score + "</span></div>";
+    if (sim.i === 0) html += '<div class="case-box"><b>La situación.</b> Alquilás hace un año por $25.000. Te gusta el lugar. Unidades parecidas en el barrio se alquilan entre $26.500 y $28.000. Mudarte te costaría unos $40.000. La dueña es Marta.</div>';
+    html += '<div class="chat"><div class="bubble them"><span class="who">Marta</span>' + esc(st.them) + "</div></div>";
+    html += '<div class="options" role="group" aria-label="Tus opciones">';
+    sim.order[sim.i].forEach((k, n) => {
+      const o = st.opts[k];
+      const chosen = sim.choice === k;
+      html += '<button type="button" class="opt' + (chosen ? " chosen " + o.q : "") + '" data-k="' + k + '"' + (sim.choice !== null ? " disabled" : "") + '><span class="k">' + "ABC"[n] + "</span><span>" + esc(o.t) + "</span></button>";
+    });
+    html += "</div>";
+    if (sim.choice !== null) {
+      const o = st.opts[sim.choice];
+      html += '<div class="chat"><div class="bubble me"><span class="who">Vos</span>' + esc(o.t) + "</div>";
+      if (o.re) html += '<div class="bubble them"><span class="who">Marta</span>' + esc(o.re) + "</div>";
+      html += "</div>";
+      html += '<div class="feedback ' + o.q + '" aria-live="polite"><span class="tag">' + Q[o.q].tag + " · +" + Q[o.q].pts + "</span><p>" + esc(o.f) + "</p>";
+      const rest = st.opts.filter((_, k) => k !== sim.choice);
+      html += '<div class="others">' + rest.map(r => "<span><b>" + Q[r.q].tag + ":</b> «" + esc(r.t) + "» " + esc(r.f) + "</span>").join("") + "</div></div>";
+      const last = sim.i === SIM.length - 1;
+      html += '<div class="btns"><button type="button" class="btn primary" id="simNext">' + (last ? "Ver resultado" : "Seguir") + "</button></div>";
+      if (o.q !== "g" && !last) html += '<p class="hint">La historia sigue como si hubieras elegido la mejor respuesta, para que practiques el paso siguiente.</p>';
+    }
+    box.innerHTML = html;
+    $$(".opt", box).forEach(b => b.addEventListener("click", () => {
+      sim.choice = +b.dataset.k;
+      sim.score += Q[st.opts[sim.choice].q].pts;
+      drawSim();
+    }));
+    const nx = $("#simNext");
+    if (nx) nx.addEventListener("click", () => { sim.i++; sim.choice = null; drawSim(); $("#sim").scrollIntoView({ block: "start" }); });
+  }
+  simStart();
+
+  /* ---------- Plantilla ---------- */
+  const TPL_KEY = "negociacion-plantilla-v1";
+  const fields = $$("#tpl textarea");
+  const EXAMPLE = {
+    "t-situacion": "Pedir un aumento a mi jefa, Laura, en la reunión de evaluación de marzo.",
+    "t-objetivo": "Pasar de $60.000 a $69.000 (+15%).",
+    "t-reserva": "$64.200 (+7%), o +5% ahora con revisión por escrito en 6 meses.",
+    "t-maan": "Oferta de la empresa B por $66.000, aunque con 40 minutos más de viaje por día.",
+    "t-maan-otro": "Buscar y formar a alguien nuevo: 3 a 4 meses y el costo de selección.",
+    "t-int-mios": "Sueldo acorde al mercado, reconocimiento, aprender a liderar un equipo.",
+    "t-int-otro": "Retener gente con experiencia, no romper la banda salarial, cumplir el presupuesto del año.",
+    "t-criterios": "Encuesta salarial del sector: $65.000 a $72.000 para mi puesto. El proyecto de facturación bajó los errores un 18%.",
+    "t-dar": "Liderar la capacitación de los ingresos nuevos. Flexibilidad en el mes en que empieza el aumento.",
+    "t-pedir": "Revisión con fecha fija por escrito. Curso de liderazgo pago por la empresa.",
+    "t-preguntas": "¿Cómo se definen los ajustes en el área? ¿Qué tendría que pasar para llegar a $69.000?",
+    "t-apertura": "En el último año lideré la migración de facturación y empecé a capacitar a los nuevos. Quiero hablar de cómo eso se refleja en mi sueldo."
+  };
+  const LABELS = {};
+  fields.forEach(f => { LABELS[f.id] = $('label[for="' + f.id + '"]').childNodes[0].textContent.trim(); });
+  function tplSave() { const d = {}; fields.forEach(f => { d[f.id] = f.value; }); store.set(TPL_KEY, d); }
+  function tplMeter() {
+    const filled = fields.filter(f => f.value.trim()).length;
+    $("#tplBar").style.width = (filled / fields.length * 100) + "%";
+    const missing = ["t-objetivo", "t-reserva", "t-maan"].filter(id => !$("#" + id).value.trim()).map(id => LABELS[id]);
+    $("#tplMeter").textContent = filled + " de " + fields.length + " completos. " + (missing.length ? "Te falta lo clave: " + missing.join(", ") + "." : "Tenés lo clave: objetivo, reserva y MAAN.");
+  }
+  const saved = store.get(TPL_KEY);
+  if (saved) fields.forEach(f => { if (typeof saved[f.id] === "string") f.value = saved[f.id]; });
+  fields.forEach(f => f.addEventListener("input", () => { tplSave(); tplMeter(); }));
+  tplMeter();
+  const status = msg => { $("#tplStatus").textContent = msg; };
+  $("#tplExample").addEventListener("click", () => {
+    fields.forEach(f => { f.value = EXAMPLE[f.id] || ""; });
+    tplSave(); tplMeter(); status("Ejemplo cargado. Reemplazalo con tu caso.");
+  });
+  let clearArmed = null;
+  $("#tplClear").addEventListener("click", e => {
+    const b = e.currentTarget;
+    if (!clearArmed) {
+      b.textContent = "Tocá de nuevo para borrar";
+      clearArmed = setTimeout(() => { b.textContent = "Borrar todo"; clearArmed = null; }, 3500);
+      return;
+    }
+    clearTimeout(clearArmed); clearArmed = null; b.textContent = "Borrar todo";
+    fields.forEach(f => { f.value = ""; });
+    store.del(TPL_KEY); tplMeter(); status("Plantilla vacía.");
+  });
+  $("#tplCopy").addEventListener("click", () => {
+    const txt = "PREPARACIÓN DE NEGOCIACIÓN\n\n" + fields.map(f => LABELS[f.id].toUpperCase() + "\n" + (f.value.trim() || "—")).join("\n\n");
+    const fallback = () => {
+      const ta = document.createElement("textarea");
+      ta.value = txt; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      let ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(ta);
+      status(ok ? "Resumen copiado." : "No se pudo copiar automáticamente. Seleccioná el texto de los campos y copialo a mano.");
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(() => status("Resumen copiado. Pegalo en tus notas o en un mail."), fallback);
+    } else fallback();
+  });
+  $("#tpl").addEventListener("submit", e => e.preventDefault());
+
+  /* ---------- Fichas ---------- */
+  const CARDS = [
+    ["MAAN", "BATNA", "Lo que vas a hacer si no hay acuerdo. Tu fuente de poder y la base de tu precio de reserva."],
+    ["Precio de reserva", "Reservation price", "El peor acuerdo que aceptarías. Por debajo, te conviene tu MAAN. Nunca se revela."],
+    ["Punto objetivo", "Target point", "El resultado ambicioso y justificable al que apuntás."],
+    ["ZOPA", "Zone Of Possible Agreement", "El rango entre las reservas de las dos partes. Si no se superponen, no hay acuerdo posible."],
+    ["Posición", "Position", "Lo que alguien dice que quiere: «quiero $31.000»."],
+    ["Interés", "Interest", "Por qué lo quiere: la necesidad o el miedo de fondo. «No quiero tener el apartamento vacío»."],
+    ["Negociación distributiva", "Distributive · win-lose", "Una torta fija: lo que gana uno lo pierde el otro. Suele ser un solo tema."],
+    ["Negociación integrativa", "Integrative · win-win", "Varios temas valorados distinto que permiten intercambios en los que ganan ambos."],
+    ["Crear valor", "Creating value", "Agrandar la torta: sumar cosas baratas para uno y valiosas para el otro."],
+    ["Criterio objetivo", "Objective criteria", "Un estándar externo (mercado, índice, tasación) que ninguna parte controla."],
+    ["Anclaje", "Anchoring", "El primer número se vuelve la referencia. Respuesta: re-anclar con datos."],
+    ["Morder al final", "Nibbling", "Pedir un extra cuando el trato ya está cerrado. Respuesta: pedir algo a cambio."],
+    ["Policía bueno y malo", "Good cop / bad cop", "Uno duro y uno amable para que aceptes la oferta del «bueno». Tratalos como una sola parte."],
+    ["Concesión condicionada", "Conditional concession", "«Si vos…, entonces yo…». Nunca concedas gratis."],
+    ["Empatía táctica", "Tactical empathy", "Entender y decir en voz alta la perspectiva del otro, sin necesidad de estar de acuerdo."],
+    ["Etiquetar", "Labeling", "Nombrar la emoción del otro: «Parece que te preocupa…». Desactiva lo negativo."],
+    ["Pregunta calibrada", "Calibrated question", "Pregunta abierta con «qué» o «cómo»: «¿Cómo llegaste a ese número?»."],
+    ["Aversión a la pérdida", "Loss aversion", "Perder duele más que ganar lo mismo. Hace difícil retirarse a tiempo."],
+    ["Efecto marco", "Framing effect", "La misma información, presentada como ganancia o como pérdida, cambia la decisión."],
+    ["Reciprocidad", "Reciprocity", "Sentir la obligación de devolver un favor o una concesión."]
+  ];
+  let cardOrder = CARDS.map((_, i) => i);
+  function drawCards() {
+    $("#cards").innerHTML = cardOrder.map(i => {
+      const [es, en, def] = CARDS[i];
+      return '<button type="button" class="flip" aria-pressed="false" aria-label="' + esc(es) + ': tocá para ver la definición"><span class="inner"><span class="face front"><b>' + esc(es) + '</b><span class="en">' + esc(en) + '</span><span class="tap">Tocá para girar</span></span><span class="face back"><span class="lbl">' + esc(es) + "</span><span>" + esc(def) + "</span></span></span></button>";
+    }).join("");
+    $$("#cards .flip").forEach(c => c.addEventListener("click", () => {
+      const on = !c.classList.contains("flipped");
+      c.classList.toggle("flipped", on);
+      c.setAttribute("aria-pressed", String(on));
+    }));
+  }
+  $("#cardsShuffle").addEventListener("click", () => { cardOrder = shuffle(cardOrder); drawCards(); });
+  $("#cardsReset").addEventListener("click", () => $$("#cards .flip").forEach(c => { c.classList.remove("flipped"); c.setAttribute("aria-pressed", "false"); }));
+  drawCards();
+
+  /* ---------- Examen ---------- */
+  const BANK = [
+    { q: "¿Qué es tu MAAN (BATNA)?", o: ["Lo que vas a hacer si no llegás a un acuerdo", "El precio que pedís al empezar", "El máximo que está dispuesto a pagar el otro", "El acuerdo ideal para las dos partes"], e: "La MAAN es tu mejor alternativa si no hay acuerdo. Define cuándo te conviene levantarte de la mesa.", s: 2 },
+    { q: "El vendedor acepta desde US$ 12.000 y el comprador paga hasta US$ 11.000. ¿Hay ZOPA?", o: ["No, porque el máximo del comprador está por debajo del mínimo del vendedor", "Sí, entre 11.000 y 12.000", "Sí, en 11.500, el punto medio", "Depende de quién haga la primera oferta"], e: "Para que haya ZOPA, el máximo del comprador tiene que ser mayor o igual al mínimo del vendedor. Acá faltan 1.000.", s: 2 },
+    { q: "El vendedor acepta desde 8.000 y el comprador paga hasta 9.500. ¿Cuál es la ZOPA?", o: ["De 8.000 a 9.500", "De 0 a 8.000", "De 9.500 en adelante", "Solo 8.750"], e: "La ZOPA va del mínimo del vendedor al máximo del comprador. Cualquier precio en ese rango les conviene a ambos.", s: 2 },
+    { q: "«Quiero un aumento del 15%» es…", o: ["Una posición", "Un interés", "Una MAAN", "Un criterio objetivo"], e: "Es lo que pedís (posición). El interés sería el porqué: reconocimiento, llegar a fin de mes, sentirte valorado.", s: 2 },
+    { q: "¿Cuál de estos NO es un principio del método de Harvard?", o: ["Conseguir que el otro haga la primera concesión", "Separar a las personas del problema", "Enfocarse en intereses, no en posiciones", "Usar criterios objetivos"], e: "Los cuatro principios son: personas y problema por separado, intereses, opciones de beneficio mutuo y criterios objetivos.", s: 3 },
+    { q: "Te hacen una primera oferta exageradamente alta. ¿Qué conviene?", o: ["Re-anclar con datos de mercado y no tomarla como referencia", "Contraofertar justo en el punto medio", "Aceptarla para no perder el trato", "Irte sin decir nada"], e: "Contraofertar cerca de un ancla extrema la valida. Re-anclar con criterios objetivos lleva la conversación a otra referencia.", s: 5 },
+    { q: "Ya acordaron el precio y el comprador agrega: «y me dejás el cargador también». ¿Cómo se llama y cómo responder?", o: ["Nibbling: pedir algo a cambio o recordar que el precio ya incluye lo acordado", "Anclaje: hacer una oferta nueva más alta", "Policía bueno y malo: pedir hablar con el jefe", "Fecha límite: pedir más tiempo"], e: "Morder al final aprovecha que no querés perder el trato. Si lo das, que sea a cambio de algo.", s: 5 },
+    { q: "¿Cuál de estas frases es etiquetar una emoción?", o: ["«Parece que te preocupa quedarte sin inquilino.»", "«¿Cuál es tu último precio?»", "«Entiendo perfectamente lo que sentís.»", "«No te enojes, es solo un negocio.»"], e: "Etiquetar es nombrar la emoción que percibís con «parece que…» o «suena a que…». «Te entiendo» suele sonar vacío.", s: 6 },
+    { q: "La aversión a la pérdida significa que…", o: ["Perder algo nos pesa más que ganar algo del mismo valor", "Preferimos no negociar para no perder", "Siempre gana quien arriesga menos", "La primera oferta siempre se pierde"], e: "Kahneman y Tversky mostraron que las pérdidas pesan aproximadamente el doble que las ganancias equivalentes.", s: 7 },
+    { q: "¿Cuál es una pregunta abierta?", o: ["«¿Cómo llegaste a ese número?»", "«¿Es tu precio final?»", "«¿Me lo podés bajar?»", "«¿Aceptás tarjeta?»"], e: "Las preguntas con «qué» o «cómo» no se contestan con sí o no y te dan información.", s: 6 },
+    { q: "¿Cuándo conviene hacer vos la primera oferta?", o: ["Cuando tenés buena información sobre el valor de mercado", "Nunca, siempre conviene esperar", "Siempre, sin importar lo que sepas", "Solo si el otro te lo pide"], e: "Con buena información, abrir te permite anclar a tu favor. Sin información, te arriesgás a anclar mal y conviene escuchar primero.", s: 5 },
+    { q: "¿Cuál es la mejor forma de hacer concesiones?", o: ["Cada vez más pequeñas y a cambio de algo", "Todas juntas al principio, para generar confianza", "Siempre del mismo tamaño", "Grandes al final, para cerrar rápido"], e: "Concesiones decrecientes indican que te acercás a tu límite. Pedir algo a cambio evita regalar valor.", s: 4 },
+    { q: "Te dicen «lo tomás o lo dejás». ¿Qué conviene hacer primero?", o: ["Compararlo con tu MAAN y, si sirve, seguir hablando de intereses y condiciones", "Aceptar, porque es la oferta final", "Irte inmediatamente para no mostrar debilidad", "Subir tu oferta para no perder el trato"], e: "Un ultimátum es una táctica: la referencia correcta es tu MAAN. Muchas veces se puede seguir negociando otras condiciones.", s: 5 },
+    { q: "¿Cuál de estas conductas es manipulación?", o: ["Decir que tenés otra oferta cuando no la tenés", "No revelar tu precio de reserva", "Mostrar anuncios de precios comparables", "Pedir un plazo para pensar"], e: "Mentir sobre un hecho es manipular. No revelar tu límite es discreción, y es legítimo.", s: 10 },
+    { q: "¿Cuál es un ejemplo de crear valor?", o: ["Sumar dos días de trabajo remoto a una oferta de empleo", "Bajar el sueldo pedido a la mitad", "Partir la diferencia entre dos precios", "Repetir tu oferta con más firmeza"], e: "Crear valor es sumar algo que al otro le cuesta poco y a vos te vale mucho. Agranda la torta.", s: 2 },
+    { q: "Decir «95% de éxito» en lugar de «5% de fracaso» es un ejemplo de…", o: ["Efecto marco", "Anclaje", "Reciprocidad", "Nibbling"], e: "El efecto marco: la misma información presentada distinto cambia la percepción y la decisión.", s: 7 },
+    { q: "El vendedor te invita un café y un descuento chico, y sentís que tenés que aceptar su oferta. ¿Cuál es la mejor defensa?", o: ["Agradecer y separar el gesto de la decisión", "Rechazar el café con mala cara", "Aceptar para no quedar mal", "Devolverle el favor con una concesión grande"], e: "Es el sesgo de reciprocidad. Agradecer está bien; la decisión se toma con tu precio de reserva, no con la culpa.", s: 7 },
+    { q: "Negociás con dos personas: una dura y otra amable. ¿Qué conviene?", o: ["Tratar a las dos como una sola parte y pedir hablar con quien decide", "Aliarte con la amable", "Discutir con la dura hasta convencerla", "Aceptar la oferta de la amable"], e: "Es «policía bueno y policía malo». La amable y la dura trabajan juntas: lo que ofrece una lo ofrece el equipo.", s: 5 },
+    { q: "¿Cuál es el error de principiante más común?", o: ["Aceptar la primera oferta sin explorar", "Hacer demasiadas preguntas", "Llevar datos de mercado", "Pedir el acuerdo por escrito"], e: "Aceptar la primera oferta deja valor sobre la mesa, y además el otro suele quedarse pensando que pudo pedir más.", s: 8 },
+    { q: "Hacés tu oferta y la otra persona se queda en silencio. ¿Qué conviene?", o: ["Aguantar el silencio y no mejorar tu oferta", "Bajar tu oferta para romper el hielo", "Explicar de nuevo todas tus razones", "Retirar la oferta"], e: "Si mejorás tu oferta sin respuesta, negociás contra vos mismo. Si el silencio se alarga, preguntá «¿Qué te parece?».", s: 5 },
+    { q: "Para combatir el exceso de confianza conviene…", o: ["Buscar datos que contradigan tu idea y pedir una opinión externa", "Confiar en tu intuición", "Pedir siempre el doble", "Evitar prepararte para no dudar"], e: "El exceso de confianza se corrige confrontándolo con datos y con alguien que haga de abogado del diablo.", s: 7 },
+    { q: "¿En qué etapa se decide la mayor parte del resultado?", o: ["Preparación", "Apertura", "Concesiones", "Cierre"], e: "La preparación define tu MAAN, tu reserva, tu objetivo y tus argumentos. Todo lo demás depende de eso.", s: 4 }
+  ];
+  let ex;
+  function examStart() {
+    ex = { qs: shuffle(BANK).slice(0, 10).map(b => { const idx = shuffle([0, 1, 2, 3]); return { ...b, opts: idx.map(i => b.o[i]), right: idx.indexOf(0) }; }), i: 0, score: 0, pick: null, wrong: [] };
+    drawExam();
+  }
+  function drawExam() {
+    const box = $("#exam");
+    if (ex.i >= ex.qs.length) {
+      const msg = ex.score >= 9 ? "Excelente: tenés los conceptos claros. Ahora probalos en una negociación real con la plantilla." : ex.score >= 7 ? "Muy bien. Repasá los temas de las preguntas que fallaste." : ex.score >= 5 ? "Vas bien, pero hay conceptos para reforzar. Usá las fichas de repaso." : "Conviene volver a leer las secciones 2 a 7 y hacer el examen otra vez.";
+      const rev = ex.wrong.length ? '<div class="review"><b>Para repasar</b>' + ex.wrong.map(w => "<div><b>" + esc(w.q) + "</b><br>Respuesta correcta: " + esc(w.o[0]) + ' <a href="#s' + w.s + '">Ir a la sección ' + w.s + "</a></div>").join("") + "</div>" : "";
+      box.innerHTML = '<div class="widget-head"><span class="eyebrow">Resultado</span><h3>Tu puntaje</h3></div><div class="score"><div class="big mono">' + ex.score + "<small> / 10</small></div><p>" + msg + '</p></div>' + rev + '<div class="btns"><button type="button" class="btn primary" id="exAgain">Nuevo examen con otras preguntas</button></div>';
+      $("#exAgain").addEventListener("click", () => { examStart(); $("#exam").scrollIntoView({ block: "start" }); });
+      return;
+    }
+    const q = ex.qs[ex.i];
+    let html = '<div class="qprog"><span>Pregunta ' + (ex.i + 1) + " de 10</span><span class=\"mono\">Aciertos: " + ex.score + '</span></div><div class="qbar"><i style="width:' + (ex.i / 10 * 100) + '%"></i></div>';
+    html += '<p class="qtext">' + esc(q.q) + '</p><div class="options" role="group" aria-label="Respuestas">';
+    q.opts.forEach((o, k) => {
+      let cls = "opt qopt";
+      if (ex.pick !== null) { if (k === q.right) cls += " right"; else if (k === ex.pick) cls += " wrong"; }
+      html += '<button type="button" class="' + cls + '" data-k="' + k + '"' + (ex.pick !== null ? " disabled" : "") + '><span class="k">' + "ABCD"[k] + "</span><span>" + esc(o) + "</span></button>";
+    });
+    html += "</div>";
+    if (ex.pick !== null) {
+      const ok = ex.pick === q.right;
+      html += '<div class="feedback ' + (ok ? "g" : "r") + '" aria-live="polite"><span class="tag">' + (ok ? "Correcto" : "Incorrecto") + "</span><p>" + esc(q.e) + '</p></div><div class="btns"><button type="button" class="btn primary" id="exNext">' + (ex.i === 9 ? "Ver puntaje" : "Siguiente pregunta") + "</button></div>";
+    }
+    box.innerHTML = html;
+    $$(".qopt", box).forEach(b => b.addEventListener("click", () => {
+      ex.pick = +b.dataset.k;
+      if (ex.pick === q.right) ex.score++; else ex.wrong.push(q);
+      drawExam();
+    }));
+    const nx = $("#exNext");
+    if (nx) nx.addEventListener("click", () => { ex.i++; ex.pick = null; drawExam(); nx.blur(); });
+  }
+  examStart();
+})();
+</script>
