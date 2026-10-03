@@ -233,6 +233,25 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .feedback.g .tag { color: var(--good); } .feedback.y .tag { color: var(--warn); } .feedback.r .tag { color: var(--bad); }
 .others { font-size: .88rem; color: var(--muted); display: grid; gap: 4px; }
 
+
+/* Preguntas */
+.sub-h { font-size: 1.55rem; font-weight: 800; margin-top: 44px; padding-top: 18px; border-top: 2px solid var(--ink); scroll-margin-top: 70px; }
+.conv { display: grid; gap: 10px; }
+.conv-row { display: grid; gap: 8px; padding-block: 12px; border-top: 1px solid var(--line); }
+.conv-row:first-child { border-top: 0; padding-top: 0; }
+.conv-q { font-weight: 700; }
+.conv-q .lbl { display: inline; margin-right: 6px; color: var(--bad); }
+.conv-in { display: flex; gap: 8px; flex-wrap: wrap; }
+.conv-in input { flex: 1 1 220px; min-width: 0; font: 400 .95rem/1.4 var(--body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.conv-in input:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+.conv-ans { background: var(--good-soft); border-radius: 10px; padding: 10px 14px; font-size: .95rem; }
+.conv-ans .lbl { color: var(--good); }
+.conv-ans small { display: block; color: var(--muted); margin-top: 4px; font-size: .86rem; }
+.def-list { display: grid; gap: 22px; }
+.def-item { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
+.def-item:first-child { border-top: 0; padding-top: 0; }
+.def-ctx { font-family: var(--mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+
 /* Plantilla */
 .tpl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .field { display: grid; gap: 5px; min-width: 0; }
@@ -314,7 +333,7 @@ footer { margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--line);
       <li><a href="#s3"><span class="n">03</span><span>Método de Harvard</span></a></li>
       <li><a href="#s4"><span class="n">04</span><span>Etapas</span></a></li>
       <li><a href="#s5"><span class="n">05</span><span>Tácticas y respuestas</span></a></li>
-      <li><a href="#s6"><span class="n">06</span><span>Comunicación</span></a></li>
+      <li><a href="#s6"><span class="n">06</span><span>Comunicación y preguntas</span></a></li>
       <li><a href="#s7"><span class="n">07</span><span>Sesgos psicológicos</span></a></li>
       <li><a href="#s8"><span class="n">08</span><span>Errores de principiante</span></a></li>
       <li><a href="#s9"><span class="n">09</span><span>Casos reales</span></a></li>
@@ -647,7 +666,7 @@ footer { margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--line);
     <section id="s6">
       <div class="sec-head">
         <span class="sec-num">06</span>
-        <h2>Comunicación</h2>
+        <h2>Comunicación y preguntas</h2>
         <p class="intro">Varias de estas herramientas vienen de Chris Voss, ex negociador de rehenes del FBI, en <em>Rompe la barrera del no</em> (<em>Never Split the Difference</em>). Sirven igual para un rehén que para el dueño de tu apartamento.</p>
       </div>
 
@@ -660,14 +679,6 @@ footer { margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--line);
         </div>
       </article>
 
-      <article class="concept">
-        <div class="concept-head"><h3>Preguntas abiertas</h3><span class="en">Open-ended questions · calibrated questions</span></div>
-        <p>Las preguntas que empiezan con «qué» o «cómo» no se contestan con sí o no. Obligan al otro a explicar, darte información y pensar en tu problema como si fuera suyo.</p>
-        <div class="pair">
-          <div><span class="lbl">Ejemplo</span>En vez de «¿Es su precio final?», preguntá «¿Cómo llegaste a ese número?». En vez de «¿Me puede bajar?», «¿Qué haría falta para llegar a 27.000?».</div>
-          <div class="tip"><span class="lbl">Consejo</span>Evitá el «¿por qué?» directo, que suena a acusación. «¿Qué te lleva a…?» pide lo mismo con menos tensión.</div>
-        </div>
-      </article>
 
       <article class="concept">
         <div class="concept-head"><h3>Empatía táctica</h3><span class="en">Tactical empathy</span></div>
@@ -720,6 +731,120 @@ footer { margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--line);
           <button type="button" data-f="general" aria-pressed="false">General</button>
         </div>
         <div class="phrases" id="phrases"></div>
+      </div>
+
+      <h3 class="sub-h" id="preguntas">Preguntas abiertas y cerradas</h3>
+      <p class="prose" style="margin-bottom:6px">Preguntar bien es la forma más barata de conseguir información. La clave es saber qué tipo de pregunta usar en cada momento: <strong>las abiertas para descubrir y las cerradas para confirmar.</strong></p>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Preguntas abiertas</h3><span class="en">Open-ended questions · calibrated questions</span></div>
+        <p>Las que empiezan con «qué» o «cómo» no se contestan con sí o no. Obligan al otro a explicar, te dan información sobre sus intereses y lo ponen a pensar en tu problema como si fuera suyo. Chris Voss las llama preguntas calibradas.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>En vez de «¿Es su precio final?», preguntá «¿Cómo llegaste a ese número?». En vez de «¿Me puede bajar?», «¿Qué haría falta para llegar a 27.000?».</div>
+          <div class="tip"><span class="lbl">Consejo</span>Evitá el «¿por qué?» directo, que suena a acusación. «¿Qué te llevó a…?» pide lo mismo con menos tensión. Hacé una sola pregunta por vez y después callate.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Preguntas cerradas</h3><span class="en">Closed questions · yes/no questions</span></div>
+        <p>Se contestan con «sí», «no» o un dato corto. Te dan control y precisión, pero poca información. Son ideales para confirmar datos y cerrar acuerdos; son peligrosas cuando le regalan al otro un «no» fácil sobre algo que te importa.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Bien usada: «Entonces quedamos en $27.500 por dos años, ¿correcto?». Mal usada: «¿Me podés bajar el precio?» → «No», y se terminó la charla.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Usá cerradas para datos concretos («¿Tiene el service al día?») y para confirmar. Si la respuesta «no» te deja sin salida, convertila en abierta.</div>
+        </div>
+      </article>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th></th><th>Cerrada</th><th>Abierta</th></tr></thead>
+          <tbody>
+            <tr><td>Empieza con</td><td>¿Es…? ¿Hay…? ¿Podés…? ¿Tenés…?</td><td>¿Qué…? ¿Cómo…?</td></tr>
+            <tr><td>Qué te da</td><td>Un dato o una confirmación</td><td>Razones, intereses, contexto</td></tr>
+            <tr><td>Quién habla</td><td>Vos guiás</td><td>El otro explica, vos escuchás</td></tr>
+            <tr><td>Riesgo</td><td>Un «no» que corta la charla</td><td>Que la conversación se disperse</td></tr>
+            <tr><td>Momento ideal</td><td>Al final: confirmar y cerrar</td><td>Al principio y en el medio: explorar</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="tests">
+        <div><b>Para formular una abierta</b>Empezá con «qué» o «cómo». Cambiá «por qué» por «qué te llevó a». No metas la respuesta dentro de la pregunta. Una sola pregunta, corta. Después, silencio.</div>
+        <div><b>Para formular una cerrada</b>Pedí un dato concreto o confirmá lo acordado. Evitá las que te regalan un «no» sobre lo importante. No hagas preguntas trampa («¿No te parece carísimo?»): el otro lo nota.</div>
+      </div>
+
+      <div class="widget" id="convWidget">
+        <div class="widget-head">
+          <span class="eyebrow">Ejercicio · de cerrada a abierta</span>
+          <h3>Transformá la pregunta</h3>
+          <p class="hint">Escribí tu versión abierta de cada pregunta y después compará con la sugerida. No hay una única respuesta correcta.</p>
+        </div>
+        <div class="conv" id="conv"></div>
+      </div>
+
+      <h3 class="sub-h" id="te-preguntan">Cuando el otro te pregunta a vos</h3>
+      <p class="prose" style="margin-bottom:6px">Las preguntas del otro buscan lo mismo que las tuyas: información. Algunas son inocentes y otras apuntan a tu precio de reserva, tu urgencia o tu BATNA. No estás obligado a contestar todo, y tampoco hace falta mentir: hay formas de protegerte y de usar la pregunta a tu favor.</p>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Decidir antes qué vas a compartir</h3><span class="en">Information strategy</span></div>
+        <p>Antes de negociar, separá la información en dos grupos. <strong>Se comparte:</strong> tus intereses, tus prioridades y tus criterios (eso ayuda a crear valor). <strong>Se protege:</strong> tu precio de reserva, tu urgencia y lo débil que es tu BATNA (eso solo te debilita).</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>Al dueño le podés decir que valorás la estabilidad y querés quedarte dos años (interés). No le decís que mudarte te costaría $40.000 y que no encontraste nada mejor (debilidad).</div>
+          <div class="tip"><span class="lbl">Consejo</span>Anotá en la plantilla las tres preguntas más incómodas que te pueden hacer y tu respuesta para cada una. Lo que se improvisa bajo presión suele salir mal.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Pausar antes de responder</h3><span class="en">Pause before answering</span></div>
+        <p>Las preguntas incómodas funcionan porque contestamos rápido para no parecer inseguros. Unos segundos de pausa te dan tiempo para elegir qué decir.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>—¿Cuánto es lo máximo que pagarías?<br>Respirás, tomás agua y recién ahí contestás.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Ganá tiempo con frases como «Buena pregunta, dejame pensarlo» o repitiendo la pregunta (el espejo): «¿Lo máximo que pagaría?».</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Devolver la pregunta</h3><span class="en">Answering a question with a question · reciprocity</span></div>
+        <p>La información se intercambia, no se regala. Si el otro te pide un dato sensible, podés responder con una pregunta sobre el mismo tema y pedir que hable primero.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>—¿Cuál es tu presupuesto?<br>—Depende del auto. ¿Cuánto pedís por este y cómo llegaste a ese precio?</div>
+          <div class="tip"><span class="lbl">Consejo</span>Hacelo con tono amable y curioso, no como esquive. Si el otro insiste dos veces, pasá a otra técnica: devolver siempre parece evasivo.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Bloquear sin mentir</h3><span class="en">Blocking techniques</span></div>
+        <p>Formas honestas de no revelar algo: responder la parte de la pregunta que te sirve, contestar una pregunta parecida pero más útil, o decir con naturalidad que eso preferís no compartirlo. Lo que nunca conviene es mentir sobre hechos.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>—¿Tenés otras ofertas? (y no tenés)<br>—Estoy enfocado en crecer acá. Por eso quiero que hablemos de cómo mi sueldo refleja lo que aporto.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Usá el mismo tipo de respuesta tengas o no tengas algo para ocultar. Si solo bloqueás cuando tenés una debilidad, el bloqueo mismo te delata.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Convertir la pregunta en oportunidad</h3><span class="en">Reframing · anchoring on your terms</span></div>
+        <p>Una pregunta también es una puerta: te da la palabra. Podés usarla para anclar con tu objetivo, mostrar tu valor o llevar la charla a tus criterios.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>—¿Cuánto ganás ahora?<br>—Prefiero hablar del valor de este puesto. Según el mercado, para este rol busco alrededor de $80.000.</div>
+          <div class="tip"><span class="lbl">Consejo</span>Anclá con tu objetivo solo si investigaste el mercado. Si no tenés datos, devolvé la pregunta y dejá que el otro diga el primer número.</div>
+        </div>
+      </article>
+
+      <article class="concept">
+        <div class="concept-head"><h3>Preguntas trampa</h3><span class="en">Loaded questions · yes-ladder</span></div>
+        <p>Hay dos muy comunes. La <strong>pregunta cargada</strong> trae una suposición escondida («¿Por qué pedís tanto?» da por hecho que es mucho). La <strong>escalera de síes</strong> te hace decir «sí» a cosas pequeñas para que después te cueste decir «no» a la grande.</p>
+        <div class="pair">
+          <div><span class="lbl">Ejemplo</span>«¿Estás de acuerdo en que es un auto impecable? ¿Y en que es difícil conseguir uno así? Entonces, ¿lo cerramos hoy?»</div>
+          <div class="tip"><span class="lbl">Consejo</span>Respondé la premisa, no la pregunta: «Lo que pido está en línea con el mercado». Ante la escalera, contestá con matices: «Tiene cosas buenas, y también vi que los frenos piden cambio».</div>
+        </div>
+      </article>
+
+      <div class="widget" id="defWidget">
+        <div class="widget-head">
+          <span class="eyebrow">Interactivo · te preguntan a vos</span>
+          <h3>¿Qué respondés?</h3>
+          <p class="hint">Siete preguntas incómodas que te pueden hacer. Elegí una respuesta y mirá por qué te protege, o no.</p>
+        </div>
+        <div class="def-list" id="defList"></div>
       </div>
     </section>
 
@@ -977,7 +1102,7 @@ footer { margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--line);
       <div class="sec-head">
         <span class="sec-num">14</span>
         <h2>Examen final</h2>
-        <p class="intro">Diez preguntas elegidas al azar de un banco de 22. Cada respuesta trae su explicación y al final ves tu puntaje y qué repasar.</p>
+        <p class="intro">Diez preguntas elegidas al azar de un banco de 25. Cada respuesta trae su explicación y al final ves tu puntaje y qué repasar.</p>
       </div>
       <div class="widget" id="exam"></div>
     </section>
@@ -1082,6 +1207,74 @@ footer { margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--line);
     drawPhrases(b.dataset.f);
   }));
   drawPhrases("todas");
+
+
+  /* ---------- Preguntas: de cerrada a abierta ---------- */
+  const CONV = [
+    ["¿Es su precio final?", "¿Cómo llegaste a ese precio?", "Te da su criterio y abre espacio para discutirlo, en lugar de un «sí» que cierra la puerta."],
+    ["¿Hay aumentos este año?", "¿Qué tendría que pasar para que haya un aumento este año?", "Pone al otro a buscar el camino, en lugar de recitar la política de la empresa."],
+    ["¿Le hiciste arreglos al auto?", "¿Qué arreglos le hiciste y cuándo fue el último service?", "Te devuelve un historial completo, no un «sí» genérico."],
+    ["¿Estás de acuerdo con mi propuesta?", "¿Qué te parece esta propuesta? ¿Qué le cambiarías?", "Saca a la luz las objeciones ahora, cuando todavía podés responderlas."],
+    ["¿Me podés bajar el alquiler?", "¿Qué haría falta para que el alquiler quede en $27.000?", "Evita el «no» fácil y además ancla un número concreto."],
+    ["¿Por qué me pagás tan poco?", "¿Qué criterios usan para definir el sueldo de este puesto?", "Pide lo mismo sin acusar. El «por qué» pone al otro a la defensiva."]
+  ];
+  $("#conv").innerHTML = CONV.map((c, i) =>
+    '<div class="conv-row"><div class="conv-q"><span class="lbl">Cerrada</span>«' + esc(c[0]) + '»</div><div class="conv-in"><input type="text" id="conv-' + i + '" placeholder="Tu versión abierta…" aria-label="Tu versión abierta de: ' + esc(c[0]) + '"><button type="button" class="btn" data-i="' + i + '">Ver sugerencia</button></div><div class="conv-ans" id="conv-ans-' + i + '" hidden><span class="lbl">Abierta</span>«' + esc(c[1]) + '»<small>' + esc(c[2]) + '</small></div></div>'
+  ).join("");
+  $$("#conv button").forEach(b => b.addEventListener("click", () => {
+    const a = $("#conv-ans-" + b.dataset.i);
+    a.hidden = !a.hidden;
+    b.textContent = a.hidden ? "Ver sugerencia" : "Ocultar";
+  }));
+
+  /* ---------- Preguntas: cuando te preguntan a vos ---------- */
+  const DEF = [
+    { ctx: "Entrevista de trabajo", q: "¿Cuánto ganás ahora?", o: [
+      { t: "Gano $55.000.", q: "r", f: "Le das un ancla baja: la oferta se va a armar sobre tu sueldo actual y no sobre el valor del puesto." },
+      { t: "Prefiero enfocarme en el valor de este puesto. Por lo que vi del mercado, para este rol busco alrededor de $80.000. ¿Qué rango tienen previsto?", q: "g", f: "Convertís la pregunta en oportunidad: anclás con tu objetivo fundamentado y devolvés una pregunta para conocer su rango." },
+      { t: "Eso es privado, no te lo voy a decir.", q: "y", f: "Te protege, pero con un tono defensivo que enfría la conversación. El mismo límite se puede poner con amabilidad." } ] },
+    { ctx: "Comprando un auto", q: "¿Cuál es tu presupuesto?", o: [
+      { t: "Hasta US$ 10.000.", q: "r", f: "Acabás de revelar tu precio de reserva. El auto va a costar, casualmente, 10.000." },
+      { t: "Depende del auto. ¿Cuánto pedís por este y cómo llegaste a ese precio?", q: "g", f: "Devolvés la pregunta con naturalidad y hacés que el vendedor diga el primer número y su criterio." },
+      { t: "No sé, más o menos lo que salga.", q: "y", f: "No revelás nada, pero parecés poco preparado y lo invitás a pedirte de más." } ] },
+    { ctx: "Buscando apartamento", q: "¿Para cuándo necesitás mudarte?", o: [
+      { t: "¡Urgente! El mes que viene tengo que dejar donde estoy.", q: "r", f: "Revelás urgencia: el dueño sabe que tu BATNA es débil y que no podés esperar." },
+      { t: "Tengo cierta flexibilidad con las fechas. ¿Desde cuándo está disponible?", q: "g", f: "Respondés lo justo y pasás a obtener información. Ojo: decí «flexibilidad» solo si la tenés; si no, hablá de la fecha sin dramatizar." },
+      { t: "No sé, ya veré.", q: "y", f: "Protege tu urgencia, pero corta la conversación y puede parecer desinterés." } ] },
+    { ctx: "Vendiendo tu bicicleta", q: "¿Cuál es tu último precio?", o: [
+      { t: "Bueno, te la dejo en 250.", q: "r", f: "Bajaste 50 sin que el comprador ofreciera nada. Negociaste contra vos mismo." },
+      { t: "El precio es 300, en línea con las que están publicadas. ¿Qué tenías en mente?", q: "g", f: "Sostenés el número con un criterio y le pedís al otro que haga una oferta concreta." },
+      { t: "300 y no se discute.", q: "y", f: "Es firme, pero cierra la puerta. Si el comprador tenía 280, se va y los dos pierden." } ] },
+    { ctx: "Pidiendo un aumento (no tenés otra oferta)", q: "¿Tenés otras ofertas?", o: [
+      { t: "Sí, dos, y me pagan más.", q: "r", f: "Es mentira sobre un hecho. Si te dicen «aceptala», o te piden detalles, quedás expuesto y perdés credibilidad." },
+      { t: "Mi foco está en crecer acá. Por eso quiero que hablemos de cómo mi sueldo refleja lo que aporto.", q: "g", f: "Bloqueás sin mentir y volvés la charla a tu valor y a los criterios, que es terreno fuerte para vos." },
+      { t: "No, ninguna.", q: "y", f: "Es honesto y mejor que mentir, pero le regalás que tu BATNA es débil. Podías bloquear sin decir nada falso." } ] },
+    { ctx: "Comprando un auto", q: "¿Estás de acuerdo en que es un auto impecable?", o: [
+      { t: "Sí, sí, impecable.", q: "r", f: "Subiste el primer escalón de la escalera de síes. Después va a ser difícil pedir rebaja por defectos." },
+      { t: "Tiene cosas muy buenas, como el kilometraje. También vi que las cubiertas y los frenos piden cambio.", q: "g", f: "Respondés con matices: reconocés lo bueno y dejás sentados los defectos que justifican tu oferta." },
+      { t: "No, para nada.", q: "y", f: "Evitás la trampa, pero con confrontación. El vendedor se pone a la defensiva." } ] },
+    { ctx: "Ofreciendo tus servicios", q: "¿Por qué cobrás tanto?", o: [
+      { t: "Perdón, si es mucho lo puedo bajar.", q: "r", f: "Aceptás la premisa de que es mucho y concedés sin que te pidan un número." },
+      { t: "Mi precio está en línea con el mercado: trabajos parecidos van de $X a $Y. ¿Con qué lo estás comparando?", q: "g", f: "Respondés la premisa con un criterio objetivo y le pedís su referencia: si compara con algo distinto, lo vas a saber." },
+      { t: "Porque es lo que vale.", q: "y", f: "No cedés, pero no das ningún argumento. Suena a capricho." } ] }
+  ];
+  const DQ = { g: "Te protege", y: "A medias", r: "Te expone" };
+  $("#defList").innerHTML = DEF.map((d, i) => {
+    const order = shuffle([0, 1, 2]);
+    return '<div class="def-item" data-i="' + i + '"><span class="def-ctx">' + esc(d.ctx) + '</span><div class="bubble them"><span class="who">Te preguntan</span>«' + esc(d.q) + '»</div><div class="options" role="group" aria-label="Respuestas posibles">' +
+      order.map((k, n) => '<button type="button" class="opt" data-k="' + k + '"><span class="k">' + "ABC"[n] + "</span><span>" + esc(d.o[k].t) + "</span></button>").join("") +
+      '</div><div class="def-fb" aria-live="polite"></div></div>';
+  }).join("");
+  $$("#defList .def-item").forEach(item => {
+    const d = DEF[+item.dataset.i];
+    $$(".opt", item).forEach(b => b.addEventListener("click", () => {
+      const o = d.o[+b.dataset.k];
+      $$(".opt", item).forEach(x => { x.classList.remove("chosen", "g", "y", "r"); });
+      b.classList.add("chosen", o.q);
+      const best = d.o.find(x => x.q === "g");
+      $(".def-fb", item).innerHTML = '<div class="feedback ' + o.q + '"><span class="tag">' + DQ[o.q] + "</span><p>" + esc(o.f) + "</p>" + (o.q !== "g" ? '<div class="others"><span><b>Mejor opción:</b> «' + esc(best.t) + "»</span></div>" : "") + "</div>";
+    }));
+  });
 
   /* ---------- Pestañas ---------- */
   const tabs = $$('[role="tab"]');
@@ -1271,7 +1464,10 @@ footer { margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--line);
     ["Pregunta calibrada", "Calibrated question", "Pregunta abierta con «qué» o «cómo»: «¿Cómo llegaste a ese número?»."],
     ["Aversión a la pérdida", "Loss aversion", "Perder duele más que ganar lo mismo. Hace difícil retirarse a tiempo."],
     ["Efecto marco", "Framing effect", "La misma información, presentada como ganancia o como pérdida, cambia la decisión."],
-    ["Reciprocidad", "Reciprocity", "Sentir la obligación de devolver un favor o una concesión."]
+    ["Reciprocidad", "Reciprocity", "Sentir la obligación de devolver un favor o una concesión."],
+    ["Pregunta cerrada", "Closed question", "Se contesta con sí, no o un dato corto. Sirve para confirmar y cerrar; cuidado con regalar un «no» fácil."],
+    ["Bloquear sin mentir", "Blocking technique", "No revelar algo sin decir nada falso: responder la parte útil, devolver la pregunta o decir que preferís no compartirlo."],
+    ["Pregunta cargada", "Loaded question", "Trae una suposición escondida («¿Por qué cobrás tanto?»). Se responde la premisa, no la pregunta."]
   ];
   let cardOrder = CARDS.map((_, i) => i);
   function drawCards() {
@@ -1312,7 +1508,10 @@ footer { margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--line);
     { q: "¿Cuál es el error de principiante más común?", o: ["Aceptar la primera oferta sin explorar", "Hacer demasiadas preguntas", "Llevar datos de mercado", "Pedir el acuerdo por escrito"], e: "Aceptar la primera oferta deja valor sobre la mesa, y además el otro suele quedarse pensando que pudo pedir más.", s: 8 },
     { q: "Hacés tu oferta y la otra persona se queda en silencio. ¿Qué conviene?", o: ["Aguantar el silencio y no mejorar tu oferta", "Bajar tu oferta para romper el hielo", "Explicar de nuevo todas tus razones", "Retirar la oferta"], e: "Si mejorás tu oferta sin respuesta, negociás contra vos mismo. Si el silencio se alarga, preguntá «¿Qué te parece?».", s: 5 },
     { q: "Para combatir el exceso de confianza conviene…", o: ["Buscar datos que contradigan tu idea y pedir una opinión externa", "Confiar en tu intuición", "Pedir siempre el doble", "Evitar prepararte para no dudar"], e: "El exceso de confianza se corrige confrontándolo con datos y con alguien que haga de abogado del diablo.", s: 7 },
-    { q: "¿En qué etapa se decide la mayor parte del resultado?", o: ["Preparación", "Apertura", "Concesiones", "Cierre"], e: "La preparación define tu BATNA, tu reserva, tu objetivo y tus argumentos. Todo lo demás depende de eso.", s: 4 }
+    { q: "¿En qué etapa se decide la mayor parte del resultado?", o: ["Preparación", "Apertura", "Concesiones", "Cierre"], e: "La preparación define tu BATNA, tu reserva, tu objetivo y tus argumentos. Todo lo demás depende de eso.", s: 4 },
+    { q: "¿Cuál de estas es una pregunta cerrada?", o: ["«¿Tiene el service al día?»", "«¿Qué arreglos le hiciste?»", "«¿Cómo llegaste a ese precio?»", "«¿Qué es lo que más te importa?»"], e: "Se contesta con sí o no. Es útil para confirmar un dato; para explorar conviene una abierta con «qué» o «cómo».", s: 6 },
+    { q: "En una entrevista te preguntan «¿Cuánto ganás ahora?». ¿Qué conviene?", o: ["Hablar del valor del puesto, dar tu expectativa según el mercado y preguntar su rango", "Decir tu sueldo actual exacto", "Inventar un sueldo más alto", "Negarte con tono cortante"], e: "Tu sueldo actual es un ancla baja. Convertir la pregunta en oportunidad te deja anclar con tu objetivo sin mentir.", s: 6 },
+    { q: "Te preguntan «¿Tenés otras ofertas?» y no tenés ninguna. ¿Qué es lo más recomendable?", o: ["Bloquear sin mentir y volver a hablar de tu valor", "Decir que tenés dos ofertas mejores", "Contestar «no, ninguna» y nada más", "Cambiar de tema sin responder"], e: "Mentir sobre hechos te expone. Bloquear sin decir nada falso protege tu BATNA y mantiene tu credibilidad.", s: 6 }
   ];
   let ex;
   function examStart() {
