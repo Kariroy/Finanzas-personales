@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<meta name="description" content="Planificador de tareas con dependencias en forma de ramas">
+<title>Planes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="planes.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Planes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+<div class="layout">
+  <aside class="side" id="side">
+    <div class="side-head">
+      <button class="icon-btn help-btn" data-help aria-label="Ayuda y reglas" title="Ayuda y reglas">?</button>
+      <button class="icon-btn only-mobile" id="closeSide" aria-label="Cerrar panel">×</button>
+    </div>
+
+    <div class="tabs" id="tabs" role="tablist" aria-label="Portafolios"></div>
+    <div class="tab-info" id="tabInfo" hidden></div>
+    <div class="row3">
+      <button class="btn" id="newProgram">+ programa</button>
+      <button class="btn" id="newProject">+ proyecto</button>
+      <button class="btn" id="newTask">+ tarea</button>
+    </div>
+    <div class="projects" id="projects"></div>
+
+    <div class="row2">
+      <button class="btn" id="undo" title="Ctrl+Z">↶ deshacer</button>
+      <button class="btn" id="redo" title="Ctrl+Y">↷ rehacer</button>
+    </div>
+
+    <div class="account" id="account" hidden>
+      <div class="account-txt">
+        <span class="account-email" id="accountEmail"></span>
+        <span class="sync" id="syncState"></span>
+      </div>
+      <button class="btn" id="signOut">salir</button>
+    </div>
+
+  </aside>
+
+  <div class="stage">
+    <div class="topbar">
+      <button class="icon-btn menu" id="openSide" aria-label="Mostrar u ocultar el panel" title="Mostrar / ocultar panel">☰</button>
+      <div class="seg" id="modeSeg" role="tablist">
+        <button type="button" data-mode="map" role="tab" title="Mapa">▦<span class="lbl"> Mapa</span></button>
+        <button type="button" data-mode="list" role="tab" title="Lista">☑<span class="lbl"> Lista</span></button>
+      </div>
+      <button class="icon-btn help-btn only-mobile" data-help aria-label="Ayuda y reglas">?</button>
+    </div>
+
+    <main class="canvas" id="canvas">
+      <div class="world" id="world">
+        <svg class="wires" id="wires" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="cards" id="cards"></div>
+      </div>
+      <div class="empty" id="empty" hidden>
+        <p>Doble clic en cualquier lugar para crear la primera tarea.</p>
+      </div>
+      <div class="toolbar">
+        <button class="btn" id="layout" title="Acomoda las tareas en columnas según sus dependencias">⇶ reordenar</button>
+        <button class="btn" id="fit" title="Ver todo">⤢ centrar</button>
+        <button class="btn sq" id="zoomOut" aria-label="Alejar">−</button>
+        <button class="btn sq" id="zoomIn" aria-label="Acercar">+</button>
+      </div>
+    </main>
+
+    <section class="list" id="list" hidden>
+      <div class="list-inner">
+        <div class="list-head" id="listHead"></div>
+        <div class="list-add" id="listAdd">
+          <input type="text" id="listNew" placeholder="Nueva tarea… (subtareas con ＋)" aria-label="Nueva tarea">
+          <button class="btn" type="button" id="listAddBtn">agregar</button>
+        </div>
+        <div id="listBody"></div>
+      </div>
+    </section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+</div>
+<div class="ask" id="ask" hidden>
+  <div class="ask-box" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+    <div class="ask-title" id="askTitle"></div>
+    <input type="text" id="askInput" maxlength="120">
+    <label class="ask-sel" id="askSelWrap" hidden><span id="askSelLabel"></span><select id="askSelect"></select></label>
+    <div class="ask-btns">
+      <button type="button" class="btn" id="askCancel">cancelar</button>
+      <button type="button" class="btn primary" id="askOk">aceptar</button>
+    </div>
+  </div>
+</div>
+<div class="ask" id="notesDlg" hidden>
+  <div class="ask-box notes-box" role="dialog" aria-modal="true" aria-labelledby="notesTitle">
+    <div class="notes-head">
+      <span class="notes-title" id="notesTitle"></span>
+      <button type="button" class="icon-btn" id="notesClose" aria-label="Cerrar">×</button>
+    </div>
+    <textarea id="notesText" placeholder="Notas, links, detalles…"></textarea>
+    <div class="ask-btns"><button type="button" class="btn primary" id="notesOk">listo</button></div>
+  </div>
+</div>
+<dialog class="help-dlg" id="helpDlg">
+  <div class="help-top">
+    <strong>Reglas y atajos</strong>
+    <button class="icon-btn" id="helpClose" aria-label="Cerrar">×</button>
+  </div>
+      <label class="check"><input type="checkbox" id="highlight" checked> Resaltar las que se pueden hacer ya</label>
+
+      <ul class="legend">
+        <li><span class="dot todo"></span>por hacer</li>
+        <li><span class="dot doing"></span>en curso</li>
+        <li><span class="dot paused"></span>en pausa (doble toque en el círculo)</li>
+        <li><span class="dot done"></span>hecha</li>
+        <li><span class="dot ready"></span>se puede hacer ya (sin nada pendiente antes)</li>
+        <li><span class="dot blocked"></span>🔒 bloqueada (faltan prerequisitos)</li>
+      </ul>
+
+      <p class="help">
+        Tareas = <b>mini-cards</b>. Wire = dependencia (A→B = B depende de A).<br>
+        — arrastrá el <b>puerto ●</b> (borde derecho) a otra card = dependencia · a vacío = nueva tarea dependiente<br>
+        — arrastrá el <b>puerto de entrada</b> (borde izquierdo) = reconectar a otra card · a vacío = quitar la dependencia<br>
+        — arrastrá la card = moverla · <b>Shift+arrastrar</b> = mover con todo lo que depende de ella<br>
+        — clic en el círculo = por hacer → en curso → hecha · doble clic = pausar<br>
+        — doble clic = crear / renombrar · Tab = nueva tarea dependiente<br>
+        — clic en un wire + Supr = borrarlo · Supr = borrar tarea · rueda = zoom · arrastrar el fondo = mover<br>
+        — <b>puntito</b> al lado del nombre = notas de la tarea (lleno = tiene notas)<br>
+        — ☰ = mostrar / ocultar este panel<br>
+        — Ctrl+Z / Ctrl+Y
+      </p>
+
+</dialog>
+<!-- Login (solo con Supabase configurado). Misma cuenta que el Libro de Gastos. -->
+<div class="auth" id="auth" hidden>
+  <div class="auth-box">
+    <div class="auth-logo">▦ Planes</div>
+    <p class="auth-sub">Entrá con la misma cuenta que usás en el Libro de Gastos.</p>
+    <button type="button" class="btn google" id="googleBtn" hidden>Continuar con Google</button>
+    <input type="email" id="authEmail" placeholder="Email" autocomplete="email" inputmode="email">
+    <input type="password" id="authPass" placeholder="Contraseña" autocomplete="current-password">
+    <p class="auth-msg" id="authMsg" role="status"></p>
+    <button type="button" class="btn primary" id="signInBtn">Entrar</button>
+    <button type="button" class="btn" id="signUpBtn">Crear cuenta</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<script src="planes.js"></script>
+<script>
+  if("serviceWorker" in navigator && location.protocol === "https:"){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  }
+</script>
+</body>
+</html>
