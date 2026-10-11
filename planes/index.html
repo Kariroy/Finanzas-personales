@@ -56,6 +56,7 @@
       <div class="seg" id="modeSeg" role="tablist">
         <button type="button" data-mode="map" role="tab" title="Mapa">▦<span class="lbl"> Mapa</span></button>
         <button type="button" data-mode="list" role="tab" title="Lista">☑<span class="lbl"> Lista</span></button>
+        <button type="button" data-mode="routines" role="tab" title="Rutinas">↻<span class="lbl"> Rutinas</span></button>
       </div>
       <button class="icon-btn help-btn only-mobile" data-help aria-label="Ayuda y reglas">?</button>
     </div>
@@ -87,6 +88,28 @@
       </div>
     </section>
 
+    <section class="rt" id="routines" hidden>
+      <div class="rt-inner">
+        <div class="rt-top">
+          <h2>Rutinas</h2>
+          <div class="rt-seg" id="rtView" role="tablist" aria-label="Vista">
+            <button type="button" data-v="week" role="tab">Semana</button>
+            <button type="button" data-v="month" role="tab">Mes</button>
+          </div>
+          <div class="rt-ring" id="rtRing"><span id="rtPct">–</span></div>
+        </div>
+        <div class="rt-daynav">
+          <button type="button" class="icon-btn" id="rtPrev" aria-label="Anterior">‹</button>
+          <button type="button" class="rt-label" id="rtLabel" title="Volver a hoy"></button>
+          <button type="button" class="icon-btn" id="rtNext" aria-label="Siguiente">›</button>
+        </div>
+        <div class="rt-week" id="rtWeek"></div>
+        <div class="rt-month" id="rtMonth" hidden></div>
+        <div id="rtList"></div>
+        <button type="button" class="rt-fab" id="rtAdd">+ rutina</button>
+      </div>
+    </section>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </div>
 </div>
@@ -109,6 +132,38 @@
     </div>
     <textarea id="notesText" placeholder="Notas, links, detalles…"></textarea>
     <div class="ask-btns"><button type="button" class="btn primary" id="notesOk">listo</button></div>
+  </div>
+</div>
+<div class="rt-sheet" id="rtSheet" hidden>
+  <div class="rt-box" role="dialog" aria-modal="true" aria-labelledby="rtEdTitle">
+    <h3 id="rtEdTitle">Nueva rutina</h3>
+    <div>
+      <div class="rt-lbl">Qué</div>
+      <input type="text" id="rtName" maxlength="80" placeholder="Ej. Tomar agua al despertar">
+    </div>
+    <div>
+      <div class="rt-lbl">Qué días</div>
+      <div class="rt-chips rt-days" id="rtDays"></div>
+      <div class="rt-quick" id="rtQuick">
+        <button type="button" data-q="all">todos los días</button>
+        <button type="button" data-q="week">lun a vie</button>
+        <button type="button" data-q="end">fin de semana</button>
+      </div>
+    </div>
+    <div>
+      <div class="rt-lbl">Momento del día</div>
+      <div class="rt-chips" id="rtSlot"></div>
+    </div>
+    <div>
+      <div class="rt-lbl">Hora (opcional)</div>
+      <input type="time" id="rtTime">
+    </div>
+    <div class="rt-err" id="rtErr"></div>
+    <div class="rt-btns">
+      <button type="button" class="btn rt-del" id="rtDel" hidden>borrar</button>
+      <button type="button" class="btn" id="rtCancel">cancelar</button>
+      <button type="button" class="btn primary" id="rtSave">guardar</button>
+    </div>
   </div>
 </div>
 <dialog class="help-dlg" id="helpDlg">
@@ -137,6 +192,7 @@
         — clic en un wire + Supr = borrarlo · Supr = borrar tarea · rueda = zoom · arrastrar el fondo = mover<br>
         — <b>puntito</b> al lado del nombre = notas de la tarea (lleno = tiene notas)<br>
         — ☰ = mostrar / ocultar este panel<br>
+        — <b>↻ Rutinas</b> = checklist diario: tocá una rutina para marcarla; Semana / Mes para ver tu avance<br>
         — Ctrl+Z / Ctrl+Y
       </p>
 

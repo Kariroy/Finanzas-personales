@@ -19,6 +19,8 @@ var canvas = $("canvas"), world = $("world"), wiresEl = $("wires"), cardsEl = $(
 var state = load();
 if(!Array.isArray(state.programs)) state.programs = [];
 if(!Array.isArray(state.portfolios)) state.portfolios = [];
+if(!Array.isArray(state.routines)) state.routines = [];
+if(!state.routineDone || typeof state.routineDone !== "object") state.routineDone = {};
 if(!state.mode) state.mode = matchMedia("(max-width: 800px)").matches ? "list" : "map";
 var hist = [], fut = [];
 var sel = null;          // {task: id} | {dep: {from, to}}
@@ -151,7 +153,7 @@ function snap(v){ return Math.round(v / GRID) * GRID; }
 function cardH(id){ var el = els[id]; return (el && el.offsetHeight) || H; }
 
 // ---------- historial ----------
-function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, current: state.current }); }
+function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, current: state.current }); }
 function pushHist(s){
   hist.push(s || snapshot());
   if(hist.length > 200) hist.shift();
@@ -162,6 +164,8 @@ function restore(s){
   state.projects = o.projects;
   state.programs = o.programs || [];
   state.portfolios = o.portfolios || [];
+  state.routines = o.routines || [];
+  state.routineDone = o.routineDone || {};
   state.current = o.current;
   sel = null;
   save();
@@ -294,11 +298,11 @@ function isSelTask(id){ return sel && sel.task === id; }
 function isSelDep(d){ return sel && sel.dep && sel.dep.from === d.from && sel.dep.to === d.to; }
 
 function renderAll(){
-  var list = state.mode === "list";
-  canvas.hidden = list;
+  canvas.hidden = state.mode !== "map";
   Array.prototype.forEach.call($("modeSeg").children, function(b){ b.classList.toggle("on", b.dataset.mode === state.mode); });
   renderProjects();
   renderList();
+  renderRoutines();
   renderCards();
   renderWires();
   applyView();
@@ -862,12 +866,12 @@ canvas.addEventListener("wheel", function(e){
 // ---------- teclado ----------
 document.addEventListener("keydown", function(e){
   var tg = e.target;
-  if(!$("ask").hidden || !$("notesDlg").hidden) return;
+  if(!$("ask").hidden || !$("notesDlg").hidden || !$("rtSheet").hidden) return;
   if(editing || tg.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName)) return;
   var mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
   if(mod && k === "z" && !e.shiftKey){ e.preventDefault(); undo(); }
   else if(mod && (k === "y" || (k === "z" && e.shiftKey))){ e.preventDefault(); redo(); }
-  else if(mod || state.mode === "list") return;
+  else if(mod || state.mode !== "map") return;
   else if(k === "delete" || k === "backspace"){ e.preventDefault(); deleteSelected(); }
   else if((k === "enter" || k === "f2") && sel && sel.task){ e.preventDefault(); startEdit(sel.task); }
   else if(k === "tab" && sel && sel.task){ e.preventDefault(); newChild(sel.task); }
@@ -1132,6 +1136,7 @@ $("helpDlg").addEventListener("click", function(e){
 $("newTask").addEventListener("click", function(){
   var p = proj(); if(!p) return;
   if(state.mode === "list"){ closeSideMobile(); $("listNew").focus(); return; }
+  if(state.mode === "routines"){ closeSideMobile(); rtOpen(null); return; }
   var r = canvas.getBoundingClientRect();
   var c = toWorld(r.left + r.width / 2, r.top + r.height / 2), t;
   change(function(){ t = makeTask(p, c.x - W / 2, c.y - H / 2); sel = { task: t.id }; });
@@ -1205,9 +1210,242 @@ window.addEventListener("storage", function(e){
   applyData(s);
 });
 
+// ---------- rutinas (checklist diario) ----------
+// state.routines: [{ id, name, days: [0..6] (0 = lunes), slot, time }]
+// state.routineDone: { "AAAA-MM-DD": { idRutina: true } }. Se guardan en la cuenta con lo demás.
+var RT_DAYS = ["L", "M", "X", "J", "V", "S", "D"];
+var RT_DAY_NAMES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
+var RT_MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+var RT_SLOTS = [
+  { id: "manana", name: "☀ Mañana" },
+  { id: "tarde", name: "◐ Tarde" },
+  { id: "noche", name: "☾ Noche" },
+  { id: "libre", name: "· Cualquier momento" }
+];
+function rtToday(){ var t = new Date(); t.setHours(0, 0, 0, 0); return t; }
+function rtKey(d){ return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function rtDow(d){ return (d.getDay() + 6) % 7; }
+function rtAdd(d, n){ var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function rtParse(k){ var p = k.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+var rtCur = rtToday();
+
+// Cambio con deshacer y sincronización (sin tocar la fecha de edición de los proyectos).
+function rtChange(fn){ var before = snapshot(); fn(); pushHist(before); save(); renderAll(); }
+
+// Rutinas que tocan ese día (cada una cuenta desde el día en que se creó).
+function rtFor(d){
+  var w = rtDow(d), k = rtKey(d);
+  return state.routines.filter(function(r){ return r.days.indexOf(w) >= 0 && (!r.created || r.created <= k); }).sort(function(a, b){
+    var ta = a.time || "99", tb = b.time || "99";
+    return ta < tb ? -1 : ta > tb ? 1 : a.name.localeCompare(b.name, "es");
+  });
+}
+function rtIsDone(d, r){ var m = state.routineDone[rtKey(d)]; return !!(m && m[r.id]); }
+function rtProgress(d){
+  var rs = rtFor(d); if(!rs.length) return null;
+  return Math.round(rs.filter(function(r){ return rtIsDone(d, r); }).length * 100 / rs.length);
+}
+// Racha: días programados seguidos cumplidos hasta hoy (hoy sin marcar todavía no la corta).
+function rtStreak(r){
+  var t = rtToday(), d = t, n = 0;
+  for(var i = 0; i < 400; i++, d = rtAdd(d, -1)){
+    if(r.created && rtKey(d) < r.created) break;
+    if(r.days.indexOf(rtDow(d)) < 0) continue;
+    if(rtIsDone(d, r)) n++;
+    else if(rtKey(d) !== rtKey(t)) break;
+  }
+  return n;
+}
+// Color del día en el mes: más verde = más completo.
+function rtHeat(p){
+  if(!p) return "";
+  if(p === 100) return "background: rgba(63, 185, 80, .78); border-color: rgba(63, 185, 80, .9); color: #fff;";
+  return "background: rgba(63, 185, 80, " + (0.12 + 0.45 * p / 100).toFixed(2) + ");";
+}
+
+function renderRoutines(){
+  var box = $("routines");
+  box.hidden = state.mode !== "routines";
+  if(box.hidden) return;
+  var t = rtToday(), cur = rtCur, view = state.rtView === "month" ? "month" : "week";
+  var isFuture = cur > t;
+  var rel = rtKey(cur) === rtKey(t) ? "Hoy" : rtKey(cur) === rtKey(rtAdd(t, -1)) ? "Ayer" :
+    rtKey(cur) === rtKey(rtAdd(t, 1)) ? "Mañana" : "";
+  $("rtLabel").innerHTML = view === "month"
+    ? RT_MONTHS[cur.getMonth()] + " " + cur.getFullYear() + "<small>" + (rel ? rel + " · " : "") + RT_DAY_NAMES[rtDow(cur)] + " " + cur.getDate() + "</small>"
+    : (rel || RT_DAY_NAMES[rtDow(cur)]) + "<small>" + RT_DAY_NAMES[rtDow(cur)] + " " + cur.getDate() + " " + RT_MONTHS[cur.getMonth()].slice(0, 3) + "</small>";
+  Array.prototype.forEach.call($("rtView").children, function(b){ b.classList.toggle("on", b.dataset.v === view); });
+
+  var p = rtProgress(cur);
+  $("rtRing").style.setProperty("--p", p || 0);
+  $("rtPct").textContent = p === null ? "–" : p + "%";
+
+  $("rtWeek").hidden = view !== "week";
+  $("rtMonth").hidden = view !== "month";
+  if(view === "week"){
+    var mon = rtAdd(cur, -rtDow(cur)), wh = "";
+    for(var i = 0; i < 7; i++){
+      var d = rtAdd(mon, i), pr = d > t ? 0 : rtProgress(d) || 0;
+      wh += '<button type="button" class="rt-wd' + (rtKey(d) === rtKey(t) ? " today" : "") + (rtKey(d) === rtKey(cur) ? " sel" : "") +
+        (d > t ? " future" : "") + '" data-day="' + rtKey(d) + '"><span class="l">' + RT_DAYS[i] + '</span><span class="n">' + d.getDate() +
+        '</span><span class="bar"><i style="width:' + pr + '%"></i></span></button>';
+    }
+    $("rtWeek").innerHTML = wh;
+  } else {
+    var first = new Date(cur.getFullYear(), cur.getMonth(), 1), days = new Date(cur.getFullYear(), cur.getMonth() + 1, 0).getDate();
+    var h = '<div class="rt-mgrid">' + RT_DAYS.map(function(l){ return '<div class="rt-mh">' + l + "</div>"; }).join("");
+    for(var e = 0; e < rtDow(first); e++) h += '<div class="rt-md empty"></div>';
+    var full = 0, sum = 0, counted = 0;
+    for(var dn = 1; dn <= days; dn++){
+      var dd = new Date(cur.getFullYear(), cur.getMonth(), dn), fut = dd > t, pp = fut ? null : rtProgress(dd);
+      if(pp !== null){ counted++; sum += pp; if(pp === 100) full++; }
+      h += '<button type="button" class="rt-md' + (rtKey(dd) === rtKey(t) ? " today" : "") + (rtKey(dd) === rtKey(cur) ? " sel" : "") +
+        (fut ? " future" : "") + (rtFor(dd).length ? "" : " none") + '" data-day="' + rtKey(dd) + '" style="' + rtHeat(pp) + '">' + dn +
+        (pp === 100 ? "<small>✓</small>" : pp ? "<small>" + pp + "%</small>" : "") + "</button>";
+    }
+    h += '</div><div class="rt-msum"><span><b>' + full + "</b> días completos</span><span><b>" + (counted ? Math.round(sum / counted) : 0) +
+      '%</b> promedio</span><span class="rt-legend">0% <i></i><i style="background: rgba(63,185,80,.3)"></i>' +
+      '<i style="background: rgba(63,185,80,.55)"></i><i style="background: rgba(63,185,80,.78)"></i> 100%</span></div>';
+    $("rtMonth").innerHTML = h;
+  }
+
+  var rs = rtFor(cur), html = "";
+  if(!state.routines.length){
+    html = '<div class="rt-empty">Todavía no tenés rutinas.<br>Tocá «+ rutina» para programar la primera: qué, qué días y en qué momento.</div>';
+  } else if(!rs.length){
+    html = '<div class="rt-empty">No hay rutinas programadas para este día.</div>';
+  } else {
+    if(isFuture) html += '<div class="rt-note">Día futuro: se puede ver, pero se marca ese día.</div>';
+    if(p === 100) html += '<div class="rt-cheer">✓ ¡Día completo!</div>';
+    RT_SLOTS.forEach(function(sl){
+      var items = rs.filter(function(r){ return (r.slot || "libre") === sl.id; });
+      if(!items.length) return;
+      var nd = items.filter(function(r){ return rtIsDone(cur, r); }).length;
+      html += '<div class="rt-sec"><div class="rt-sec-h">' + sl.name + ' <span>' + nd + "/" + items.length + "</span></div>";
+      items.forEach(function(r){
+        var done = rtIsDone(cur, r), st = rtStreak(r);
+        html += '<div class="rt-item' + (done ? " done" : "") + (isFuture ? " locked" : "") + '" data-id="' + r.id + '">' +
+          '<span class="rt-chk">' + (done ? "✓" : "") + '</span><div class="rt-main"><div class="rt-name">' + esc(r.name) + "</div>" +
+          '<div class="rt-meta">' + (r.time ? "<span>" + r.time + "</span>" : "") +
+          (st > 1 ? '<span class="rt-streak">🔥 ' + st + " seguidos</span>" : "") + "</div></div>" +
+          '<button type="button" class="rt-edit" data-edit="' + r.id + '" aria-label="Editar rutina">✎</button></div>';
+      });
+      html += "</div>";
+    });
+  }
+  $("rtList").innerHTML = html;
+}
+
+$("rtList").addEventListener("click", function(e){
+  var ed = e.target.closest("[data-edit]");
+  if(ed){ rtOpen(ed.dataset.edit); return; }
+  var it = e.target.closest(".rt-item"); if(!it || it.classList.contains("locked")) return;
+  var k = rtKey(rtCur), id = it.dataset.id;
+  rtChange(function(){
+    var m = state.routineDone[k] || (state.routineDone[k] = {});
+    if(m[id]) delete m[id]; else m[id] = true;
+    if(!Object.keys(m).length) delete state.routineDone[k];
+  });
+});
+function rtPick(e){
+  var d = e.target.closest("[data-day]"); if(!d) return;
+  rtCur = rtParse(d.dataset.day); renderRoutines();
+}
+$("rtWeek").addEventListener("click", rtPick);
+$("rtMonth").addEventListener("click", rtPick);
+$("rtView").addEventListener("click", function(e){
+  var b = e.target.closest("[data-v]"); if(!b) return;
+  state.rtView = b.dataset.v; save(); renderRoutines();
+});
+function rtShift(n){
+  if(state.rtView === "month"){
+    var y = rtCur.getFullYear(), m = rtCur.getMonth() + n, last = new Date(y, m + 1, 0).getDate();
+    rtCur = new Date(y, m, Math.min(rtCur.getDate(), last));
+  } else rtCur = rtAdd(rtCur, n);
+  renderRoutines();
+}
+$("rtPrev").addEventListener("click", function(){ rtShift(-1); });
+$("rtNext").addEventListener("click", function(){ rtShift(1); });
+$("rtLabel").addEventListener("click", function(){ rtCur = rtToday(); renderRoutines(); });
+$("rtAdd").addEventListener("click", function(){ rtOpen(null); });
+
+// ---------- editor de rutina ----------
+var rtEditing = null, rtEdDays = [], rtEdSlot = "manana";
+function rtPaint(){
+  $("rtDays").innerHTML = RT_DAYS.map(function(l, i){
+    return '<button type="button" class="rt-chip' + (rtEdDays.indexOf(i) >= 0 ? " on" : "") + '" data-d="' + i + '" title="' + RT_DAY_NAMES[i] + '">' + l + "</button>";
+  }).join("");
+  $("rtSlot").innerHTML = RT_SLOTS.map(function(sl){
+    return '<button type="button" class="rt-chip' + (sl.id === rtEdSlot ? " on" : "") + '" data-s="' + sl.id + '">' + sl.name + "</button>";
+  }).join("");
+}
+function rtOpen(id){
+  var r = id ? state.routines.filter(function(x){ return x.id === id; })[0] : null;
+  rtEditing = r || null;
+  $("rtEdTitle").textContent = r ? "Editar rutina" : "Nueva rutina";
+  $("rtName").value = r ? r.name : "";
+  $("rtTime").value = r ? r.time || "" : "";
+  rtEdDays = r ? r.days.slice() : [0, 1, 2, 3, 4, 5, 6];
+  rtEdSlot = r ? r.slot || "libre" : "manana";
+  $("rtDel").hidden = !r;
+  $("rtErr").textContent = "";
+  rtPaint();
+  $("rtSheet").hidden = false;
+  if(!r) $("rtName").focus();
+}
+function rtClose(){ $("rtSheet").hidden = true; rtEditing = null; }
+$("rtDays").addEventListener("click", function(e){
+  var b = e.target.closest("[data-d]"); if(!b) return;
+  var d = +b.dataset.d, i = rtEdDays.indexOf(d);
+  if(i >= 0) rtEdDays.splice(i, 1); else rtEdDays.push(d);
+  rtPaint();
+});
+$("rtQuick").addEventListener("click", function(e){
+  var q = e.target.dataset.q; if(!q) return;
+  rtEdDays = q === "all" ? [0, 1, 2, 3, 4, 5, 6] : q === "week" ? [0, 1, 2, 3, 4] : [5, 6];
+  rtPaint();
+});
+$("rtSlot").addEventListener("click", function(e){
+  var b = e.target.closest("[data-s]"); if(!b) return;
+  rtEdSlot = b.dataset.s; rtPaint();
+});
+$("rtSave").addEventListener("click", function(){
+  var name = $("rtName").value.replace(/\s+/g, " ").trim();
+  if(!name){ $("rtErr").textContent = "Poné un nombre."; $("rtName").focus(); return; }
+  if(!rtEdDays.length){ $("rtErr").textContent = "Elegí al menos un día."; return; }
+  var data = { name: name, days: rtEdDays.slice().sort(), slot: rtEdSlot, time: $("rtTime").value || "" };
+  var r = rtEditing;
+  rtClose();
+  rtChange(function(){
+    if(r) Object.assign(r, data);
+    else { data.id = uid(); data.created = rtKey(rtToday()); state.routines.push(data); }
+  });
+});
+$("rtDel").addEventListener("click", function(){
+  var r = rtEditing; if(!r) return;
+  rtClose();
+  ask({ title: "¿Borrar la rutina «" + r.name + "» y su historial?", ok: "borrar", danger: true }, function(){
+    rtChange(function(){
+      state.routines = state.routines.filter(function(x){ return x.id !== r.id; });
+      Object.keys(state.routineDone).forEach(function(k){
+        delete state.routineDone[k][r.id];
+        if(!Object.keys(state.routineDone[k]).length) delete state.routineDone[k];
+      });
+    });
+  });
+});
+$("rtCancel").addEventListener("click", rtClose);
+$("rtSheet").addEventListener("click", function(e){ if(e.target === e.currentTarget) rtClose(); });
+$("rtName").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); $("rtSave").click(); } });
+document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !$("rtSheet").hidden) rtClose(); });
+// Si la app queda abierta y cambia el día, "hoy" se actualiza al volver.
+document.addEventListener("visibilitychange", function(){
+  if(document.visibilityState === "visible" && state.mode === "routines") renderRoutines();
+});
+
 // ---------- cuenta y sincronización (Supabase) ----------
 // Una fila por persona en planes_datos (ver supabase/7-planes.sql) con
-// { portfolios, programs, projects }. Lo demás (vista elegida, pliegues) queda en el navegador.
+// { portfolios, programs, projects, routines, routineDone }. Lo demás (vista elegida, pliegues) queda en el navegador.
 var CFG = window.APP_CONFIG || {};
 var REMOTE = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
 var sb = (REMOTE && window.supabase && window.supabase.createClient)
@@ -1218,13 +1456,15 @@ var sync = { at: null, timer: null, busy: false, pending: false };
 
 function setSync(text){ $("syncState").textContent = text; }
 
-function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects }; }
+function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone }; }
 
 // Reemplaza programas y proyectos por los de otra copia, conservando la vista local.
 function applyData(d){
   state.portfolios = Array.isArray(d.portfolios) ? d.portfolios : [];
   state.programs = Array.isArray(d.programs) ? d.programs : [];
   state.projects = Array.isArray(d.projects) ? d.projects : [];
+  state.routines = Array.isArray(d.routines) ? d.routines : [];
+  state.routineDone = d.routineDone && typeof d.routineDone === "object" ? d.routineDone : {};
   if(!proj()) state.current = state.projects[0] ? state.projects[0].id : null;
   hist = []; fut = []; sel = null;
   try { localStorage.setItem(storeKey, JSON.stringify(state)); } catch(e){}
@@ -1280,7 +1520,7 @@ function onSession(s){
   if(!user){
     // Sin sesión: no dejar a la vista datos de la cuenta anterior.
     storeKey = KEY; sync.at = null; clearTimeout(sync.timer); sync.pending = false;
-    state.portfolios = []; state.programs = []; state.projects = []; state.current = null;
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.current = null;
     hist = []; fut = []; sel = null;
     renderAll();
     return;
@@ -1363,7 +1603,7 @@ if(REMOTE){
     $("signInBtn").disabled = $("signUpBtn").disabled = true;
   } else {
     // Mientras se sabe si hay sesión, no mostrar datos locales de nadie.
-    state.portfolios = []; state.programs = []; state.projects = []; state.current = null;
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.current = null;
     renderAll();
     var params = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));
     if(params.get("error_description")){

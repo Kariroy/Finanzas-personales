@@ -87,6 +87,8 @@ La carpeta `planes/` es otra app, independiente de la de gastos: un **planificad
 en forma de ramas**. Portafolios (pestañas, ej. Trabajo / Personal) → programas → proyectos → tareas; cada tarea es una card en un lienzo
 (**Mapa**) o una fila en un árbol de tareas y subtareas (**Lista**), y las dependencias marcan
 qué está desbloqueado, bloqueado, en curso o en pausa.
+La vista **Rutinas** es un checklist diario: rutinas programadas por día de la semana y momento
+del día, con rachas y avance por semana o por mes.
 
 Comparte con la app de gastos solo la infraestructura:
 
