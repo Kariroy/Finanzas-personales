@@ -1071,3 +1071,30 @@ header.top h1{ font-weight:700; letter-spacing:-0.02em; }
 .settings-group-actions{ flex-direction:row; gap:6px; }
 .settings-group-actions .hdr-btn{ padding:6px 11px; font-size:0.8rem; }
 .settings-group{ flex-wrap:wrap; }
+
+/* pestaña Nuevo gasto */
+.debt-link{ align-self:flex-start; text-decoration:none; font-size:0.86rem; margin-top:-6px; }
+nav.tabbar button{ font-size:0.7rem; }
+
+/* Nuevo gasto (principal) / Deudas (secundaria, poco protagonismo) */
+.entry-switch{ display:flex; align-items:baseline; gap:18px; }
+.es-btn{
+  background:none; border:none; padding:0;
+  font-family:inherit; cursor:pointer;
+  color:var(--ink-soft); opacity:0.6;
+  font-size:0.92rem; font-weight:500;
+}
+.es-btn.active{
+  color:var(--ink); opacity:1;
+  font-size:1.35rem; font-weight:700; letter-spacing:-0.015em;
+}
+
+/* formulario de gasto: pares de a dos aun en pantallas angostas, Cantidad grande al final */
+.row-2.keep-2{ grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important; gap:10px; }
+.row-2.keep-2 .field{ min-width:0; }
+.row-2.keep-2 input, .row-2.keep-2 select{ min-width:0; font-size:0.9rem; padding:10px 9px; }
+.amount-field input{ font-size:1.6rem; font-weight:700; padding:12px 14px; letter-spacing:-0.01em; }
+
+/* sin flechitas en los campos de número */
+input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button{ -webkit-appearance:none; margin:0; }
+input[type="number"]{ -moz-appearance:textfield; appearance:textfield; }
