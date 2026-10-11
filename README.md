@@ -20,6 +20,8 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 | `supabase/1-tablas.sql` … `6-borrar-grupos.sql` | Base de datos: tablas, funciones, reglas de seguridad (RLS), tiempo real, deudas y borrado de grupos. |
 | `supabase/7-planes.sql` | Tabla de la app Planes (`planes/`). Solo hace falta si usás Planes. |
 | `planes/` | App Planes (planificador de tareas), aparte de la de gastos. |
+| `supabase/8-cocina.sql` | Tabla de la app Cocina (`cocina/`). Solo hace falta si usás Cocina. |
+| `cocina/` | App Cocina (comidas por día, stock de la casa y recetas), aparte de las otras. |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Para instalar la app en el celular. |
 | `_headers` | Cabeceras de seguridad para Cloudflare Pages. |
 
@@ -115,6 +117,26 @@ que hubieras cargado en ese navegador sin cuenta.
 
 Probar sin Supabase: `python3 scripts/build-planes-preview.py` arma `preview/planes.html`
 (un solo archivo, modo local).
+
+## Cocina (app aparte)
+
+La carpeta `cocina/` es otra app independiente: **planificador de comidas**.
+
+- **Semana**: los próximos 7 días con almuerzo y cena. Cada comida dice si alcanza el stock
+  (contando lo planeado antes); 🎲 completa los huecos al azar solo con platos que alcanzan.
+  «✓ comí» descuenta del stock lo que usó el plato.
+- **Stock**: todo lo que hay en casa por lugar (freezer, heladera, verduras, alacena, otros).
+  Las porciones de las bases son un ítem más; los ingredientes se conectan con las recetas por
+  el nombre, y se pueden cargar cosas que no se usan en ninguna receta.
+- **Recetas**: bases que se cocinan por tanda («＋ cociné 1 tanda» suma porciones y descuenta
+  ingredientes) y platos que combinan bases con otros ingredientes por persona.
+
+Igual que Planes: mismo proyecto de Cloudflare (se publica en `https://…pages.dev/cocina/`),
+mismas cuentas, su propia tabla (`cocina_datos`) e instalable como app aparte. Para activarla
+en Supabase (una sola vez):
+
+1. **SQL Editor → New query**: pegá `supabase/8-cocina.sql` completo → **Run**.
+2. **Authentication → URL Configuration → Redirect URLs**: agregá `https://<tu-proyecto>.pages.dev/cocina/`.
 
 ## Próximos pasos
 

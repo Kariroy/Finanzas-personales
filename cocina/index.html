@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<meta name="description" content="Planificador de comidas por día con stock de la casa y recetas">
+<title>Cocina</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="cocina.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cocina">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+<header class="head">
+  <div class="head-in">
+    <span class="brand">🍳 Cocina</span>
+    <span class="acct" id="account" hidden><span id="accountEmail"></span><span id="syncState"></span><button id="signOut">salir</button></span>
+    <div class="seg" id="tabs" role="tablist">
+      <button data-t="week" role="tab">Semana</button>
+      <button data-t="stock" role="tab">Stock</button>
+      <button data-t="recipes" role="tab">Recetas</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="v-week"></section>
+  <section id="v-stock"></section>
+  <section id="v-recipes"></section>
+</main>
+<button class="fab" id="fab" hidden></button>
+
+<!-- elegir plato para un día -->
+<div class="sheet" id="pickSheet" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="pickT">
+    <h3 id="pickT"></h3>
+    <div class="tools"><button class="btn" id="pickRandom">🎲 al azar (con lo que hay)</button><button class="btn danger" id="pickClear">quitar</button></div>
+    <div id="pickList"></div>
+    <div class="btns"><button class="btn" data-close>cancelar</button></div>
+  </div>
+</div>
+
+<!-- editor de ítem de stock -->
+<div class="sheet" id="itemSheet" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="iT">
+    <h3 id="iT">Agregar al stock</h3>
+    <div><label class="f-lbl" for="iName">Qué es</label><input id="iName" maxlength="50" placeholder="Ej. huevo, yerba, papel higiénico" list="iNames"><datalist id="iNames"></datalist></div>
+    <div class="grid3">
+      <div><label class="f-lbl" for="iQty">Cantidad que hay</label><input id="iQty" type="number" min="0" step="any" inputmode="decimal"></div>
+      <div><label class="f-lbl" for="iUnit">Unidad</label><select id="iUnit"></select></div>
+    </div>
+    <div><span class="f-lbl">Dónde está</span><div class="chips" id="iPlace"></div></div>
+    <div class="hint" id="iUse"></div>
+    <div class="err" id="iErr"></div>
+    <div class="btns"><button class="btn danger" id="iDel">borrar</button><button class="btn" data-close>cancelar</button><button class="btn primary" id="iSave">guardar</button></div>
+  </div>
+</div>
+
+<!-- editor de base -->
+<div class="sheet" id="baseSheet" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="bT">
+    <h3 id="bT">Preparación base</h3>
+    <div><label class="f-lbl" for="bName">Nombre</label><input id="bName" maxlength="60" placeholder="Ej. Salsa sojanesa"></div>
+    <div class="grid2">
+      <div><label class="f-lbl" for="bYield">Una tanda rinde <em>(porciones)</em></label><input id="bYield" type="number" min="1" step="1" inputmode="numeric"></div>
+      <div><label class="f-lbl" for="bPortion">Cada porción</label><input id="bPortion" maxlength="30" placeholder="Ej. 250 g / tupper"></div>
+    </div>
+    <div><label class="f-lbl" for="bIng">Ingredientes de una tanda <em>· uno por línea: «2 cebolla», «200 g soja», «sal»</em></label><textarea id="bIng"></textarea></div>
+    <div><label class="f-lbl" for="bSteps">Procedimiento <em>· un paso por línea</em></label><textarea id="bSteps"></textarea></div>
+    <div class="err" id="bErr"></div>
+    <div class="btns"><button class="btn danger" id="bDel">borrar</button><button class="btn" data-close>cancelar</button><button class="btn primary" id="bSave">guardar</button></div>
+  </div>
+</div>
+
+<!-- editor de plato -->
+<div class="sheet" id="dishSheet" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="dT">
+    <h3 id="dT">Plato</h3>
+    <div class="grid2">
+      <div><label class="f-lbl" for="dName">Nombre</label><input id="dName" maxlength="60" placeholder="Ej. Omelette de relleno"></div>
+      <div><label class="f-lbl" for="dGroup">Grupo</label><input id="dGroup" maxlength="30" placeholder="Ej. Relleno"></div>
+    </div>
+    <div><span class="f-lbl">Bases que usa <em>· porciones por persona</em></span><div id="dBases"></div></div>
+    <div><label class="f-lbl" for="dFresh">Otros ingredientes por persona <em>· uno por línea: «1 huevo», «50 g queso», «mayonesa»</em></label><textarea id="dFresh"></textarea></div>
+    <div class="err" id="dErr"></div>
+    <div class="btns"><button class="btn danger" id="dDel">borrar</button><button class="btn" data-close>cancelar</button><button class="btn primary" id="dSave">guardar</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Login (solo con Supabase configurado). Misma cuenta que el Libro de Gastos y Planes. -->
+<div class="auth" id="auth" hidden>
+  <div class="auth-box">
+    <div class="auth-logo">🍳 Cocina</div>
+    <p class="auth-sub">Entrá con la misma cuenta que usás en el Libro de Gastos y en Planes.</p>
+    <button type="button" class="btn google" id="googleBtn" hidden>Continuar con Google</button>
+    <input type="email" id="authEmail" placeholder="Email" autocomplete="email" inputmode="email">
+    <input type="password" id="authPass" placeholder="Contraseña" autocomplete="current-password">
+    <p class="auth-msg" id="authMsg" role="status"></p>
+    <button type="button" class="btn primary" id="signInBtn">Entrar</button>
+    <button type="button" class="btn" id="signUpBtn">Crear cuenta</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<script src="cocina.js"></script>
+<script>
+  if("serviceWorker" in navigator && location.protocol === "https:"){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  }
+</script>
+</body>
+</html>
