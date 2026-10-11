@@ -19,6 +19,7 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 | `config.js` | URL y clave pública de Supabase. Vacío = modo local. |
 | `supabase/1-tablas.sql` … `6-borrar-grupos.sql` | Base de datos: tablas, funciones, reglas de seguridad (RLS), tiempo real, deudas y borrado de grupos. |
 | `supabase/7-planes.sql` | Tabla de la app Planes (`planes/`). Solo hace falta si usás Planes. |
+| `supabase/8-planes-avisos.sql`, `supabase/functions/planes-avisos/` | Avisos de rutinas de Planes (push). Opcional. |
 | `planes/` | App Planes (planificador de tareas), aparte de la de gastos. |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Para instalar la app en el celular. |
 | `_headers` | Cabeceras de seguridad para Cloudflare Pages. |
@@ -109,6 +110,24 @@ Cómo guarda: cada cambio se sube a la cuenta a los pocos segundos y al volver a
 en otro dispositivo se trae lo último. Sin conexión sigue funcionando con la copia del
 dispositivo y sube los cambios cuando vuelve la red. La primera vez que entrás, se sube lo
 que hubieras cargado en ese navegador sin cuenta.
+
+### Avisos de rutinas (notificaciones push)
+
+Planes puede avisarte en el celular a la hora de cada rutina (las que tienen hora y todavía no
+marcaste), aunque la app esté cerrada. Lo manda una Edge Function de Supabase que corre cada minuto.
+Para activarlo (una sola vez), en Supabase:
+
+1. **Edge Functions → Secrets**: agregá `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `CRON_SECRET` y
+   `VAPID_SUBJECT` (`mailto:tu@email`). Las claves VAPID se generan una vez (la pública también va en
+   `planes/planes.js`); **nunca** subas la privada ni el secreto al repo.
+2. **Edge Functions → Deploy a new function → Via Editor**: nombre `planes-avisos`, pegá
+   `supabase/functions/planes-avisos/index.ts` → **Deploy**. En la configuración de la función,
+   desactivá **Verify JWT** (la función valida sola el secreto y la sesión).
+3. **SQL Editor**: `select vault.create_secret('<el mismo CRON_SECRET>', 'planes_cron_secret');`
+4. **SQL Editor**: pegá `supabase/8-planes-avisos.sql` → **Run** (tablas y tarea de cada minuto).
+5. En la app: **Rutinas → 🔔 → activar avisos**, y **probar aviso** para confirmar.
+
+En Android funciona desde Chrome; en iPhone, solo con Planes instalada en la pantalla de inicio.
 
 Probar sin Supabase: `python3 scripts/build-planes-preview.py` arma `preview/planes.html`
 (un solo archivo, modo local).

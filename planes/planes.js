@@ -22,6 +22,11 @@ if(!Array.isArray(state.portfolios)) state.portfolios = [];
 if(!Array.isArray(state.routines)) state.routines = [];
 if(!state.routineDone || typeof state.routineDone !== "object") state.routineDone = {};
 if(!state.mode) state.mode = matchMedia("(max-width: 800px)").matches ? "list" : "map";
+// Al tocar un aviso de rutina se abre /planes/?rutinas: ir directo a la vista Rutinas.
+if(/[?&]rutinas\b/.test(location.search)){
+  state.mode = "routines";
+  try { history.replaceState(null, "", location.pathname); } catch(e){}
+}
 var hist = [], fut = [];
 var sel = null;          // {task: id} | {dep: {from, to}}
 var els = {};            // id de tarea → elemento de la card
@@ -866,7 +871,7 @@ canvas.addEventListener("wheel", function(e){
 // ---------- teclado ----------
 document.addEventListener("keydown", function(e){
   var tg = e.target;
-  if(!$("ask").hidden || !$("notesDlg").hidden || !$("rtSheet").hidden) return;
+  if(!$("ask").hidden || !$("notesDlg").hidden || !$("rtSheet").hidden || !$("avSheet").hidden) return;
   if(editing || tg.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName)) return;
   var mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
   if(mod && k === "z" && !e.shiftKey){ e.preventDefault(); undo(); }
@@ -1438,6 +1443,88 @@ $("rtCancel").addEventListener("click", rtClose);
 $("rtSheet").addEventListener("click", function(e){ if(e.target === e.currentTarget) rtClose(); });
 $("rtName").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); $("rtSave").click(); } });
 document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !$("rtSheet").hidden) rtClose(); });
+// ---------- avisos (notificaciones push) ----------
+// La clave pública VAPID va acá (es pública por diseño); la privada vive solo en Supabase.
+var VAPID_PUBLIC_KEY = "BP_6eD4H5UXbg1m2swn2uoN7OLcYyymZW16Iw10fr-MGG51AypL5iuLCXn9bOZkYBa6LjE5_w_CUVaw3u4D4xz0";
+function avSupported(){
+  return location.protocol === "https:" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+function avKey(s){
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  while(s.length % 4) s += "=";
+  var raw = atob(s), out = new Uint8Array(raw.length);
+  for(var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+function avCurrent(){
+  if(!avSupported()) return Promise.resolve(null);
+  return navigator.serviceWorker.getRegistration().then(function(reg){ return reg ? reg.pushManager.getSubscription() : null; });
+}
+function avShow(text, buttons){
+  $("avTxt").innerHTML = text;
+  ["avOn", "avTest", "avOff"].forEach(function(id){ $(id).hidden = buttons.indexOf(id) < 0; });
+}
+function avPaint(){
+  $("avErr").textContent = "";
+  if(!avSupported()){ avShow("Este navegador no permite notificaciones. En Android usá <b>Chrome</b>.", []); return; }
+  if(!REMOTE || !user){ avShow("Para recibir avisos tenés que entrar con tu cuenta.", []); return; }
+  if(Notification.permission === "denied"){
+    avShow("Las notificaciones de Planes están <b>bloqueadas</b>. Habilitalas en Chrome → ⋮ → Configuración → " +
+      "Configuración de sitios → Notificaciones, y volvé a abrir esta ventana.", []);
+    return;
+  }
+  avShow("Revisando…", []);
+  avCurrent().then(function(sub){
+    $("rtBell").classList.toggle("on", !!sub);
+    if(sub) avShow("<b>Activados en este dispositivo ✓</b><br>Te avisamos a la hora de cada rutina que tenga hora, " +
+      "si todavía no la marcaste. Las rutinas sin hora no avisan.", ["avTest", "avOff"]);
+    else avShow("Te mandamos una notificación <b>a la hora de cada rutina</b> (las que tienen hora), " +
+      "aunque la app esté cerrada, si todavía no la marcaste.", ["avOn"]);
+  }).catch(function(){ avShow("No se pudo revisar el estado de los avisos.", ["avOn"]); });
+}
+$("rtBell").addEventListener("click", function(){ $("avSheet").hidden = false; avPaint(); });
+$("avClose").addEventListener("click", function(){ $("avSheet").hidden = true; });
+$("avSheet").addEventListener("click", function(e){ if(e.target === e.currentTarget) e.currentTarget.hidden = true; });
+$("avOn").addEventListener("click", function(){
+  $("avErr").textContent = "";
+  Notification.requestPermission().then(function(perm){
+    if(perm !== "granted"){ avPaint(); return; }
+    return navigator.serviceWorker.ready.then(function(reg){
+      return reg.pushManager.getSubscription().then(function(old){
+        return old || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: avKey(VAPID_PUBLIC_KEY) });
+      });
+    }).then(function(sub){
+      var j = sub.toJSON();
+      var tz = "America/Montevideo";
+      try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz; } catch(e){}
+      return sb.from("planes_push").upsert({ user_id: user.id, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, tz: tz },
+        { onConflict: "endpoint" });
+    }).then(function(r){
+      if(r && r.error) throw r.error;
+      toast("Avisos activados");
+      avPaint();
+    });
+  }).catch(function(e){
+    $("avErr").textContent = "No se pudo activar: " + ((e && e.message) || e) + ". ¿Corriste el SQL de avisos en Supabase?";
+  });
+});
+$("avOff").addEventListener("click", function(){
+  avCurrent().then(function(sub){
+    if(!sub) return;
+    return sb.from("planes_push").delete().eq("endpoint", sub.endpoint).then(function(){ return sub.unsubscribe(); });
+  }).then(function(){ toast("Avisos desactivados en este dispositivo"); avPaint(); })
+    .catch(function(){ $("avErr").textContent = "No se pudo desactivar. Probá de nuevo."; });
+});
+$("avTest").addEventListener("click", function(){
+  $("avErr").textContent = "";
+  $("avTest").disabled = true;
+  sb.functions.invoke("planes-avisos", { body: { test: true } }).then(function(r){
+    $("avTest").disabled = false;
+    if(r.error) $("avErr").textContent = "No se pudo mandar la prueba. Revisá que la función «planes-avisos» esté creada en Supabase.";
+    else toast("Aviso de prueba enviado: tiene que llegarte en unos segundos");
+  }).catch(function(){ $("avTest").disabled = false; $("avErr").textContent = "No se pudo mandar la prueba."; });
+});
+
 // Si la app queda abierta y cambia el día, "hoy" se actualiza al volver.
 document.addEventListener("visibilitychange", function(){
   if(document.visibilityState === "visible" && state.mode === "routines") renderRoutines();
@@ -1526,6 +1613,7 @@ function onSession(s){
     return;
   }
   $("accountEmail").textContent = user.email || "";
+  avCurrent().then(function(sub){ $("rtBell").classList.toggle("on", !!sub); }).catch(function(){});
   storeKey = KEY + ":" + user.id;
   var cached = readStore(storeKey);
   if(cached){ state.mode = cached.mode || state.mode; state.hideDone = cached.hideDone; applyData(cached); }

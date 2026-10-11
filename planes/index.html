@@ -92,6 +92,7 @@
       <div class="rt-inner">
         <div class="rt-top">
           <h2>Rutinas</h2>
+          <button type="button" class="icon-btn rt-bell" id="rtBell" title="Avisos" aria-label="Avisos de rutinas">🔔</button>
           <div class="rt-seg" id="rtView" role="tablist" aria-label="Vista">
             <button type="button" data-v="week" role="tab">Semana</button>
             <button type="button" data-v="month" role="tab">Mes</button>
@@ -163,6 +164,19 @@
       <button type="button" class="btn rt-del" id="rtDel" hidden>borrar</button>
       <button type="button" class="btn" id="rtCancel">cancelar</button>
       <button type="button" class="btn primary" id="rtSave">guardar</button>
+    </div>
+  </div>
+</div>
+<div class="rt-sheet" id="avSheet" hidden>
+  <div class="rt-box" role="dialog" aria-modal="true" aria-labelledby="avTitle">
+    <h3 id="avTitle">🔔 Avisos de rutinas</h3>
+    <p class="av-txt" id="avTxt"></p>
+    <div class="rt-err" id="avErr"></div>
+    <div class="rt-btns">
+      <button type="button" class="btn rt-del" id="avOff" hidden>desactivar</button>
+      <button type="button" class="btn" id="avClose">cerrar</button>
+      <button type="button" class="btn" id="avTest" hidden>probar aviso</button>
+      <button type="button" class="btn primary" id="avOn" hidden>activar avisos</button>
     </div>
   </div>
 </div>

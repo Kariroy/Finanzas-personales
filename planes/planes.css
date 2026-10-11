@@ -557,3 +557,7 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .rt-btns { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
 .rt-btns .rt-del { margin-right: auto; color: var(--danger); background: none; border-color: transparent; }
 .rt-err { color: var(--danger); font-size: 11px; min-height: 1em; }
+.rt-bell { font-size: 15px; }
+.rt-bell.on { border-color: #2c6b6b; background: #132a2e; }
+.av-txt { margin: 0; color: var(--muted); line-height: 1.6; }
+.av-txt b { color: var(--text); }

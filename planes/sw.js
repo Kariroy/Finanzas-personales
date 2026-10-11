@@ -1,7 +1,7 @@
 // Service worker de Planes (alcance /planes/, separado del de finanzas).
 // Los archivos de la app se piden primero a la red (cada deploy se ve enseguida)
 // y solo sin conexión se usa la copia guardada. Supabase no pasa por acá.
-var CACHE = "planes-v1";
+var CACHE = "planes-v2";
 var SHELL = [
   "./",
   "index.html",
@@ -70,4 +70,31 @@ self.addEventListener("fetch", function(ev){
       })
     );
   }
+});
+
+// ---------- avisos (notificaciones push de las rutinas) ----------
+self.addEventListener("push", function(ev){
+  var d = {};
+  try { d = ev.data ? ev.data.json() : {}; } catch(e){ d = { title: "Planes", body: ev.data ? ev.data.text() : "" }; }
+  ev.waitUntil(self.registration.showNotification(d.title || "Planes", {
+    body: d.body || "",
+    tag: d.tag,
+    icon: "icons/icon-192.png",
+    data: { url: d.url || "./?rutinas" }
+  }));
+});
+
+// Tocar la notificación abre Planes en la vista Rutinas (o trae al frente la que ya está abierta).
+self.addEventListener("notificationclick", function(ev){
+  ev.notification.close();
+  var url = new URL((ev.notification.data && ev.notification.data.url) || "./?rutinas", self.registration.scope).href;
+  ev.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function(list){
+    for(var i = 0; i < list.length; i++){
+      var c = list[i];
+      if(c.url.indexOf(self.registration.scope) === 0 && "focus" in c){
+        return c.focus().then(function(w){ return w && w.navigate ? w.navigate(url).catch(function(){}) : null; });
+      }
+    }
+    return self.clients.openWindow(url);
+  }));
 });
