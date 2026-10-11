@@ -557,3 +557,61 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .rt-btns { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
 .rt-btns .rt-del { margin-right: auto; color: var(--danger); background: none; border-color: transparent; }
 .rt-err { color: var(--danger); font-size: 11px; min-height: 1em; }
+
+/* ---------- notas (apuntes para repasar) ---------- */
+.nt-count { color: var(--muted); font-size: 11px; }
+.nt-search { margin: 14px 0 10px; }
+.nt-search input { width: 100%; background: #0b0f14; border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 12px; font-size: 16px; color: var(--text); }
+.nt-search input:focus { outline: none; border-color: var(--doing); }
+.nt-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.nt-filters:empty { display: none; }
+.nt-filters button { --c: var(--doing); border: 1px solid var(--line); background: none; border-radius: 999px; padding: 6px 12px; cursor: pointer; color: var(--muted); font-size: 11px; }
+.nt-filters button:hover { color: var(--text); border-color: var(--line-2); }
+.nt-filters button.on { color: var(--text); font-weight: 700; border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+#ntList { margin: 8px 0 24px; display: flex; flex-direction: column; }
+.nt-item { border-left-color: var(--c); }
+.nt-item:focus-visible { outline: 2px solid var(--doing); outline-offset: 1px; }
+.nt-item:hover { border-color: var(--line-2); border-left-color: var(--c); }
+.nt-pv { color: var(--muted); font-size: 11px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nt-item .rt-meta { align-items: center; margin-top: 6px; }
+.nt-item.stale .nt-when { color: var(--ready); }
+.nt-go { color: var(--faint); font-size: 18px; flex: none; }
+.nt-cat { --c: var(--doing); display: inline-block; border-radius: 4px; padding: 1px 7px; font-size: 10px; font-weight: 700; letter-spacing: .03em;
+  color: var(--c); background: color-mix(in srgb, var(--c) 15%, transparent); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); }
+
+.nt-dtop { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+.nt-card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 16px 20px; margin-bottom: 24px; }
+.nt-chead { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; border-bottom: 2px solid var(--line-2); padding-bottom: 10px; }
+.nt-chead h3 { margin: 0; font-size: 17px; line-height: 1.3; overflow-wrap: anywhere; }
+.nt-chead .nt-cat { flex: none; margin-top: 3px; }
+.nt-cmeta { color: var(--muted); font-size: 11px; margin: 8px 0 14px; }
+.nt-body { font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.nt-body p { margin: 0; }
+.nt-body ul, .nt-body ol { margin: 2px 0; padding-left: 22px; }
+.nt-body li::marker { color: var(--muted); }
+.nt-body code { background: #0b0f14; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.nt-body a { color: var(--doing); }
+.nt-body b { color: #fff; }
+.nt-gap { height: 10px; }
+.nt-h1, .nt-h2, .nt-h3 { display: flex; align-items: center; gap: 8px; font-weight: 700; margin: 12px 0 6px; }
+.nt-h1 { font-size: 15px; }
+.nt-h2, .nt-h3 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.nt-h2::before { content: ""; width: 4px; height: 13px; border-radius: 1px; background: var(--doing); flex: none; }
+.nt-h2::after, .nt-h3::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.nt-body > :first-child { margin-top: 0; }
+.nt-nobody { color: var(--faint); }
+.rt-fab.nt-rev.done { background: #1a3524; color: var(--done); box-shadow: none; }
+
+.nt-box textarea { width: 100%; min-height: 200px; max-height: 50vh; resize: vertical; background: #0b0f14; border: 1px solid var(--line-2);
+  border-radius: 8px; padding: 11px; font-size: 16px; line-height: 1.5; color: var(--text); }
+.nt-box textarea:focus { outline: none; border-color: var(--doing); }
+.nt-catchips { margin-top: 8px; }
+.nt-catchips:empty { display: none; }
+.nt-hint { color: var(--faint); margin-left: 6px; }
+@media (min-width: 801px) { .nt-box textarea { font-size: 13px; } .nt-search input { font-size: 13px; } }
+.nt .rt-inner[hidden] { display: none; }
+/* Con 4 vistas, en pantallas angostas solo la elegida muestra el nombre. */
+@media (max-width: 440px) {
+  .seg button { padding: 6px 10px; }
+  .seg button:not(.on) .lbl { display: none; }
+}

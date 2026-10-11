@@ -89,6 +89,9 @@ en forma de ramas**. Portafolios (pestañas, ej. Trabajo / Personal) → program
 qué está desbloqueado, bloqueado, en curso o en pausa.
 La vista **Rutinas** es un checklist diario: rutinas programadas por día de la semana y momento
 del día, con rachas y avance por semana o por mes.
+La vista **Notas** guarda apuntes para repasar: buscador, filtro por categoría, ficha de cada nota
+(con formato simple: `# título`, `- lista`, `**negrita**`) y un botón «repasada hoy»; el filtro
+**↻ para repasar** ordena primero las que hace más tiempo que no ves.
 
 Comparte con la app de gastos solo la infraestructura:
 

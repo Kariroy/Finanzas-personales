@@ -57,6 +57,7 @@
         <button type="button" data-mode="map" role="tab" title="Mapa">▦<span class="lbl"> Mapa</span></button>
         <button type="button" data-mode="list" role="tab" title="Lista">☑<span class="lbl"> Lista</span></button>
         <button type="button" data-mode="routines" role="tab" title="Rutinas">↻<span class="lbl"> Rutinas</span></button>
+        <button type="button" data-mode="notes" role="tab" title="Notas">✎<span class="lbl"> Notas</span></button>
       </div>
       <button class="icon-btn help-btn only-mobile" data-help aria-label="Ayuda y reglas">?</button>
     </div>
@@ -107,6 +108,29 @@
         <div class="rt-month" id="rtMonth" hidden></div>
         <div id="rtList"></div>
         <button type="button" class="rt-fab" id="rtAdd">+ rutina</button>
+      </div>
+    </section>
+
+    <section class="rt nt" id="notes" hidden>
+      <div class="rt-inner" id="ntListView">
+        <div class="rt-top">
+          <h2>Notas</h2>
+          <span class="nt-count" id="ntCount"></span>
+        </div>
+        <div class="nt-search">
+          <input type="search" id="ntSearch" placeholder="Buscar en títulos y texto…" autocomplete="off" aria-label="Buscar notas">
+        </div>
+        <div class="nt-filters" id="ntFilters"></div>
+        <div id="ntList"></div>
+        <button type="button" class="rt-fab" id="ntAdd">+ nota</button>
+      </div>
+      <div class="rt-inner" id="ntDetail" hidden>
+        <div class="nt-dtop">
+          <button type="button" class="btn" id="ntBack">← volver</button>
+          <button type="button" class="btn" id="ntEdit">✎ editar</button>
+        </div>
+        <article class="nt-card" id="ntCard"></article>
+        <button type="button" class="rt-fab nt-rev" id="ntReview">✓ repasada hoy</button>
       </div>
     </section>
 
@@ -166,6 +190,30 @@
     </div>
   </div>
 </div>
+<div class="rt-sheet" id="ntSheet" hidden>
+  <div class="rt-box nt-box" role="dialog" aria-modal="true" aria-labelledby="ntEdTitle">
+    <h3 id="ntEdTitle">Nueva nota</h3>
+    <div>
+      <div class="rt-lbl">Título</div>
+      <input type="text" id="ntTitle" maxlength="120" placeholder="Ej. Verbos irregulares en inglés">
+    </div>
+    <div>
+      <div class="rt-lbl">Categoría</div>
+      <input type="text" id="ntCat" maxlength="40" placeholder="Ej. Inglés, Cocina, Facultad…">
+      <div class="rt-chips nt-catchips" id="ntCats"></div>
+    </div>
+    <div>
+      <div class="rt-lbl">Texto <span class="nt-hint"># título · - lista · **negrita** · `código`</span></div>
+      <textarea id="ntBody" placeholder="Lo que quieras repasar…"></textarea>
+    </div>
+    <div class="rt-err" id="ntErr"></div>
+    <div class="rt-btns">
+      <button type="button" class="btn rt-del" id="ntDel" hidden>borrar</button>
+      <button type="button" class="btn" id="ntCancel">cancelar</button>
+      <button type="button" class="btn primary" id="ntSave">guardar</button>
+    </div>
+  </div>
+</div>
 <dialog class="help-dlg" id="helpDlg">
   <div class="help-top">
     <strong>Reglas y atajos</strong>
@@ -193,6 +241,7 @@
         — <b>puntito</b> al lado del nombre = notas de la tarea (lleno = tiene notas)<br>
         — ☰ = mostrar / ocultar este panel<br>
         — <b>↻ Rutinas</b> = checklist diario: tocá una rutina para marcarla; Semana / Mes para ver tu avance<br>
+        — <b>✎ Notas</b> = apuntes para repasar: buscalos, filtralos por categoría y marcá «repasada hoy»; «↻ para repasar» muestra primero las que hace más que no ves<br>
         — Ctrl+Z / Ctrl+Y
       </p>
 

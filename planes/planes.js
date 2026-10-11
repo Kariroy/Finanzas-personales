@@ -21,6 +21,7 @@ if(!Array.isArray(state.programs)) state.programs = [];
 if(!Array.isArray(state.portfolios)) state.portfolios = [];
 if(!Array.isArray(state.routines)) state.routines = [];
 if(!state.routineDone || typeof state.routineDone !== "object") state.routineDone = {};
+if(!Array.isArray(state.notes)) state.notes = [];
 if(!state.mode) state.mode = matchMedia("(max-width: 800px)").matches ? "list" : "map";
 var hist = [], fut = [];
 var sel = null;          // {task: id} | {dep: {from, to}}
@@ -153,7 +154,7 @@ function snap(v){ return Math.round(v / GRID) * GRID; }
 function cardH(id){ var el = els[id]; return (el && el.offsetHeight) || H; }
 
 // ---------- historial ----------
-function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, current: state.current }); }
+function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, notes: state.notes, current: state.current }); }
 function pushHist(s){
   hist.push(s || snapshot());
   if(hist.length > 200) hist.shift();
@@ -166,6 +167,7 @@ function restore(s){
   state.portfolios = o.portfolios || [];
   state.routines = o.routines || [];
   state.routineDone = o.routineDone || {};
+  state.notes = o.notes || [];
   state.current = o.current;
   sel = null;
   save();
@@ -303,6 +305,7 @@ function renderAll(){
   renderProjects();
   renderList();
   renderRoutines();
+  renderNotes();
   renderCards();
   renderWires();
   applyView();
@@ -866,7 +869,7 @@ canvas.addEventListener("wheel", function(e){
 // ---------- teclado ----------
 document.addEventListener("keydown", function(e){
   var tg = e.target;
-  if(!$("ask").hidden || !$("notesDlg").hidden || !$("rtSheet").hidden) return;
+  if(!$("ask").hidden || !$("notesDlg").hidden || !$("rtSheet").hidden || !$("ntSheet").hidden) return;
   if(editing || tg.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName)) return;
   var mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
   if(mod && k === "z" && !e.shiftKey){ e.preventDefault(); undo(); }
@@ -1137,6 +1140,7 @@ $("newTask").addEventListener("click", function(){
   var p = proj(); if(!p) return;
   if(state.mode === "list"){ closeSideMobile(); $("listNew").focus(); return; }
   if(state.mode === "routines"){ closeSideMobile(); rtOpen(null); return; }
+  if(state.mode === "notes"){ closeSideMobile(); ntEditOpen(null); return; }
   var r = canvas.getBoundingClientRect();
   var c = toWorld(r.left + r.width / 2, r.top + r.height / 2), t;
   change(function(){ t = makeTask(p, c.x - W / 2, c.y - H / 2); sel = { task: t.id }; });
@@ -1443,9 +1447,207 @@ document.addEventListener("visibilitychange", function(){
   if(document.visibilityState === "visible" && state.mode === "routines") renderRoutines();
 });
 
+// ---------- notas (apuntes para repasar) ----------
+// state.notes: [{ id, title, cat, body, created, updated, reviewed: "AAAA-MM-DD" | undefined }]
+// Se guardan en la cuenta con lo demás. El filtro elegido queda en el navegador.
+var NT_REVIEW = "↻repasar";   // filtro especial: ordena por la que hace más que no se repasa
+var NT_COLORS = ["#58a6ff", "#3fb950", "#f0883e", "#e3c341", "#bc8cff", "#f47067", "#39c5cf", "#db61a2"];
+var ntQuery = "", ntShown = null, ntEditing = null;
+
+function ntNorm(s){ return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+function ntCats(){
+  var seen = {}, out = [];
+  state.notes.forEach(function(n){ var c = n.cat || ""; if(c && !seen[ntNorm(c)]){ seen[ntNorm(c)] = 1; out.push(c); } });
+  return out.sort(function(a, b){ return a.localeCompare(b, "es"); });
+}
+// Color fijo por categoría (sale del nombre, así no cambia entre dispositivos).
+function ntColor(c){
+  var h = 0, s = ntNorm(c);
+  for(var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return NT_COLORS[h % NT_COLORS.length];
+}
+function ntChip(c){ return c ? '<span class="nt-cat" style="--c:' + ntColor(c) + '">' + esc(c) + "</span>" : ""; }
+function ntById(id){ for(var i = 0; i < state.notes.length; i++) if(state.notes[i].id === id) return state.notes[i]; return null; }
+function ntAgo(k){
+  if(!k) return "sin repasar";
+  var d = Math.round((rtToday() - rtParse(k)) / 864e5);
+  return d <= 0 ? "repasada hoy" : d === 1 ? "repasada ayer" : "repasada hace " + d + " días";
+}
+function ntStale(n){ return !n.reviewed || Math.round((rtToday() - rtParse(n.reviewed)) / 864e5) >= 7; }
+function ntPreview(b){
+  var l = String(b || "").split("\n").map(function(x){ return x.replace(/^\s*(#+|[-*]|\d+[.)])\s+/, "").replace(/[*`]/g, "").trim(); })
+    .filter(Boolean).join(" · ");
+  return l.length > 110 ? l.slice(0, 110) + "…" : l;
+}
+// Texto con formato mínimo: # títulos, - listas, 1. numeradas, **negrita**, `código` y links.
+function ntInline(s){
+  return esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+}
+function ntFormat(b){
+  var out = "", list = null;
+  function close(){ if(list){ out += "</" + list + ">"; list = null; } }
+  String(b || "").split("\n").forEach(function(line){
+    var m;
+    if((m = line.match(/^\s*(#{1,3})\s+(.*)$/))){ close(); out += '<div class="nt-h' + m[1].length + '">' + ntInline(m[2]) + "</div>"; }
+    else if((m = line.match(/^\s*[-*•]\s+(.*)$/))){ if(list !== "ul"){ close(); out += "<ul>"; list = "ul"; } out += "<li>" + ntInline(m[1]) + "</li>"; }
+    else if((m = line.match(/^\s*\d+[.)]\s+(.*)$/))){ if(list !== "ol"){ close(); out += "<ol>"; list = "ol"; } out += "<li>" + ntInline(m[1]) + "</li>"; }
+    else if(!line.trim()){ close(); out += '<div class="nt-gap"></div>'; }
+    else { close(); out += "<p>" + ntInline(line) + "</p>"; }
+  });
+  close();
+  return out;
+}
+
+function renderNotes(){
+  var box = $("notes");
+  box.hidden = state.mode !== "notes";
+  if(box.hidden) return;
+  var open = ntShown && ntById(ntShown);
+  if(!open) ntShown = null;
+  $("ntListView").hidden = !!open;
+  $("ntDetail").hidden = !open;
+  if(open) return renderNoteDetail(open);
+
+  var cats = ntCats(), f = state.notesFilter || "";
+  if(f && f !== NT_REVIEW && cats.indexOf(f) < 0) f = "";
+  var stale = state.notes.filter(ntStale).length;
+  $("ntFilters").innerHTML = state.notes.length ? [["", "Todas"], [NT_REVIEW, "↻ para repasar" + (stale ? " · " + stale : "")]]
+    .concat(cats.map(function(c){ return [c, c]; }))
+    .map(function(x){
+      return '<button type="button" data-f="' + esc(x[0]) + '" class="' + (x[0] === f ? "on" : "") + '"' +
+        (x[0] && x[0] !== NT_REVIEW ? ' style="--c:' + ntColor(x[0]) + '"' : "") + ">" + esc(x[1]) + "</button>";
+    }).join("") : "";
+
+  var q = ntNorm(ntQuery), list = state.notes.filter(function(n){
+    if(f === NT_REVIEW ? false : f && n.cat !== f) return false;
+    return !q || ntNorm(n.title + " " + (n.cat || "") + " " + (n.body || "")).indexOf(q) >= 0;
+  });
+  if(f === NT_REVIEW) list.sort(function(a, b){ return (a.reviewed || "").localeCompare(b.reviewed || "") || a.created - b.created; });
+  else list.sort(function(a, b){ return b.updated - a.updated; });
+  $("ntCount").textContent = state.notes.length ? (list.length === state.notes.length ? "" : list.length + " de ") + state.notes.length + (state.notes.length === 1 ? " nota" : " notas") : "";
+
+  var html = "";
+  if(!state.notes.length){
+    html = '<div class="rt-empty">Todavía no tenés notas.<br>Tocá «+ nota» para guardar algo que quieras repasar: un tema, un resumen, una receta…</div>';
+  } else if(!list.length){
+    html = '<div class="rt-empty">No se encontró nada con esa búsqueda.</div>';
+  } else {
+    list.forEach(function(n){
+      var pv = ntPreview(n.body);
+      html += '<div class="rt-item nt-item' + (ntStale(n) ? " stale" : "") + '" data-id="' + n.id + '" tabindex="0" role="button" style="--c:' +
+        (n.cat ? ntColor(n.cat) : "var(--line-2)") + '"><div class="rt-main"><div class="rt-name">' + esc(n.title) + "</div>" +
+        (pv ? '<div class="nt-pv">' + esc(pv) + "</div>" : "") +
+        '<div class="rt-meta">' + ntChip(n.cat) + '<span class="nt-when">' + ntAgo(n.reviewed) + "</span></div></div>" +
+        '<span class="nt-go">›</span></div>';
+    });
+  }
+  $("ntList").innerHTML = html;
+}
+
+function renderNoteDetail(n){
+  $("ntCard").innerHTML =
+    '<header class="nt-chead"><h3>' + esc(n.title) + "</h3>" + ntChip(n.cat) + "</header>" +
+    '<div class="nt-cmeta">' + ntAgo(n.reviewed) + " · editada " + new Date(n.updated).toLocaleDateString("es") + "</div>" +
+    '<div class="nt-body">' + (n.body && n.body.trim() ? ntFormat(n.body) : '<p class="nt-nobody">Sin texto. Tocá «✎ editar» para escribir.</p>') + "</div>";
+  var today = n.reviewed === rtKey(rtToday());
+  $("ntReview").textContent = today ? "✓ repasada hoy" : "marcar repasada hoy";
+  $("ntReview").classList.toggle("done", today);
+}
+
+function ntOpen(id){ ntShown = id; renderNotes(); $("notes").scrollTop = 0; }
+function ntBack(){ ntShown = null; renderNotes(); }
+
+$("ntSearch").addEventListener("input", function(e){ ntQuery = e.target.value; renderNotes(); });
+$("ntFilters").addEventListener("click", function(e){
+  var b = e.target.closest("[data-f]"); if(!b) return;
+  state.notesFilter = b.dataset.f; save(); renderNotes();
+});
+$("ntList").addEventListener("click", function(e){
+  var it = e.target.closest(".nt-item"); if(it) ntOpen(it.dataset.id);
+});
+$("ntList").addEventListener("keydown", function(e){
+  var it = e.target.closest(".nt-item");
+  if(it && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); ntOpen(it.dataset.id); }
+});
+$("ntBack").addEventListener("click", ntBack);
+$("ntEdit").addEventListener("click", function(){ if(ntShown) ntEditOpen(ntShown); });
+$("ntReview").addEventListener("click", function(){
+  var n = ntById(ntShown); if(!n) return;
+  var k = rtKey(rtToday());
+  if(n.reviewed === k){ toast("Ya la repasaste hoy (↶ deshacer si fue sin querer)"); return; }
+  rtChange(function(){ n.reviewed = k; });
+  toast("✓ Repasada hoy");
+});
+$("ntAdd").addEventListener("click", function(){ ntEditOpen(null); });
+document.addEventListener("keydown", function(e){
+  if(e.key !== "Escape" || state.mode !== "notes" || !ntShown) return;
+  if(!$("ntSheet").hidden || !$("ask").hidden || !$("notesDlg").hidden) return;
+  ntBack();
+});
+
+// ---------- editor de nota ----------
+function ntPaintCats(){
+  var cur = ntNorm($("ntCat").value.trim());
+  $("ntCats").innerHTML = ntCats().map(function(c){
+    return '<button type="button" class="rt-chip' + (ntNorm(c) === cur ? " on" : "") + '" data-c="' + esc(c) + '">' + esc(c) + "</button>";
+  }).join("");
+}
+function ntEditOpen(id){
+  var n = id ? ntById(id) : null;
+  ntEditing = n;
+  $("ntEdTitle").textContent = n ? "Editar nota" : "Nueva nota";
+  $("ntTitle").value = n ? n.title : "";
+  var f = state.notesFilter;
+  $("ntCat").value = n ? (n.cat || "") : (f && f !== NT_REVIEW ? f : "");
+  $("ntBody").value = n ? (n.body || "") : "";
+  $("ntDel").hidden = !n;
+  $("ntErr").textContent = "";
+  ntPaintCats();
+  $("ntSheet").hidden = false;
+  setTimeout(function(){ if(!$("ntSheet").contains(document.activeElement)) (n ? $("ntBody") : $("ntTitle")).focus(); }, 30);
+}
+function ntEditClose(){ $("ntSheet").hidden = true; ntEditing = null; }
+$("ntCat").addEventListener("input", ntPaintCats);
+$("ntCats").addEventListener("click", function(e){
+  var b = e.target.closest("[data-c]"); if(!b) return;
+  $("ntCat").value = ntNorm($("ntCat").value.trim()) === ntNorm(b.dataset.c) ? "" : b.dataset.c;
+  ntPaintCats();
+});
+$("ntSave").addEventListener("click", function(){
+  var title = $("ntTitle").value.replace(/\s+/g, " ").trim();
+  if(!title){ $("ntErr").textContent = "Poné un título."; $("ntTitle").focus(); return; }
+  var cat = $("ntCat").value.replace(/\s+/g, " ").trim();
+  // Misma categoría escrita distinto (mayúsculas, tildes) = la que ya existe.
+  ntCats().forEach(function(c){ if(ntNorm(c) === ntNorm(cat)) cat = c; });
+  var body = $("ntBody").value.replace(/\s+$/, ""), n = ntEditing, now = Date.now();
+  ntEditClose();
+  rtChange(function(){
+    if(n){ n.title = title; n.cat = cat; n.body = body; n.updated = now; }
+    else { n = { id: uid(), title: title, cat: cat, body: body, created: now, updated: now }; state.notes.push(n); }
+  });
+  ntOpen(n.id);
+});
+$("ntDel").addEventListener("click", function(){
+  var n = ntEditing; if(!n) return;
+  ntEditClose();
+  ask({ title: "¿Borrar la nota «" + n.title + "»?", ok: "borrar", danger: true }, function(){
+    if(ntShown === n.id) ntShown = null;
+    rtChange(function(){ state.notes = state.notes.filter(function(x){ return x.id !== n.id; }); });
+  });
+});
+$("ntCancel").addEventListener("click", ntEditClose);
+$("ntSheet").addEventListener("click", function(e){ if(e.target === e.currentTarget) ntEditClose(); });
+$("ntTitle").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); $("ntCat").focus(); } });
+$("ntCat").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); $("ntBody").focus(); } });
+$("ntBody").addEventListener("keydown", function(e){ if(e.key === "Enter" && (e.ctrlKey || e.metaKey)){ e.preventDefault(); $("ntSave").click(); } });
+document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !$("ntSheet").hidden) ntEditClose(); });
+
 // ---------- cuenta y sincronización (Supabase) ----------
 // Una fila por persona en planes_datos (ver supabase/7-planes.sql) con
-// { portfolios, programs, projects, routines, routineDone }. Lo demás (vista elegida, pliegues) queda en el navegador.
+// { portfolios, programs, projects, routines, routineDone, notes }. Lo demás (vista elegida, pliegues) queda en el navegador.
 var CFG = window.APP_CONFIG || {};
 var REMOTE = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
 var sb = (REMOTE && window.supabase && window.supabase.createClient)
@@ -1456,7 +1658,7 @@ var sync = { at: null, timer: null, busy: false, pending: false };
 
 function setSync(text){ $("syncState").textContent = text; }
 
-function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone }; }
+function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, notes: state.notes }; }
 
 // Reemplaza programas y proyectos por los de otra copia, conservando la vista local.
 function applyData(d){
@@ -1465,6 +1667,7 @@ function applyData(d){
   state.projects = Array.isArray(d.projects) ? d.projects : [];
   state.routines = Array.isArray(d.routines) ? d.routines : [];
   state.routineDone = d.routineDone && typeof d.routineDone === "object" ? d.routineDone : {};
+  state.notes = Array.isArray(d.notes) ? d.notes : [];
   if(!proj()) state.current = state.projects[0] ? state.projects[0].id : null;
   hist = []; fut = []; sel = null;
   try { localStorage.setItem(storeKey, JSON.stringify(state)); } catch(e){}
@@ -1520,7 +1723,7 @@ function onSession(s){
   if(!user){
     // Sin sesión: no dejar a la vista datos de la cuenta anterior.
     storeKey = KEY; sync.at = null; clearTimeout(sync.timer); sync.pending = false;
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.current = null;
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.notes = []; state.current = null;
     hist = []; fut = []; sel = null;
     renderAll();
     return;
@@ -1603,7 +1806,7 @@ if(REMOTE){
     $("signInBtn").disabled = $("signUpBtn").disabled = true;
   } else {
     // Mientras se sabe si hay sesión, no mostrar datos locales de nadie.
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.current = null;
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.notes = []; state.current = null;
     renderAll();
     var params = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));
     if(params.get("error_description")){
