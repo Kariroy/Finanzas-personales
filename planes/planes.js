@@ -1447,12 +1447,11 @@ document.addEventListener("visibilitychange", function(){
   if(document.visibilityState === "visible" && state.mode === "routines") renderRoutines();
 });
 
-// ---------- notas (apuntes para repasar) ----------
-// state.notes: [{ id, title, cat, body, created, updated, reviewed: "AAAA-MM-DD" | undefined }]
+// ---------- notas ----------
+// state.notes: [{ id, title, cat, body, created, updated }]
 // Se guardan en la cuenta con lo demás. El filtro elegido queda en el navegador.
-var NT_REVIEW = "↻repasar";   // filtro especial: ordena por la que hace más que no se repasa
 var NT_COLORS = ["#58a6ff", "#3fb950", "#f0883e", "#e3c341", "#bc8cff", "#f47067", "#39c5cf", "#db61a2"];
-var ntQuery = "", ntShown = null, ntEditing = null;
+var ntQuery = "", ntShown = null, ntEditing = null, ntVisible = [];
 
 function ntNorm(s){ return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
 function ntCats(){
@@ -1468,12 +1467,7 @@ function ntColor(c){
 }
 function ntChip(c){ return c ? '<span class="nt-cat" style="--c:' + ntColor(c) + '">' + esc(c) + "</span>" : ""; }
 function ntById(id){ for(var i = 0; i < state.notes.length; i++) if(state.notes[i].id === id) return state.notes[i]; return null; }
-function ntAgo(k){
-  if(!k) return "sin repasar";
-  var d = Math.round((rtToday() - rtParse(k)) / 864e5);
-  return d <= 0 ? "repasada hoy" : d === 1 ? "repasada ayer" : "repasada hace " + d + " días";
-}
-function ntStale(n){ return !n.reviewed || Math.round((rtToday() - rtParse(n.reviewed)) / 864e5) >= 7; }
+function ntDate(ms){ var d = new Date(ms); return d.getDate() + " " + RT_MONTHS[d.getMonth()].slice(0, 3) + (d.getFullYear() !== new Date().getFullYear() ? " " + d.getFullYear() : ""); }
 function ntPreview(b){
   var l = String(b || "").split("\n").map(function(x){ return x.replace(/^\s*(#+|[-*]|\d+[.)])\s+/, "").replace(/[*`]/g, "").trim(); })
     .filter(Boolean).join(" · ");
@@ -1512,35 +1506,35 @@ function renderNotes(){
   if(open) return renderNoteDetail(open);
 
   var cats = ntCats(), f = state.notesFilter || "";
-  if(f && f !== NT_REVIEW && cats.indexOf(f) < 0) f = "";
-  var stale = state.notes.filter(ntStale).length;
-  $("ntFilters").innerHTML = state.notes.length ? [["", "Todas"], [NT_REVIEW, "↻ para repasar" + (stale ? " · " + stale : "")]]
+  if(f && cats.indexOf(f) < 0) f = "";
+  $("ntFilters").innerHTML = state.notes.length ? [["", "Todas"]]
     .concat(cats.map(function(c){ return [c, c]; }))
     .map(function(x){
       return '<button type="button" data-f="' + esc(x[0]) + '" class="' + (x[0] === f ? "on" : "") + '"' +
-        (x[0] && x[0] !== NT_REVIEW ? ' style="--c:' + ntColor(x[0]) + '"' : "") + ">" + esc(x[1]) + "</button>";
+        (x[0] ? ' style="--c:' + ntColor(x[0]) + '"' : "") + ">" + esc(x[1]) + "</button>";
     }).join("") : "";
 
   var q = ntNorm(ntQuery), list = state.notes.filter(function(n){
-    if(f === NT_REVIEW ? false : f && n.cat !== f) return false;
+    if(f && n.cat !== f) return false;
     return !q || ntNorm(n.title + " " + (n.cat || "") + " " + (n.body || "")).indexOf(q) >= 0;
   });
-  if(f === NT_REVIEW) list.sort(function(a, b){ return (a.reviewed || "").localeCompare(b.reviewed || "") || a.created - b.created; });
-  else list.sort(function(a, b){ return b.updated - a.updated; });
+  list.sort(function(a, b){ return b.updated - a.updated; });
+  ntVisible = list;
+  $("ntExport").hidden = !list.length;
   $("ntCount").textContent = state.notes.length ? (list.length === state.notes.length ? "" : list.length + " de ") + state.notes.length + (state.notes.length === 1 ? " nota" : " notas") : "";
 
   var html = "";
   if(!state.notes.length){
-    html = '<div class="rt-empty">Todavía no tenés notas.<br>Tocá «+ nota» para guardar algo que quieras repasar: un tema, un resumen, una receta…</div>';
+    html = '<div class="rt-empty">Todavía no tenés notas.<br>Tocá «+ nota» para guardar apuntes: un tema, un resumen, una receta…</div>';
   } else if(!list.length){
     html = '<div class="rt-empty">No se encontró nada con esa búsqueda.</div>';
   } else {
     list.forEach(function(n){
       var pv = ntPreview(n.body);
-      html += '<div class="rt-item nt-item' + (ntStale(n) ? " stale" : "") + '" data-id="' + n.id + '" tabindex="0" role="button" style="--c:' +
+      html += '<div class="rt-item nt-item" data-id="' + n.id + '" tabindex="0" role="button" style="--c:' +
         (n.cat ? ntColor(n.cat) : "var(--line-2)") + '"><div class="rt-main"><div class="rt-name">' + esc(n.title) + "</div>" +
         (pv ? '<div class="nt-pv">' + esc(pv) + "</div>" : "") +
-        '<div class="rt-meta">' + ntChip(n.cat) + '<span class="nt-when">' + ntAgo(n.reviewed) + "</span></div></div>" +
+        '<div class="rt-meta">' + ntChip(n.cat) + '<span class="nt-when">' + ntDate(n.updated) + "</span></div></div>" +
         '<span class="nt-go">›</span></div>';
     });
   }
@@ -1550,11 +1544,8 @@ function renderNotes(){
 function renderNoteDetail(n){
   $("ntCard").innerHTML =
     '<header class="nt-chead"><h3>' + esc(n.title) + "</h3>" + ntChip(n.cat) + "</header>" +
-    '<div class="nt-cmeta">' + ntAgo(n.reviewed) + " · editada " + new Date(n.updated).toLocaleDateString("es") + "</div>" +
+    '<div class="nt-cmeta">editada ' + ntDate(n.updated) + "</div>" +
     '<div class="nt-body">' + (n.body && n.body.trim() ? ntFormat(n.body) : '<p class="nt-nobody">Sin texto. Tocá «✎ editar» para escribir.</p>') + "</div>";
-  var today = n.reviewed === rtKey(rtToday());
-  $("ntReview").textContent = today ? "✓ repasada hoy" : "marcar repasada hoy";
-  $("ntReview").classList.toggle("done", today);
 }
 
 function ntOpen(id){ ntShown = id; renderNotes(); $("notes").scrollTop = 0; }
@@ -1574,13 +1565,32 @@ $("ntList").addEventListener("keydown", function(e){
 });
 $("ntBack").addEventListener("click", ntBack);
 $("ntEdit").addEventListener("click", function(){ if(ntShown) ntEditOpen(ntShown); });
-$("ntReview").addEventListener("click", function(){
-  var n = ntById(ntShown); if(!n) return;
-  var k = rtKey(rtToday());
-  if(n.reviewed === k){ toast("Ya la repasaste hoy (↶ deshacer si fue sin querer)"); return; }
-  rtChange(function(){ n.reviewed = k; });
-  toast("✓ Repasada hoy");
-});
+// Exportar: las notas que se ven (con el filtro y la búsqueda) en un archivo Markdown.
+function ntExport(){
+  var list = ntVisible.filter(function(n){ return ntById(n.id); }); if(!list.length) return;
+  var md = "# Notas\n\n" + list.map(function(n){
+    return "## " + n.title + "\n\n" + (n.cat ? "_" + n.cat + " · editada " + ntDate(n.updated) + "_" : "_editada " + ntDate(n.updated) + "_") +
+      "\n\n" + (n.body || "").trim().replace(/^(\s*)(#{1,3})(?=\s)/gm, "$1##$2") + "\n";
+  }).join("\n---\n\n");
+  var f = state.notesFilter;
+  var name = "notas" + (f ? "-" + ntNorm(f).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "") + "-" + rtKey(rtToday()) + ".md";
+  var blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+  var msg = "⇩ " + list.length + (list.length === 1 ? " nota exportada" : " notas exportadas");
+  // En el celular, compartir deja guardarlo en Archivos / Drive o mandarlo; en la compu se descarga.
+  try {
+    var file = new File([blob], name, { type: "text/markdown" });
+    if(isMobile() && navigator.canShare && navigator.canShare({ files: [file] })){
+      navigator.share({ files: [file], title: name }).then(function(){ toast(msg); }).catch(function(){});
+      return;
+    }
+  } catch(e){}
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  toast(msg);
+}
+$("ntExport").addEventListener("click", ntExport);
 $("ntAdd").addEventListener("click", function(){ ntEditOpen(null); });
 document.addEventListener("keydown", function(e){
   if(e.key !== "Escape" || state.mode !== "notes" || !ntShown) return;
@@ -1601,7 +1611,7 @@ function ntEditOpen(id){
   $("ntEdTitle").textContent = n ? "Editar nota" : "Nueva nota";
   $("ntTitle").value = n ? n.title : "";
   var f = state.notesFilter;
-  $("ntCat").value = n ? (n.cat || "") : (f && f !== NT_REVIEW ? f : "");
+  $("ntCat").value = n ? (n.cat || "") : (f || "");
   $("ntBody").value = n ? (n.body || "") : "";
   $("ntDel").hidden = !n;
   $("ntErr").textContent = "";

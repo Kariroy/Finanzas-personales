@@ -558,7 +558,7 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .rt-btns .rt-del { margin-right: auto; color: var(--danger); background: none; border-color: transparent; }
 .rt-err { color: var(--danger); font-size: 11px; min-height: 1em; }
 
-/* ---------- notas (apuntes para repasar) ---------- */
+/* ---------- notas ---------- */
 .nt-count { color: var(--muted); font-size: 11px; }
 .nt-search { margin: 14px 0 10px; }
 .nt-search input { width: 100%; background: #0b0f14; border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 12px; font-size: 16px; color: var(--text); }
@@ -574,7 +574,6 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .nt-item:hover { border-color: var(--line-2); border-left-color: var(--c); }
 .nt-pv { color: var(--muted); font-size: 11px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nt-item .rt-meta { align-items: center; margin-top: 6px; }
-.nt-item.stale .nt-when { color: var(--ready); }
 .nt-go { color: var(--faint); font-size: 18px; flex: none; }
 .nt-cat { --c: var(--doing); display: inline-block; border-radius: 4px; padding: 1px 7px; font-size: 10px; font-weight: 700; letter-spacing: .03em;
   color: var(--c); background: color-mix(in srgb, var(--c) 15%, transparent); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); }
@@ -600,7 +599,6 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .nt-h2::after, .nt-h3::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .nt-body > :first-child { margin-top: 0; }
 .nt-nobody { color: var(--faint); }
-.rt-fab.nt-rev.done { background: #1a3524; color: var(--done); box-shadow: none; }
 
 .nt-box textarea { width: 100%; min-height: 200px; max-height: 50vh; resize: vertical; background: #0b0f14; border: 1px solid var(--line-2);
   border-radius: 8px; padding: 11px; font-size: 16px; line-height: 1.5; color: var(--text); }
