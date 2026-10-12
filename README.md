@@ -91,6 +91,10 @@ en forma de ramas**. Portafolios (pestañas, ej. Trabajo / Personal) → program
 qué está desbloqueado, bloqueado, en curso o en pausa.
 La vista **Rutinas** es un checklist diario: rutinas programadas por día de la semana y momento
 del día, con rachas y avance por semana o por mes.
+La vista **Objetivos** guarda objetivos SMART (específico, medible, alcanzable, relevante, temporal),
+con proyecto de Planes y categoría para filtrar. Se miden **con un número** (anotás avances, con
+revisión semanal o mensual opcional que avisa «toca revisar») o **con una rutina** (cuentan solos
+los días que la marcaste en Rutinas). Cada uno dice si vas en camino o atrasado según las fechas.
 La vista **Notas** guarda apuntes: buscador, filtro por categoría, ficha de cada nota
 (con formato simple: `# título`, `- lista`, `**negrita**`) y **⇩ exportar**, que descarga las notas
 que se ven (con el filtro y la búsqueda) en un archivo Markdown (`.md`).

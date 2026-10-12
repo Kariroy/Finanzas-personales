@@ -613,3 +613,104 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
   .seg button { padding: 6px 10px; }
   .seg button:not(.on) .lbl { display: none; }
 }
+
+/* ---------- objetivos (SMART) ---------- */
+.gl-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+.gl-stat { --c: var(--doing); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 4px; text-align: center; cursor: pointer; color: inherit; }
+.gl-stat b { display: block; font-size: 17px; color: var(--c); }
+.gl-stat span { color: var(--muted); font-size: 10px; }
+.gl-stat.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 10%, var(--card)); }
+.gl-frow { display: flex; align-items: center; gap: 6px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.gl-frow::-webkit-scrollbar { display: none; }
+.gl-frow:empty { display: none; }
+.gl-lbl { color: var(--faint); font-size: 10px; flex: none; width: 62px; }
+.gl-chip { --c: var(--doing); flex: none; border: 1px solid var(--line); background: none; border-radius: 999px; padding: 5px 11px; cursor: pointer; color: var(--muted); font-size: 11px; }
+.gl-chip:hover { color: var(--text); }
+.gl-chip.on { color: var(--text); font-weight: 700; border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+.gl-sort { margin-left: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; color: var(--muted); font-size: 11px; }
+#glList { margin: 12px 0 24px; display: flex; flex-direction: column; gap: 8px; }
+.gl-goal { --sc: var(--doing); background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--sc); border-radius: 8px; padding: 12px; cursor: pointer; }
+.gl-goal:hover { border-color: var(--line-2); border-left-color: var(--sc); }
+.gl-goal:focus-visible { outline: 2px solid var(--doing); outline-offset: 1px; }
+.gl-head { display: flex; align-items: flex-start; gap: 8px; }
+.gl-title { font-weight: 700; flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12.5px; }
+.gl-pill { flex: none; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; color: var(--sc); background: color-mix(in srgb, var(--sc) 15%, transparent); }
+.gl-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 6px; color: var(--muted); font-size: 10.5px; }
+.gl-tag { --c: var(--doing); display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 700; color: var(--c);
+  background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 32%, transparent); }
+.gl-tag.proj { --c: #8b949e; }
+.gl-tag.rev { --c: var(--ready); }
+.gl-tag.rtn { --c: #56d4c4; }
+.gl-bar { position: relative; height: 8px; background: var(--line); border-radius: 4px; margin: 10px 0 6px; }
+.gl-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--sc); }
+.gl-bar u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: .55; border-radius: 1px; }
+.gl-nums { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 10.5px; }
+.gl-nums b { color: var(--text); }
+.gl-smart { display: inline-flex; gap: 2px; }
+.gl-smart span { width: 15px; height: 15px; display: grid; place-items: center; border-radius: 3px; font-size: 9px; font-weight: 700; background: var(--line); color: var(--faint); }
+.gl-smart span.ok { background: #132a2e; color: #56d4c4; }
+
+.gl-card { --sc: var(--doing); background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+.gl-dtitle { display: flex; align-items: flex-start; gap: 10px; }
+.gl-dtitle h3 { margin: 0; font-size: 16px; flex: 1; line-height: 1.3; overflow-wrap: anywhere; }
+.gl-big { display: flex; align-items: baseline; gap: 8px; margin-top: 12px; }
+.gl-big b { font-size: 26px; color: var(--sc); }
+.gl-big span { color: var(--muted); }
+.gl-chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+.gl-chart text { fill: var(--faint); font-size: 8px; font-family: inherit; }
+.gl-legend { display: flex; gap: 14px; color: var(--muted); font-size: 10px; margin-top: 4px; }
+.gl-legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--sc); vertical-align: middle; margin-right: 4px; }
+.gl-legend i.ideal { border-top: 2px dashed var(--faint); }
+.gl-pace { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.gl-pace div { background: var(--panel-2); border-radius: 8px; padding: 8px 4px; text-align: center; }
+.gl-pace b { display: block; font-size: 14px; }
+.gl-pace span { color: var(--muted); font-size: 10px; }
+.gl-sec { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.gl-sec::before { content: ""; width: 4px; height: 13px; border-radius: 1px; background: var(--doing); flex: none; }
+.gl-sec::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.gl-due { color: var(--ready); font-size: 11px; margin: -2px 0 10px; }
+.gl-ci { display: grid; grid-template-columns: 100px minmax(0, 1fr) auto; gap: 6px; }
+.gl-ci input { background: #0b0f14; border: 1px solid var(--line-2); border-radius: 6px; padding: 8px 10px; color: var(--text); min-width: 0; font-size: 16px; }
+.gl-ci input:focus { outline: none; border-color: var(--doing); }
+.gl-quick { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.gl-quick button { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; color: var(--muted); cursor: pointer; font-size: 11px; }
+.gl-quick button:hover { color: var(--text); border-color: var(--line-2); }
+.gl-hist { margin-top: 12px; }
+.gl-hi { display: grid; grid-template-columns: 64px 70px minmax(0, 1fr) 22px; gap: 8px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); font-size: 11px; }
+.gl-hi .d { color: var(--muted); }
+.gl-hi .v { font-weight: 700; }
+.gl-hi .v.up { color: var(--done); } .gl-hi .v.down { color: var(--paused); }
+.gl-hi .n { color: var(--muted); overflow-wrap: anywhere; }
+.gl-hi button { background: none; border: 0; color: var(--faint); cursor: pointer; padding: 0; }
+.gl-hi button:hover { color: var(--danger); }
+.gl-rtinfo { color: var(--muted); line-height: 1.6; }
+.gl-rtinfo b { color: var(--text); }
+.gl-sm { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+.gl-sm:first-of-type { border-top: 0; }
+.gl-sm small { display: block; color: var(--faint); font-size: 10px; }
+.gl-sm p { margin: 1px 0 0; line-height: 1.5; overflow-wrap: anywhere; }
+.gl-sm p.no { color: var(--faint); font-style: italic; }
+.gl-L { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; font-weight: 700; background: var(--line); color: var(--faint); flex: none; }
+.gl-L.ok, .gl-letter.ok .gl-L { background: #132a2e; color: #56d4c4; }
+
+.gl-box textarea, .gl-box select { width: 100%; background: #0b0f14; border: 1px solid var(--line-2); border-radius: 8px; padding: 10px; font-size: 16px; color: var(--text); }
+.gl-box textarea { min-height: 58px; resize: vertical; line-height: 1.45; }
+.gl-box textarea:focus, .gl-box select:focus { outline: none; border-color: var(--doing); }
+.gl-edh { display: flex; align-items: center; gap: 10px; }
+.gl-edh .gl-smart { margin-left: auto; }
+.gl-em { color: var(--faint); }
+.gl-g2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.gl-g3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.gl-catchips { margin-top: -6px; }
+.gl-catchips:empty { display: none; }
+.gl-letter { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.gl-lh { display: flex; align-items: center; gap: 10px; }
+.gl-lh b { display: block; }
+.gl-lh small { color: var(--faint); font-size: 10.5px; }
+.gl-mt { margin-top: 10px; }
+.gl-hint { color: var(--faint); font-size: 10.5px; margin-top: 8px; }
+@media (min-width: 801px) { .gl-box textarea, .gl-box select, .gl-ci input { font-size: 13px; } }
+/* Con 5 vistas, en pantallas angostas los botones se achican un poco más. */
+@media (max-width: 440px) { .seg button { padding: 6px 8px; } }
+.gl .rt-inner[hidden] { display: none; }
+.gl-chart { max-height: 200px; }
