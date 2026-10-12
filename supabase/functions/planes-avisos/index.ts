@@ -1,6 +1,6 @@
 // Supabase Edge Function "planes-avisos": manda las notificaciones de las rutinas de Planes.
 //
-// - Cada minuto la llama pg_cron (ver supabase/8-planes-avisos.sql) con el header x-cron-secret:
+// - Cada minuto la llama pg_cron (ver supabase/9-planes-avisos.sql) con el header x-cron-secret:
 //   avisa las rutinas con hora que tocan ahora y todavía no están marcadas.
 // - Desde la app, con la sesión iniciada y { test: true }: manda un aviso de prueba
 //   a los dispositivos de esa persona.

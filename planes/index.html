@@ -57,6 +57,8 @@
         <button type="button" data-mode="map" role="tab" title="Mapa">▦<span class="lbl"> Mapa</span></button>
         <button type="button" data-mode="list" role="tab" title="Lista">☑<span class="lbl"> Lista</span></button>
         <button type="button" data-mode="routines" role="tab" title="Rutinas">↻<span class="lbl"> Rutinas</span></button>
+        <button type="button" data-mode="notes" role="tab" title="Notas">✎<span class="lbl"> Notas</span></button>
+        <button type="button" data-mode="goals" role="tab" title="Objetivos">◎<span class="lbl"> Objetivos</span></button>
       </div>
       <button class="icon-btn help-btn only-mobile" data-help aria-label="Ayuda y reglas">?</button>
     </div>
@@ -108,6 +110,59 @@
         <div class="rt-month" id="rtMonth" hidden></div>
         <div id="rtList"></div>
         <button type="button" class="rt-fab" id="rtAdd">+ rutina</button>
+      </div>
+    </section>
+
+    <section class="rt nt" id="notes" hidden>
+      <div class="rt-inner" id="ntListView">
+        <div class="rt-top">
+          <h2>Notas</h2>
+          <span class="nt-count" id="ntCount"></span>
+          <button type="button" class="btn" id="ntExport" title="Descargar las notas que se ven, en un archivo de texto (Markdown)">⇩ exportar</button>
+        </div>
+        <div class="nt-search">
+          <input type="search" id="ntSearch" placeholder="Buscar en títulos y texto…" autocomplete="off" aria-label="Buscar notas">
+        </div>
+        <div class="nt-filters" id="ntFilters"></div>
+        <div id="ntList"></div>
+        <button type="button" class="rt-fab" id="ntAdd">+ nota</button>
+      </div>
+      <div class="rt-inner" id="ntDetail" hidden>
+        <div class="nt-dtop">
+          <button type="button" class="btn" id="ntBack">← volver</button>
+          <button type="button" class="btn" id="ntEdit">✎ editar</button>
+        </div>
+        <article class="nt-card" id="ntCard"></article>
+      </div>
+    </section>
+
+    <section class="rt gl" id="goals" hidden>
+      <div class="rt-inner" id="glListView">
+        <div class="rt-top">
+          <h2>Objetivos</h2>
+          <span class="nt-count" id="glCount"></span>
+        </div>
+        <div class="gl-stats" id="glStats"></div>
+        <div class="nt-search"><input type="search" id="glSearch" placeholder="Buscar objetivos…" autocomplete="off" aria-label="Buscar objetivos"></div>
+        <div class="gl-frow" id="glFProj"></div>
+        <div class="gl-frow" id="glFCat"></div>
+        <div class="gl-frow"><span class="gl-lbl">Orden</span>
+          <select class="gl-sort" id="glSort" aria-label="Ordenar">
+            <option value="due">fecha límite</option>
+            <option value="risk">más atrasados primero</option>
+            <option value="pct">avance</option>
+            <option value="new">más nuevos</option>
+          </select>
+        </div>
+        <div id="glList"></div>
+        <button type="button" class="rt-fab" id="glAdd">+ objetivo</button>
+      </div>
+      <div class="rt-inner" id="glDetail" hidden>
+        <div class="nt-dtop">
+          <button type="button" class="btn" id="glBack">← volver</button>
+          <button type="button" class="btn" id="glEdit">✎ editar</button>
+        </div>
+        <div id="glBody"></div>
       </div>
     </section>
 
@@ -180,6 +235,94 @@
     </div>
   </div>
 </div>
+<div class="rt-sheet" id="ntSheet" hidden>
+  <div class="rt-box nt-box" role="dialog" aria-modal="true" aria-labelledby="ntEdTitle">
+    <h3 id="ntEdTitle">Nueva nota</h3>
+    <div>
+      <div class="rt-lbl">Título</div>
+      <input type="text" id="ntTitle" maxlength="120" placeholder="Ej. Verbos irregulares en inglés">
+    </div>
+    <div>
+      <div class="rt-lbl">Categoría</div>
+      <input type="text" id="ntCat" maxlength="40" placeholder="Ej. Inglés, Cocina, Facultad…">
+      <div class="rt-chips nt-catchips" id="ntCats"></div>
+    </div>
+    <div>
+      <div class="rt-lbl">Texto <span class="nt-hint"># título · - lista · **negrita** · `código`</span></div>
+      <textarea id="ntBody" placeholder="Lo que quieras anotar…"></textarea>
+    </div>
+    <div class="rt-err" id="ntErr"></div>
+    <div class="rt-btns">
+      <button type="button" class="btn rt-del" id="ntDel" hidden>borrar</button>
+      <button type="button" class="btn" id="ntCancel">cancelar</button>
+      <button type="button" class="btn primary" id="ntSave">guardar</button>
+    </div>
+  </div>
+</div>
+<div class="rt-sheet" id="glSheet" hidden>
+  <div class="rt-box gl-box" role="dialog" aria-modal="true" aria-labelledby="glEdTitle">
+    <h3 class="gl-edh"><span id="glEdTitle">Nuevo objetivo</span><span class="gl-smart" id="glEdSmart"></span></h3>
+    <div><div class="rt-lbl">Objetivo</div><input type="text" id="glTitle" maxlength="100" placeholder="Ej. Correr 10 km sin parar"></div>
+    <div class="gl-g2">
+      <div><div class="rt-lbl">Proyecto <span class="gl-em">(de Planes)</span></div><select id="glProj"></select></div>
+      <div><div class="rt-lbl">Categoría</div><input type="text" id="glCat" maxlength="40" placeholder="Ej. Salud"></div>
+    </div>
+    <div class="rt-chips gl-catchips" id="glCats"></div>
+
+    <div class="gl-letter" data-l="S">
+      <div class="gl-lh"><span class="gl-L">S</span><div><b>Específico</b><small>¿Qué exactamente querés lograr?</small></div></div>
+      <textarea id="glS" placeholder="Ej. Correr 10 km seguidos a ritmo suave"></textarea>
+    </div>
+    <div class="gl-letter" data-l="M">
+      <div class="gl-lh"><span class="gl-L">M</span><div><b>Medible</b><small>¿Cómo sabés que avanzaste?</small></div></div>
+      <div class="rt-chips" id="glKind">
+        <button type="button" class="rt-chip" data-k="num">con un número</button>
+        <button type="button" class="rt-chip" data-k="rt">con una rutina</button>
+      </div>
+      <div id="glMNum">
+        <div class="gl-g3">
+          <div><div class="rt-lbl">Empiezo en</div><input type="number" id="glStart" step="any" inputmode="decimal" placeholder="0"></div>
+          <div><div class="rt-lbl">Meta</div><input type="number" id="glTarget" step="any" inputmode="decimal" placeholder="10"></div>
+          <div><div class="rt-lbl">Unidad</div><input type="text" id="glUnit" maxlength="16" placeholder="km"></div>
+        </div>
+        <div class="rt-lbl gl-mt">Revisión</div>
+        <div class="rt-chips" id="glReview">
+          <button type="button" class="rt-chip" data-r="none">cuando quiera</button>
+          <button type="button" class="rt-chip" data-r="week">semanal</button>
+          <button type="button" class="rt-chip" data-r="month">mensual</button>
+        </div>
+      </div>
+      <div id="glMRt" hidden>
+        <div class="gl-g2">
+          <div><div class="rt-lbl">Rutina</div><select id="glRoutine"></select></div>
+          <div><div class="rt-lbl">Meta (días cumplidos)</div><input type="number" id="glRtTarget" min="1" step="1" inputmode="numeric"></div>
+        </div>
+        <div class="gl-hint" id="glRtHint"></div>
+      </div>
+    </div>
+    <div class="gl-letter" data-l="A">
+      <div class="gl-lh"><span class="gl-L">A</span><div><b>Alcanzable</b><small>¿Cómo lo vas a hacer? Plan, recursos, hábitos.</small></div></div>
+      <textarea id="glA" placeholder="Ej. 3 salidas por semana, sumando 1 km cada semana"></textarea>
+    </div>
+    <div class="gl-letter" data-l="R">
+      <div class="gl-lh"><span class="gl-L">R</span><div><b>Relevante</b><small>¿Por qué te importa?</small></div></div>
+      <textarea id="glR" placeholder="Ej. Quiero correr la carrera de la ciudad en diciembre"></textarea>
+    </div>
+    <div class="gl-letter" data-l="T">
+      <div class="gl-lh"><span class="gl-L">T</span><div><b>Temporal</b><small>¿Desde cuándo y para cuándo?</small></div></div>
+      <div class="gl-g2">
+        <div><div class="rt-lbl">Desde</div><input type="date" id="glFrom"></div>
+        <div><div class="rt-lbl">Fecha límite</div><input type="date" id="glDue"></div>
+      </div>
+    </div>
+    <div class="rt-err" id="glErr"></div>
+    <div class="rt-btns">
+      <button type="button" class="btn rt-del" id="glDel" hidden>borrar</button>
+      <button type="button" class="btn" id="glCancel">cancelar</button>
+      <button type="button" class="btn primary" id="glSave">guardar</button>
+    </div>
+  </div>
+</div>
 <dialog class="help-dlg" id="helpDlg">
   <div class="help-top">
     <strong>Reglas y atajos</strong>
@@ -207,6 +350,8 @@
         — <b>puntito</b> al lado del nombre = notas de la tarea (lleno = tiene notas)<br>
         — ☰ = mostrar / ocultar este panel<br>
         — <b>↻ Rutinas</b> = checklist diario: tocá una rutina para marcarla; Semana / Mes para ver tu avance<br>
+        — <b>◎ Objetivos</b> = objetivos SMART: se miden con un número (anotás avances; revisión semanal o mensual) o con una rutina (se cuentan solos los días que la marcaste)<br>
+        — <b>✎ Notas</b> = apuntes: buscalos y filtralos por categoría; «⇩ exportar» descarga las que se ven en un archivo<br>
         — Ctrl+Z / Ctrl+Y
       </p>
 

@@ -21,6 +21,8 @@ if(!Array.isArray(state.programs)) state.programs = [];
 if(!Array.isArray(state.portfolios)) state.portfolios = [];
 if(!Array.isArray(state.routines)) state.routines = [];
 if(!state.routineDone || typeof state.routineDone !== "object") state.routineDone = {};
+if(!Array.isArray(state.notes)) state.notes = [];
+if(!Array.isArray(state.goals)) state.goals = [];
 if(!state.mode) state.mode = matchMedia("(max-width: 800px)").matches ? "list" : "map";
 // Al tocar un aviso de rutina se abre /planes/?rutinas: ir directo a la vista Rutinas.
 if(/[?&]rutinas\b/.test(location.search)){
@@ -158,7 +160,7 @@ function snap(v){ return Math.round(v / GRID) * GRID; }
 function cardH(id){ var el = els[id]; return (el && el.offsetHeight) || H; }
 
 // ---------- historial ----------
-function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, current: state.current }); }
+function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, notes: state.notes, goals: state.goals, current: state.current }); }
 function pushHist(s){
   hist.push(s || snapshot());
   if(hist.length > 200) hist.shift();
@@ -171,6 +173,8 @@ function restore(s){
   state.portfolios = o.portfolios || [];
   state.routines = o.routines || [];
   state.routineDone = o.routineDone || {};
+  state.notes = o.notes || [];
+  state.goals = o.goals || [];
   state.current = o.current;
   sel = null;
   save();
@@ -308,6 +312,8 @@ function renderAll(){
   renderProjects();
   renderList();
   renderRoutines();
+  renderNotes();
+  renderGoals();
   renderCards();
   renderWires();
   applyView();
@@ -871,7 +877,7 @@ canvas.addEventListener("wheel", function(e){
 // ---------- teclado ----------
 document.addEventListener("keydown", function(e){
   var tg = e.target;
-  if(!$("ask").hidden || !$("notesDlg").hidden || !$("rtSheet").hidden || !$("avSheet").hidden) return;
+  if(!$("ask").hidden || !$("notesDlg").hidden || !$("rtSheet").hidden || !$("avSheet").hidden || !$("ntSheet").hidden || !$("glSheet").hidden) return;
   if(editing || tg.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName)) return;
   var mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
   if(mod && k === "z" && !e.shiftKey){ e.preventDefault(); undo(); }
@@ -1143,6 +1149,8 @@ $("newTask").addEventListener("click", function(){
   var p = proj(); if(!p) return;
   if(state.mode === "list"){ closeSideMobile(); $("listNew").focus(); return; }
   if(state.mode === "routines"){ closeSideMobile(); rtOpen(null); return; }
+  if(state.mode === "notes"){ closeSideMobile(); ntEditOpen(null); return; }
+  if(state.mode === "goals"){ closeSideMobile(); glEditOpen(null); return; }
   var r = canvas.getBoundingClientRect();
   var c = toWorld(r.left + r.width / 2, r.top + r.height / 2), t;
   change(function(){ t = makeTask(p, c.x - W / 2, c.y - H / 2); sel = { task: t.id }; });
@@ -1531,9 +1539,605 @@ document.addEventListener("visibilitychange", function(){
   if(document.visibilityState === "visible" && state.mode === "routines") renderRoutines();
 });
 
+// ---------- notas ----------
+// state.notes: [{ id, title, cat, body, created, updated }]
+// Se guardan en la cuenta con lo demás. El filtro elegido queda en el navegador.
+var NT_COLORS = ["#58a6ff", "#3fb950", "#f0883e", "#e3c341", "#bc8cff", "#f47067", "#39c5cf", "#db61a2"];
+var ntQuery = "", ntShown = null, ntEditing = null, ntVisible = [];
+
+function ntNorm(s){ return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+function ntCats(){
+  var seen = {}, out = [];
+  state.notes.forEach(function(n){ var c = n.cat || ""; if(c && !seen[ntNorm(c)]){ seen[ntNorm(c)] = 1; out.push(c); } });
+  return out.sort(function(a, b){ return a.localeCompare(b, "es"); });
+}
+// Color fijo por categoría (sale del nombre, así no cambia entre dispositivos).
+function ntColor(c){
+  var h = 0, s = ntNorm(c);
+  for(var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return NT_COLORS[h % NT_COLORS.length];
+}
+function ntChip(c){ return c ? '<span class="nt-cat" style="--c:' + ntColor(c) + '">' + esc(c) + "</span>" : ""; }
+function ntById(id){ for(var i = 0; i < state.notes.length; i++) if(state.notes[i].id === id) return state.notes[i]; return null; }
+function ntDate(ms){ var d = new Date(ms); return d.getDate() + " " + RT_MONTHS[d.getMonth()].slice(0, 3) + (d.getFullYear() !== new Date().getFullYear() ? " " + d.getFullYear() : ""); }
+function ntPreview(b){
+  var l = String(b || "").split("\n").map(function(x){ return x.replace(/^\s*(#+|[-*]|\d+[.)])\s+/, "").replace(/[*`]/g, "").trim(); })
+    .filter(Boolean).join(" · ");
+  return l.length > 110 ? l.slice(0, 110) + "…" : l;
+}
+// Texto con formato mínimo: # títulos, - listas, 1. numeradas, **negrita**, `código` y links.
+function ntInline(s){
+  return esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+}
+function ntFormat(b){
+  var out = "", list = null;
+  function close(){ if(list){ out += "</" + list + ">"; list = null; } }
+  String(b || "").split("\n").forEach(function(line){
+    var m;
+    if((m = line.match(/^\s*(#{1,3})\s+(.*)$/))){ close(); out += '<div class="nt-h' + m[1].length + '">' + ntInline(m[2]) + "</div>"; }
+    else if((m = line.match(/^\s*[-*•]\s+(.*)$/))){ if(list !== "ul"){ close(); out += "<ul>"; list = "ul"; } out += "<li>" + ntInline(m[1]) + "</li>"; }
+    else if((m = line.match(/^\s*\d+[.)]\s+(.*)$/))){ if(list !== "ol"){ close(); out += "<ol>"; list = "ol"; } out += "<li>" + ntInline(m[1]) + "</li>"; }
+    else if(!line.trim()){ close(); out += '<div class="nt-gap"></div>'; }
+    else { close(); out += "<p>" + ntInline(line) + "</p>"; }
+  });
+  close();
+  return out;
+}
+
+function renderNotes(){
+  var box = $("notes");
+  box.hidden = state.mode !== "notes";
+  if(box.hidden) return;
+  var open = ntShown && ntById(ntShown);
+  if(!open) ntShown = null;
+  $("ntListView").hidden = !!open;
+  $("ntDetail").hidden = !open;
+  if(open) return renderNoteDetail(open);
+
+  var cats = ntCats(), f = state.notesFilter || "";
+  if(f && cats.indexOf(f) < 0) f = "";
+  $("ntFilters").innerHTML = state.notes.length ? [["", "Todas"]]
+    .concat(cats.map(function(c){ return [c, c]; }))
+    .map(function(x){
+      return '<button type="button" data-f="' + esc(x[0]) + '" class="' + (x[0] === f ? "on" : "") + '"' +
+        (x[0] ? ' style="--c:' + ntColor(x[0]) + '"' : "") + ">" + esc(x[1]) + "</button>";
+    }).join("") : "";
+
+  var q = ntNorm(ntQuery), list = state.notes.filter(function(n){
+    if(f && n.cat !== f) return false;
+    return !q || ntNorm(n.title + " " + (n.cat || "") + " " + (n.body || "")).indexOf(q) >= 0;
+  });
+  list.sort(function(a, b){ return b.updated - a.updated; });
+  ntVisible = list;
+  $("ntExport").hidden = !list.length;
+  $("ntCount").textContent = state.notes.length ? (list.length === state.notes.length ? "" : list.length + " de ") + state.notes.length + (state.notes.length === 1 ? " nota" : " notas") : "";
+
+  var html = "";
+  if(!state.notes.length){
+    html = '<div class="rt-empty">Todavía no tenés notas.<br>Tocá «+ nota» para guardar apuntes: un tema, un resumen, una receta…</div>';
+  } else if(!list.length){
+    html = '<div class="rt-empty">No se encontró nada con esa búsqueda.</div>';
+  } else {
+    list.forEach(function(n){
+      var pv = ntPreview(n.body);
+      html += '<div class="rt-item nt-item" data-id="' + n.id + '" tabindex="0" role="button" style="--c:' +
+        (n.cat ? ntColor(n.cat) : "var(--line-2)") + '"><div class="rt-main"><div class="rt-name">' + esc(n.title) + "</div>" +
+        (pv ? '<div class="nt-pv">' + esc(pv) + "</div>" : "") +
+        '<div class="rt-meta">' + ntChip(n.cat) + '<span class="nt-when">' + ntDate(n.updated) + "</span></div></div>" +
+        '<span class="nt-go">›</span></div>';
+    });
+  }
+  $("ntList").innerHTML = html;
+}
+
+function renderNoteDetail(n){
+  $("ntCard").innerHTML =
+    '<header class="nt-chead"><h3>' + esc(n.title) + "</h3>" + ntChip(n.cat) + "</header>" +
+    '<div class="nt-cmeta">editada ' + ntDate(n.updated) + "</div>" +
+    '<div class="nt-body">' + (n.body && n.body.trim() ? ntFormat(n.body) : '<p class="nt-nobody">Sin texto. Tocá «✎ editar» para escribir.</p>') + "</div>";
+}
+
+function ntOpen(id){ ntShown = id; renderNotes(); $("notes").scrollTop = 0; }
+function ntBack(){ ntShown = null; renderNotes(); }
+
+$("ntSearch").addEventListener("input", function(e){ ntQuery = e.target.value; renderNotes(); });
+$("ntFilters").addEventListener("click", function(e){
+  var b = e.target.closest("[data-f]"); if(!b) return;
+  state.notesFilter = b.dataset.f; save(); renderNotes();
+});
+$("ntList").addEventListener("click", function(e){
+  var it = e.target.closest(".nt-item"); if(it) ntOpen(it.dataset.id);
+});
+$("ntList").addEventListener("keydown", function(e){
+  var it = e.target.closest(".nt-item");
+  if(it && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); ntOpen(it.dataset.id); }
+});
+$("ntBack").addEventListener("click", ntBack);
+$("ntEdit").addEventListener("click", function(){ if(ntShown) ntEditOpen(ntShown); });
+// Exportar: las notas que se ven (con el filtro y la búsqueda) en un archivo Markdown.
+function ntExport(){
+  var list = ntVisible.filter(function(n){ return ntById(n.id); }); if(!list.length) return;
+  var md = "# Notas\n\n" + list.map(function(n){
+    return "## " + n.title + "\n\n" + (n.cat ? "_" + n.cat + " · editada " + ntDate(n.updated) + "_" : "_editada " + ntDate(n.updated) + "_") +
+      "\n\n" + (n.body || "").trim().replace(/^(\s*)(#{1,3})(?=\s)/gm, "$1##$2") + "\n";
+  }).join("\n---\n\n");
+  var f = state.notesFilter;
+  var name = "notas" + (f ? "-" + ntNorm(f).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "") + "-" + rtKey(rtToday()) + ".md";
+  var blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+  var msg = "⇩ " + list.length + (list.length === 1 ? " nota exportada" : " notas exportadas");
+  // En el celular, compartir deja guardarlo en Archivos / Drive o mandarlo; en la compu se descarga.
+  try {
+    var file = new File([blob], name, { type: "text/markdown" });
+    if(isMobile() && navigator.canShare && navigator.canShare({ files: [file] })){
+      navigator.share({ files: [file], title: name }).then(function(){ toast(msg); }).catch(function(){});
+      return;
+    }
+  } catch(e){}
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  toast(msg);
+}
+$("ntExport").addEventListener("click", ntExport);
+$("ntAdd").addEventListener("click", function(){ ntEditOpen(null); });
+document.addEventListener("keydown", function(e){
+  if(e.key !== "Escape" || state.mode !== "notes" || !ntShown) return;
+  if(!$("ntSheet").hidden || !$("ask").hidden || !$("notesDlg").hidden) return;
+  ntBack();
+});
+
+// ---------- editor de nota ----------
+function ntPaintCats(){
+  var cur = ntNorm($("ntCat").value.trim());
+  $("ntCats").innerHTML = ntCats().map(function(c){
+    return '<button type="button" class="rt-chip' + (ntNorm(c) === cur ? " on" : "") + '" data-c="' + esc(c) + '">' + esc(c) + "</button>";
+  }).join("");
+}
+function ntEditOpen(id){
+  var n = id ? ntById(id) : null;
+  ntEditing = n;
+  $("ntEdTitle").textContent = n ? "Editar nota" : "Nueva nota";
+  $("ntTitle").value = n ? n.title : "";
+  var f = state.notesFilter;
+  $("ntCat").value = n ? (n.cat || "") : (f || "");
+  $("ntBody").value = n ? (n.body || "") : "";
+  $("ntDel").hidden = !n;
+  $("ntErr").textContent = "";
+  ntPaintCats();
+  $("ntSheet").hidden = false;
+  setTimeout(function(){ if(!$("ntSheet").contains(document.activeElement)) (n ? $("ntBody") : $("ntTitle")).focus(); }, 30);
+}
+function ntEditClose(){ $("ntSheet").hidden = true; ntEditing = null; }
+$("ntCat").addEventListener("input", ntPaintCats);
+$("ntCats").addEventListener("click", function(e){
+  var b = e.target.closest("[data-c]"); if(!b) return;
+  $("ntCat").value = ntNorm($("ntCat").value.trim()) === ntNorm(b.dataset.c) ? "" : b.dataset.c;
+  ntPaintCats();
+});
+$("ntSave").addEventListener("click", function(){
+  var title = $("ntTitle").value.replace(/\s+/g, " ").trim();
+  if(!title){ $("ntErr").textContent = "Poné un título."; $("ntTitle").focus(); return; }
+  var cat = $("ntCat").value.replace(/\s+/g, " ").trim();
+  // Misma categoría escrita distinto (mayúsculas, tildes) = la que ya existe.
+  ntCats().forEach(function(c){ if(ntNorm(c) === ntNorm(cat)) cat = c; });
+  var body = $("ntBody").value.replace(/\s+$/, ""), n = ntEditing, now = Date.now();
+  ntEditClose();
+  rtChange(function(){
+    if(n){ n.title = title; n.cat = cat; n.body = body; n.updated = now; }
+    else { n = { id: uid(), title: title, cat: cat, body: body, created: now, updated: now }; state.notes.push(n); }
+  });
+  ntOpen(n.id);
+});
+$("ntDel").addEventListener("click", function(){
+  var n = ntEditing; if(!n) return;
+  ntEditClose();
+  ask({ title: "¿Borrar la nota «" + n.title + "»?", ok: "borrar", danger: true }, function(){
+    if(ntShown === n.id) ntShown = null;
+    rtChange(function(){ state.notes = state.notes.filter(function(x){ return x.id !== n.id; }); });
+  });
+});
+$("ntCancel").addEventListener("click", ntEditClose);
+$("ntSheet").addEventListener("click", function(e){ if(e.target === e.currentTarget) ntEditClose(); });
+$("ntTitle").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); $("ntCat").focus(); } });
+$("ntCat").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); $("ntBody").focus(); } });
+$("ntBody").addEventListener("keydown", function(e){ if(e.key === "Enter" && (e.ctrlKey || e.metaKey)){ e.preventDefault(); $("ntSave").click(); } });
+document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !$("ntSheet").hidden) ntEditClose(); });
+
+// ---------- objetivos (SMART) ----------
+// state.goals: [{ id, title, project, cat, S, A, R, kind: "num" | "rt", from, due, created,
+//   num: start, target, unit, review ("none" | "week" | "month"), lastReview, checkins [{ id, date, value, note }]
+//   rt:  routine (id de rutina), target (días cumplidos) }]
+// Los de rutina se cuentan solos con state.routineDone; los de número con los avances anotados.
+var GL_ST = {
+  done: { name: "cumplido", c: "var(--done)" },
+  ok:   { name: "en camino", c: "var(--doing)" },
+  late: { name: "atrasado", c: "var(--paused)" },
+  over: { name: "vencido", c: "var(--danger)" },
+  soon: { name: "por empezar", c: "var(--todo)" }
+};
+var glUi = { q: "", proj: "", cat: "", st: "", sort: "due", open: null }, glEditing = null, glEdKind = "num", glEdReview = "none";
+
+function glById(id){ for(var i = 0; i < state.goals.length; i++) if(state.goals[i].id === id) return state.goals[i]; return null; }
+function glRoutine(id){ for(var i = 0; i < state.routines.length; i++) if(state.routines[i].id === id) return state.routines[i]; return null; }
+function glProject(id){ for(var i = 0; i < state.projects.length; i++) if(state.projects[i].id === id) return state.projects[i]; return null; }
+function glDays(a, b){ return Math.round((rtParse(b) - rtParse(a)) / 864e5); }
+function glFmtD(k){ var d = rtParse(k); return d.getDate() + " " + RT_MONTHS[d.getMonth()].slice(0, 3); }
+function glTodayK(){ return rtKey(rtToday()); }
+function glSorted(g){ return (g.checkins || []).slice().sort(function(a, b){ return a.date.localeCompare(b.date); }); }
+// Días cumplidos de la rutina entre las fechas del objetivo (hasta hoy).
+function glRtDone(g, upTo){
+  var end = upTo || g.due, n = 0;
+  Object.keys(state.routineDone).forEach(function(k){ if(k >= g.from && k <= end && state.routineDone[k][g.routine]) n++; });
+  return n;
+}
+// Días en que la rutina está programada entre dos fechas (para sugerir la meta).
+function glRtScheduled(r, from, due){
+  if(!r || !from || !due || due < from) return 0;
+  var n = 0, d = rtParse(from), end = rtParse(due);
+  while(d <= end){ if(r.days.indexOf(rtDow(d)) >= 0) n++; d = rtAdd(d, 1); }
+  return n;
+}
+function glStart(g){ return g.kind === "rt" ? 0 : g.start; }
+function glCurrent(g){
+  if(g.kind === "rt") return glRtDone(g);
+  var c = glSorted(g);
+  return c.length ? c[c.length - 1].value : g.start;
+}
+function glPct(g){ var d = g.target - glStart(g); if(!d) return 0; return Math.max(0, Math.min(1, (glCurrent(g) - glStart(g)) / d)); }
+function glExpected(g){ var tot = glDays(g.from, g.due); if(tot <= 0) return 1; return Math.max(0, Math.min(1, glDays(g.from, glTodayK()) / tot)); }
+function glStatus(g){
+  var p = glPct(g), t = glTodayK();
+  if(p >= 1) return "done";
+  if(t > g.due) return "over";
+  if(t < g.from) return "soon";
+  return p >= glExpected(g) - 0.08 ? "ok" : "late";
+}
+// Próxima revisión: una semana o un mes después de la última (o del inicio).
+function glNextReview(g){
+  if(g.kind !== "num" || !g.review || g.review === "none") return null;
+  var b = rtParse(g.lastReview || g.from);
+  if(g.review === "week") return rtKey(rtAdd(b, 7));
+  var m = new Date(b.getFullYear(), b.getMonth() + 1, Math.min(b.getDate(), new Date(b.getFullYear(), b.getMonth() + 2, 0).getDate()));
+  return rtKey(m);
+}
+function glReviewDue(g){
+  var s = glStatus(g), n = glNextReview(g);
+  return !!n && s !== "done" && s !== "over" && s !== "soon" && glTodayK() >= n;
+}
+function glSmart(g){
+  return { S: !!(g.S || "").trim(),
+    M: g.kind === "rt" ? !!glRoutine(g.routine) && g.target > 0 : isFinite(g.start) && isFinite(g.target) && g.start !== g.target,
+    A: !!(g.A || "").trim(), R: !!(g.R || "").trim(), T: !!(g.from && g.due && g.due > g.from) };
+}
+function glSmartHtml(o){ return "SMART".split("").map(function(l){ return '<span class="' + (o[l] ? "ok" : "") + '">' + l + "</span>"; }).join(""); }
+function glUnit(g){ return g.kind === "rt" ? "días" : g.unit; }
+function glN(n, u){
+  var s = Math.abs(n) >= 1000 ? Math.round(n).toLocaleString("es-AR") : String(Math.round(n * 10) / 10).replace(".", ",");
+  if(u === "días" && Math.abs(n) === 1) u = "día";
+  return u === "$" ? "$" + s : u === "%" ? s + "%" : s + (u ? " " + u : "");
+}
+function glLeft(g){ var d = glDays(glTodayK(), g.due); return d < 0 ? "venció hace " + (-d) + " d" : d === 0 ? "vence hoy" : "faltan " + d + " d"; }
+function glCats(){ var o = {}; state.goals.forEach(function(g){ if(g.cat) o[g.cat] = 1; }); return Object.keys(o).sort(function(a, b){ return a.localeCompare(b, "es"); }); }
+function glTags(g){
+  var p = g.project && glProject(g.project), r = g.kind === "rt" && glRoutine(g.routine);
+  return (p ? '<span class="gl-tag proj">▦ ' + esc(p.name) + "</span>" : "") +
+    (g.cat ? '<span class="gl-tag" style="--c:' + ntColor(g.cat) + '">' + esc(g.cat) + "</span>" : "") +
+    (r ? '<span class="gl-tag rtn">↻ ' + esc(r.name) + "</span>" : "") +
+    (glReviewDue(g) ? '<span class="gl-tag rev">↻ toca revisar</span>' : "");
+}
+
+function renderGoals(){
+  var box = $("goals");
+  box.hidden = state.mode !== "goals";
+  if(box.hidden) return;
+  var open = glUi.open && glById(glUi.open);
+  if(!open) glUi.open = null;
+  $("glListView").hidden = !!open;
+  $("glDetail").hidden = !open;
+  if(open) return renderGoal(open);
+
+  var projs = [], seenP = {};
+  state.goals.forEach(function(g){ var p = g.project && glProject(g.project); if(p && !seenP[p.id]){ seenP[p.id] = 1; projs.push(p); } });
+  projs.sort(function(a, b){ return a.name.localeCompare(b.name, "es"); });
+  var cats = glCats();
+  if(glUi.proj && !seenP[glUi.proj]) glUi.proj = "";
+  if(glUi.cat && cats.indexOf(glUi.cat) < 0) glUi.cat = "";
+  function chips(lbl, list, cur, f){
+    if(!list.length) return "";
+    return '<span class="gl-lbl">' + lbl + "</span>" + [["", "todos"]].concat(list).map(function(v){
+      return '<button type="button" class="gl-chip' + (v[0] === cur ? " on" : "") + '" data-' + f + '="' + esc(v[0]) + '"' +
+        (v[0] && f === "gc" ? ' style="--c:' + ntColor(v[0]) + '"' : "") + ">" + esc(v[1]) + "</button>";
+    }).join("");
+  }
+  $("glFProj").innerHTML = chips("Proyecto", projs.map(function(p){ return [p.id, p.name]; }), glUi.proj, "gp");
+  $("glFCat").innerHTML = chips("Categoría", cats.map(function(c){ return [c, c]; }), glUi.cat, "gc");
+
+  var q = ntNorm(glUi.q);
+  var base = state.goals.filter(function(g){
+    if(glUi.proj && g.project !== glUi.proj) return false;
+    if(glUi.cat && g.cat !== glUi.cat) return false;
+    var p = g.project && glProject(g.project);
+    return !q || ntNorm([g.title, g.cat, g.S, g.A, g.R, p ? p.name : ""].join(" ")).indexOf(q) >= 0;
+  });
+  var cnt = { ok: 0, late: 0, rev: 0, done: 0 };
+  base.forEach(function(g){ var s = glStatus(g); if(s === "ok") cnt.ok++; if(s === "late" || s === "over") cnt.late++; if(s === "done") cnt.done++; if(glReviewDue(g)) cnt.rev++; });
+  $("glStats").innerHTML = state.goals.length ? [["ok", "en camino", "var(--doing)"], ["late", "atrasados", "var(--paused)"], ["rev", "a revisar", "var(--ready)"], ["done", "cumplidos", "var(--done)"]].map(function(x){
+    return '<button type="button" class="gl-stat' + (glUi.st === x[0] ? " on" : "") + '" data-gs="' + x[0] + '" style="--c:' + x[2] + '"><b>' + cnt[x[0]] + "</b><span>" + x[1] + "</span></button>";
+  }).join("") : "";
+
+  var list = base.filter(function(g){
+    var s = glStatus(g);
+    return !glUi.st || (glUi.st === "rev" ? glReviewDue(g) : glUi.st === "late" ? s === "late" || s === "over" : s === glUi.st);
+  });
+  var rank = { over: 0, late: 1, ok: 2, soon: 3, done: 4 };
+  list.sort(function(a, b){
+    if(glUi.sort === "risk") return rank[glStatus(a)] - rank[glStatus(b)] || (glPct(a) - glExpected(a)) - (glPct(b) - glExpected(b));
+    if(glUi.sort === "pct") return glPct(b) - glPct(a);
+    if(glUi.sort === "new") return (b.created || 0) - (a.created || 0);
+    var da = glStatus(a) === "done", db = glStatus(b) === "done";
+    return (glReviewDue(b) - glReviewDue(a)) || (da - db) || a.due.localeCompare(b.due);
+  });
+  $("glCount").textContent = state.goals.length ? (list.length !== state.goals.length ? list.length + " de " : "") + state.goals.length + (state.goals.length === 1 ? " objetivo" : " objetivos") : "";
+
+  $("glList").innerHTML = !state.goals.length
+    ? '<div class="rt-empty">Todavía no tenés objetivos.<br>Tocá «+ objetivo» y completá las 5 letras SMART.<br>Se pueden medir con un número o con una de tus rutinas.</div>'
+    : !list.length ? '<div class="rt-empty">No hay objetivos con esos filtros.</div>'
+    : list.map(function(g){
+      var s = glStatus(g), p = glPct(g), e = glExpected(g), u = glUnit(g);
+      return '<div class="gl-goal" data-gid="' + g.id + '" style="--sc:' + GL_ST[s].c + '" tabindex="0" role="button">' +
+        '<div class="gl-head"><div class="gl-title">' + esc(g.title) + '</div><span class="gl-pill">' + GL_ST[s].name + "</span></div>" +
+        '<div class="gl-bar"><i style="width:' + (p * 100) + '%"></i>' + (s === "ok" || s === "late" ? '<u style="left:calc(' + (e * 100) + '% - 1px)" title="dónde deberías estar hoy"></u>' : "") + "</div>" +
+        '<div class="gl-nums"><span><b>' + glN(glCurrent(g), u) + "</b> de " + glN(g.target, u) + " · " + Math.round(p * 100) + "%</span><span>" + (s === "done" ? "✓" : glLeft(g)) + "</span></div>" +
+        '<div class="gl-meta">' + glTags(g) + '<span class="gl-smart">' + glSmartHtml(glSmart(g)) + "</span></div></div>";
+    }).join("");
+}
+
+// Puntos del gráfico: inicio + avances (número) o días cumplidos acumulados (rutina).
+function glPoints(g){
+  var pts = [{ date: g.from, value: glStart(g) }];
+  if(g.kind === "rt"){
+    var n = 0;
+    Object.keys(state.routineDone).filter(function(k){ return k >= g.from && k <= g.due && state.routineDone[k][g.routine]; }).sort().forEach(function(k){ n++; pts.push({ date: k, value: n }); });
+  } else pts = pts.concat(glSorted(g));
+  return pts;
+}
+function glChart(g){
+  var W = 300, H = 120, P = { l: 4, r: 4, t: 10, b: 16 };
+  var pts = glPoints(g), t0 = rtParse(g.from), t1 = rtParse(g.due), tk = glTodayK();
+  var lastD = pts[pts.length - 1].date; if(lastD > g.due) t1 = rtParse(lastD);
+  var vs = pts.map(function(p){ return p.value; }).concat([glStart(g), g.target]);
+  var lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs); if(hi === lo) hi = lo + 1;
+  function x(k){ var r = (rtParse(k) - t0) / Math.max(1, t1 - t0); return P.l + Math.max(0, Math.min(1, r)) * (W - P.l - P.r); }
+  function y(v){ return P.t + (1 - (v - lo) / (hi - lo)) * (H - P.t - P.b); }
+  var c = GL_ST[glStatus(g)].c, tx = x(tk);
+  var out = '<svg class="gl-chart" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Avance en el tiempo">' +
+    '<line x1="' + P.l + '" x2="' + (W - P.r) + '" y1="' + y(g.target) + '" y2="' + y(g.target) + '" stroke="#262e39" stroke-width="1"/>' +
+    '<text x="' + (W - P.r) + '" y="' + (y(g.target) - 3) + '" text-anchor="end">meta ' + esc(glN(g.target, glUnit(g))) + "</text>" +
+    '<line x1="' + x(g.from) + '" y1="' + y(glStart(g)) + '" x2="' + x(g.due) + '" y2="' + y(g.target) + '" stroke="#4b5563" stroke-width="1.4" stroke-dasharray="4 3"/>';
+  if(tk >= g.from && rtParse(tk) <= t1) out += '<line x1="' + tx + '" x2="' + tx + '" y1="' + P.t + '" y2="' + (H - P.b) + '" stroke="#e3c341" stroke-width="1" opacity=".5"/>' + (tx > 40 && tx < W - 40 ? '<text x="' + tx + '" y="' + (H - 5) + '" text-anchor="middle" fill="#e3c341">hoy</text>' : "");
+  out += '<path d="' + pts.map(function(p, i){ return (i ? "L" : "M") + x(p.date).toFixed(1) + " " + y(p.value).toFixed(1); }).join(" ") + '" fill="none" stroke="' + c + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  if(pts.length < 40) pts.forEach(function(p){ out += '<circle cx="' + x(p.date) + '" cy="' + y(p.value) + '" r="2.6" fill="' + c + '"/>'; });
+  out += '<text x="' + P.l + '" y="' + (H - 5) + '">' + glFmtD(g.from) + '</text><text x="' + (W - P.r) + '" y="' + (H - 5) + '" text-anchor="end">' + glFmtD(rtKey(t1)) + "</text></svg>";
+  return out + '<div class="gl-legend"><span><i></i>tu avance</span><span><i class="ideal"></i>ritmo ideal</span></div>';
+}
+function glPace(g){
+  var s = glStatus(g), u = glUnit(g), cur = glCurrent(g), rem = g.target - cur, dl = glDays(glTodayK(), g.due);
+  if(s === "done") return '<div><b style="color:var(--done)">✓</b><span>cumplido</span></div><div><b>' + glN(cur, u) + "</b><span>logrado</span></div><div><b>" + glN(g.target, u) + "</b><span>meta</span></div>";
+  var should = glStart(g) + (g.target - glStart(g)) * glExpected(g), diff = cur - should, sign = g.target > glStart(g) ? 1 : -1;
+  return "<div><b>" + glN(Math.abs(rem), u) + "</b><span>faltan</span></div>" +
+    "<div><b>" + (dl < 0 ? "–" : glN(Math.abs(rem) / (Math.max(dl, 1) / 7), u)) + "</b><span>por semana</span></div>" +
+    '<div><b style="color:' + (diff * sign >= 0 ? "var(--done)" : "var(--paused)") + '">' + (diff * sign >= 0 ? "+" : "−") + glN(Math.abs(diff), u) + "</b><span>vs. ideal hoy</span></div>";
+}
+function renderGoal(g){
+  var s = glStatus(g), ok = glSmart(g), p = glPct(g), u = glUnit(g), r = g.kind === "rt" && glRoutine(g.routine);
+  var L = { S: ["Específico", g.S], A: ["Alcanzable", g.A], R: ["Relevante", g.R],
+    M: ["Medible", g.kind === "rt" ? (r ? "Cumplir «" + r.name + "» " + g.target + " días" : "") : ok.M ? "De " + glN(g.start, g.unit) + " a " + glN(g.target, g.unit) : ""],
+    T: ["Temporal", g.from && g.due ? "Del " + glFmtD(g.from) + " al " + glFmtD(g.due) + " (" + glDays(g.from, g.due) + " días)" : ""] };
+  var h = '<div class="gl-card" style="--sc:' + GL_ST[s].c + '">' +
+      '<div class="gl-dtitle"><h3>' + esc(g.title) + '</h3><span class="gl-pill">' + GL_ST[s].name + "</span></div>" +
+      '<div class="gl-meta">' + glTags(g) + "<span>" + (s === "done" ? "cumplido" : glLeft(g)) + "</span></div>" +
+      '<div class="gl-big"><b>' + Math.round(p * 100) + "%</b><span>" + glN(glCurrent(g), u) + " de " + glN(g.target, u) + "</span></div>" +
+      glChart(g) + "</div>" +
+    '<div class="gl-card"><div class="gl-pace">' + glPace(g) + "</div></div>";
+
+  if(g.kind === "rt"){
+    var sched = r ? glRtScheduled(r, g.from, g.due) : 0;
+    h += '<div class="gl-card"><div class="gl-sec">Seguimiento</div><div class="gl-rtinfo">' +
+      (r ? "Se cuenta solo con los días que marcás <b>" + esc(r.name) + "</b> en Rutinas.<br>Llevás <b>" + glRtDone(g) + "</b> de <b>" + g.target + "</b> días · la rutina está programada " + sched + " días en este período."
+         : "La rutina de este objetivo ya no existe. Tocá ✎ editar para elegir otra.") +
+      '</div><div class="gl-quick"><button type="button" id="glToRt">↻ ir a Rutinas</button></div></div>';
+  } else {
+    var hist = glSorted(g).reverse(), asc = hist.slice().reverse(), sgn = g.target >= g.start ? 1 : -1, span = Math.abs(g.target - g.start);
+    var step = span >= 100 ? null : span <= 2 ? 0.1 : span <= 20 ? 1 : 5;
+    var nx = glNextReview(g);
+    h += '<div class="gl-card"><div class="gl-sec">Registrar avance</div>' +
+      (nx ? '<div class="gl-due">' + (glReviewDue(g) ? "↻ Toca revisar: anotá el número de hoy (aunque no haya cambiado)." : "Revisión " + (g.review === "week" ? "semanal" : "mensual") + " · la próxima es el " + glFmtD(nx)) + "</div>" : "") +
+      '<div class="gl-ci"><input type="number" id="glCiVal" step="any" inputmode="decimal" placeholder="' + esc(glN(glCurrent(g), "")) + '" aria-label="Valor de hoy">' +
+      '<input type="text" id="glCiNote" maxlength="80" placeholder="nota (qué funcionó, qué cambiar)" aria-label="Nota"><button type="button" class="btn primary" id="glCiAdd">＋</button></div>' +
+      (step ? '<div class="gl-quick">' + [1, 2, 5].map(function(m){ var v = Math.round((glCurrent(g) + sgn * step * m) * 10) / 10; return '<button type="button" data-gv="' + v + '">' + (sgn > 0 ? "+" : "−") + glN(step * m, g.unit) + "</button>"; }).join("") +
+        '<button type="button" data-gv="' + glCurrent(g) + '">= sin cambios</button></div>' : "") +
+      '<div class="gl-hist">' + (hist.length ? hist.map(function(c){
+        var i = asc.indexOf(c), prev = i > 0 ? asc[i - 1].value : g.start, d = c.value - prev;
+        return '<div class="gl-hi"><span class="d">' + (c.date === glTodayK() ? "hoy" : glFmtD(c.date)) + '</span><span class="v ' + (d ? (d * sgn > 0 ? "up" : "down") : "") + '">' + glN(c.value, g.unit) +
+          '</span><span class="n">' + (d ? (d > 0 ? "+" : "−") + glN(Math.abs(d), "") + " " : "") + esc(c.note || "") + '</span><button type="button" data-gdel="' + c.id + '" aria-label="Borrar registro">×</button></div>';
+      }).join("") : '<div class="rt-empty" style="padding:14px">Sin registros todavía. Anotá tu primer avance.</div>') + "</div></div>";
+  }
+  h += '<div class="gl-card"><div class="gl-sec">SMART <span class="gl-smart">' + glSmartHtml(ok) + "</span></div>" +
+    "SMART".split("").map(function(l){
+      return '<div class="gl-sm"><span class="gl-L' + (ok[l] ? " ok" : "") + '">' + l + "</span><div><small>" + L[l][0] + "</small><p" + (L[l][1] ? ">" + esc(L[l][1]) : ' class="no">sin completar — tocá ✎ editar') + "</p></div></div>";
+    }).join("") + "</div>";
+  $("glBody").innerHTML = h;
+}
+
+function glOpen(id){ glUi.open = id; renderGoals(); $("goals").scrollTop = 0; }
+function glAddCheckin(v){
+  var g = glById(glUi.open); if(!g) return;
+  if(v === "" || v == null || !isFinite(+v)){ $("glCiVal").focus(); return; }
+  var was = glStatus(g), note = $("glCiNote").value.trim();
+  rtChange(function(){
+    g.checkins = g.checkins || [];
+    g.checkins.push({ id: uid(), date: glTodayK(), value: +v, note: note });
+    g.lastReview = glTodayK();
+  });
+  var now = glStatus(g);
+  toast(now === "done" && was !== "done" ? "🎉 ¡Objetivo cumplido!" : now === "ok" && was === "late" ? "✓ Volviste a estar en camino" : "✓ Avance anotado");
+}
+
+$("glSearch").addEventListener("input", function(e){ glUi.q = e.target.value; renderGoals(); });
+$("glSort").addEventListener("change", function(e){ glUi.sort = e.target.value; renderGoals(); });
+$("glListView").addEventListener("click", function(e){
+  var b;
+  if((b = e.target.closest("[data-gp]"))){ glUi.proj = b.dataset.gp; return renderGoals(); }
+  if((b = e.target.closest("[data-gc]"))){ glUi.cat = b.dataset.gc; return renderGoals(); }
+  if((b = e.target.closest("[data-gs]"))){ glUi.st = glUi.st === b.dataset.gs ? "" : b.dataset.gs; return renderGoals(); }
+  if((b = e.target.closest(".gl-goal"))) glOpen(b.dataset.gid);
+});
+$("glList").addEventListener("keydown", function(e){
+  var g = e.target.closest(".gl-goal");
+  if(g && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); glOpen(g.dataset.gid); }
+});
+$("glBack").addEventListener("click", function(){ glUi.open = null; renderGoals(); });
+$("glEdit").addEventListener("click", function(){ glEditOpen(glById(glUi.open)); });
+$("glAdd").addEventListener("click", function(){ glEditOpen(null); });
+$("glBody").addEventListener("click", function(e){
+  var b;
+  if(e.target.id === "glCiAdd") return glAddCheckin($("glCiVal").value);
+  if(e.target.id === "glToRt"){ state.mode = "routines"; save(); renderAll(); return; }
+  if((b = e.target.closest("[data-gv]"))) return glAddCheckin(b.dataset.gv);
+  if((b = e.target.closest("[data-gdel]"))){
+    var g = glById(glUi.open), id = b.dataset.gdel;
+    rtChange(function(){ g.checkins = g.checkins.filter(function(c){ return c.id !== id; }); });
+    toast("Registro borrado");
+  }
+});
+$("glBody").addEventListener("keydown", function(e){
+  if(e.key === "Enter" && (e.target.id === "glCiVal" || e.target.id === "glCiNote")){ e.preventDefault(); glAddCheckin($("glCiVal").value); }
+});
+document.addEventListener("keydown", function(e){
+  if(e.key !== "Escape" || state.mode !== "goals") return;
+  if(!$("glSheet").hidden){ glEditClose(); return; }
+  if(glUi.open && $("ask").hidden){ glUi.open = null; renderGoals(); }
+});
+
+// ---------- editor de objetivo ----------
+function glRead(){
+  var kind = glEdKind;
+  var o = { title: $("glTitle").value.replace(/\s+/g, " ").trim(), project: $("glProj").value || null, cat: $("glCat").value.replace(/\s+/g, " ").trim(),
+    S: $("glS").value.trim(), A: $("glA").value.trim(), R: $("glR").value.trim(), kind: kind, from: $("glFrom").value, due: $("glDue").value };
+  if(kind === "rt"){ o.routine = $("glRoutine").value || null; o.target = Math.round(+$("glRtTarget").value) || 0; }
+  else {
+    o.start = $("glStart").value === "" ? NaN : +$("glStart").value;
+    o.target = $("glTarget").value === "" ? NaN : +$("glTarget").value;
+    o.unit = $("glUnit").value.trim(); o.review = glEdReview;
+  }
+  return o;
+}
+function glPaint(){
+  var o = glRead(), ok = glSmart(o);
+  $("glEdSmart").innerHTML = glSmartHtml(ok);
+  Array.prototype.forEach.call(document.querySelectorAll(".gl-letter"), function(el){ el.classList.toggle("ok", ok[el.dataset.l]); });
+  Array.prototype.forEach.call($("glKind").children, function(b){ b.classList.toggle("on", b.dataset.k === glEdKind); });
+  Array.prototype.forEach.call($("glReview").children, function(b){ b.classList.toggle("on", b.dataset.r === glEdReview); });
+  $("glMNum").hidden = glEdKind !== "num";
+  $("glMRt").hidden = glEdKind !== "rt";
+  var r = glRoutine(o.routine);
+  $("glRtHint").textContent = !state.routines.length ? "Todavía no tenés rutinas. Creala primero en ↻ Rutinas." :
+    r ? "«" + r.name + "» está programada " + glRtScheduled(r, o.from, o.due) + " días entre esas fechas. Los días que la marques cuentan solos." : "";
+  var cur = ntNorm($("glCat").value);
+  $("glCats").innerHTML = glCats().map(function(c){ return '<button type="button" class="rt-chip' + (ntNorm(c) === cur ? " on" : "") + '" data-gcat="' + esc(c) + '">' + esc(c) + "</button>"; }).join("");
+}
+// Si la meta de días está vacía (o era la sugerida), se completa con los días programados.
+function glSuggestTarget(){
+  var o = glRead(), r = glRoutine(o.routine); if(!r) return;
+  var n = glRtScheduled(r, o.from, o.due), inp = $("glRtTarget");
+  if(!inp.value || inp.dataset.auto === "1"){ inp.value = n || ""; inp.dataset.auto = "1"; }
+}
+function glEditOpen(g){
+  glEditing = g || null;
+  $("glEdTitle").textContent = g ? "Editar objetivo" : "Nuevo objetivo";
+  $("glProj").innerHTML = '<option value="">— ninguno —</option>' + state.projects.slice().sort(function(a, b){ return a.name.localeCompare(b.name, "es"); })
+    .map(function(p){ return '<option value="' + p.id + '">' + esc(p.name) + "</option>"; }).join("");
+  $("glProj").value = g ? (g.project && glProject(g.project) ? g.project : "") : (glUi.proj || "");
+  $("glRoutine").innerHTML = state.routines.length ? state.routines.map(function(r){ return '<option value="' + r.id + '">' + esc(r.name) + "</option>"; }).join("") : '<option value="">(no hay rutinas)</option>';
+  $("glTitle").value = g ? g.title : "";
+  $("glCat").value = g ? g.cat || "" : glUi.cat || "";
+  $("glS").value = g ? g.S || "" : ""; $("glA").value = g ? g.A || "" : ""; $("glR").value = g ? g.R || "" : "";
+  glEdKind = g ? g.kind : "num";
+  glEdReview = g && g.kind === "num" ? g.review || "none" : "week";
+  $("glStart").value = g && g.kind === "num" ? g.start : ""; $("glTarget").value = g && g.kind === "num" ? g.target : ""; $("glUnit").value = g && g.kind === "num" ? g.unit || "" : "";
+  if(g && g.kind === "rt" && glRoutine(g.routine)) $("glRoutine").value = g.routine;
+  $("glRtTarget").value = g && g.kind === "rt" ? g.target : ""; $("glRtTarget").dataset.auto = g ? "0" : "1";
+  var t = rtToday();
+  $("glFrom").value = g ? g.from : rtKey(t); $("glDue").value = g ? g.due : rtKey(rtAdd(t, 30));
+  $("glDel").hidden = !g; $("glErr").textContent = "";
+  if(!g) glSuggestTarget();
+  glPaint();
+  $("glSheet").hidden = false;
+  $("glSheet").querySelector(".rt-box").scrollTop = 0;
+  setTimeout(function(){ if(!$("glSheet").contains(document.activeElement)) $("glTitle").focus(); }, 30);
+}
+function glEditClose(){ $("glSheet").hidden = true; glEditing = null; }
+["glTitle", "glCat", "glS", "glA", "glR", "glStart", "glTarget", "glUnit", "glRtTarget", "glFrom", "glDue", "glRoutine", "glProj"].forEach(function(id){
+  $(id).addEventListener("input", function(){
+    if(id === "glRtTarget") $("glRtTarget").dataset.auto = "0";
+    if(id === "glFrom" || id === "glDue" || id === "glRoutine") glSuggestTarget();
+    glPaint();
+  });
+});
+$("glRoutine").addEventListener("change", function(){ glSuggestTarget(); glPaint(); });
+$("glKind").addEventListener("click", function(e){ var b = e.target.closest("[data-k]"); if(!b) return; glEdKind = b.dataset.k; if(glEdKind === "rt") glSuggestTarget(); glPaint(); });
+$("glReview").addEventListener("click", function(e){ var b = e.target.closest("[data-r]"); if(!b) return; glEdReview = b.dataset.r; glPaint(); });
+$("glCats").addEventListener("click", function(e){
+  var b = e.target.closest("[data-gcat]"); if(!b) return;
+  $("glCat").value = ntNorm($("glCat").value) === ntNorm(b.dataset.gcat) ? "" : b.dataset.gcat; glPaint();
+});
+$("glSave").addEventListener("click", function(){
+  var o = glRead(), err = "";
+  if(!o.title) err = "Poné el objetivo.";
+  else if(o.kind === "num" && (!isFinite(o.start) || !isFinite(o.target))) err = "M: completá dónde empezás y la meta (números).";
+  else if(o.kind === "num" && o.start === o.target) err = "M: la meta tiene que ser distinta del inicio.";
+  else if(o.kind === "rt" && !glRoutine(o.routine)) err = "M: elegí una rutina (si no tenés, creala en ↻ Rutinas).";
+  else if(o.kind === "rt" && !(o.target > 0)) err = "M: ¿cuántos días querés cumplirla?";
+  else if(!o.from || !o.due) err = "T: completá las dos fechas.";
+  else if(o.due <= o.from) err = "T: la fecha límite tiene que ser después del inicio.";
+  if(err){ $("glErr").textContent = err; return; }
+  // Misma categoría escrita distinto (mayúsculas, tildes) = la que ya existe.
+  glCats().forEach(function(c){ if(ntNorm(c) === ntNorm(o.cat)) o.cat = c; });
+  var g = glEditing;
+  glEditClose();
+  rtChange(function(){
+    if(g){
+      if(o.kind === "rt"){ delete g.start; delete g.unit; delete g.review; delete g.lastReview; }
+      else delete g.routine;
+      Object.assign(g, o);
+      if(o.kind === "num" && !g.checkins) g.checkins = [];
+    } else {
+      g = Object.assign({ id: uid(), created: Date.now() }, o);
+      if(o.kind === "num") g.checkins = [];
+      state.goals.push(g);
+    }
+  });
+  glOpen(g.id);
+});
+$("glDel").addEventListener("click", function(){
+  var g = glEditing; if(!g) return;
+  glEditClose();
+  ask({ title: "¿Borrar el objetivo «" + g.title + "» y sus registros?", ok: "borrar", danger: true }, function(){
+    if(glUi.open === g.id) glUi.open = null;
+    rtChange(function(){ state.goals = state.goals.filter(function(x){ return x.id !== g.id; }); });
+  });
+});
+$("glCancel").addEventListener("click", glEditClose);
+$("glSheet").addEventListener("click", function(e){ if(e.target === e.currentTarget) glEditClose(); });
+$("glTitle").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); $("glS").focus(); } });
+
 // ---------- cuenta y sincronización (Supabase) ----------
 // Una fila por persona en planes_datos (ver supabase/7-planes.sql) con
-// { portfolios, programs, projects, routines, routineDone }. Lo demás (vista elegida, pliegues) queda en el navegador.
+// { portfolios, programs, projects, routines, routineDone, notes, goals }. Lo demás (vista elegida, pliegues) queda en el navegador.
 var CFG = window.APP_CONFIG || {};
 var REMOTE = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
 var sb = (REMOTE && window.supabase && window.supabase.createClient)
@@ -1544,7 +2148,7 @@ var sync = { at: null, timer: null, busy: false, pending: false };
 
 function setSync(text){ $("syncState").textContent = text; }
 
-function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone }; }
+function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, notes: state.notes, goals: state.goals }; }
 
 // Reemplaza programas y proyectos por los de otra copia, conservando la vista local.
 function applyData(d){
@@ -1553,6 +2157,8 @@ function applyData(d){
   state.projects = Array.isArray(d.projects) ? d.projects : [];
   state.routines = Array.isArray(d.routines) ? d.routines : [];
   state.routineDone = d.routineDone && typeof d.routineDone === "object" ? d.routineDone : {};
+  state.notes = Array.isArray(d.notes) ? d.notes : [];
+  state.goals = Array.isArray(d.goals) ? d.goals : [];
   if(!proj()) state.current = state.projects[0] ? state.projects[0].id : null;
   hist = []; fut = []; sel = null;
   try { localStorage.setItem(storeKey, JSON.stringify(state)); } catch(e){}
@@ -1589,7 +2195,7 @@ function push(){
 
 // Trae la versión de la nube si otro dispositivo la cambió (y acá no hay cambios sin subir).
 function pull(){
-  if(!user || sync.pending || sync.busy || editing || drag) return;
+  if(!user || sync.pending || sync.busy || editing || drag || !$("glSheet").hidden || !$("ntSheet").hidden) return;
   sb.from("planes_datos").select("updated_at").eq("user_id", user.id).maybeSingle().then(function(r){
     if(r.error || !r.data || r.data.updated_at === sync.at) return;
     return sb.from("planes_datos").select("data, updated_at").eq("user_id", user.id).single().then(function(r2){
@@ -1608,7 +2214,7 @@ function onSession(s){
   if(!user){
     // Sin sesión: no dejar a la vista datos de la cuenta anterior.
     storeKey = KEY; sync.at = null; clearTimeout(sync.timer); sync.pending = false;
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.current = null;
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.notes = []; state.goals = []; state.current = null;
     hist = []; fut = []; sel = null;
     renderAll();
     return;
@@ -1692,7 +2298,7 @@ if(REMOTE){
     $("signInBtn").disabled = $("signUpBtn").disabled = true;
   } else {
     // Mientras se sabe si hay sesión, no mostrar datos locales de nadie.
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.current = null;
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.notes = []; state.goals = []; state.current = null;
     renderAll();
     var params = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));
     if(params.get("error_description")){

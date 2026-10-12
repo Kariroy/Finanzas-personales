@@ -19,8 +19,10 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 | `config.js` | URL y clave pública de Supabase. Vacío = modo local. |
 | `supabase/1-tablas.sql` … `6-borrar-grupos.sql` | Base de datos: tablas, funciones, reglas de seguridad (RLS), tiempo real, deudas y borrado de grupos. |
 | `supabase/7-planes.sql` | Tabla de la app Planes (`planes/`). Solo hace falta si usás Planes. |
-| `supabase/8-planes-avisos.sql`, `supabase/functions/planes-avisos/` | Avisos de rutinas de Planes (push). Opcional. |
+| `supabase/9-planes-avisos.sql`, `supabase/functions/planes-avisos/` | Avisos de rutinas de Planes (push). Opcional. |
 | `planes/` | App Planes (planificador de tareas), aparte de la de gastos. |
+| `supabase/8-cocina.sql` | Tabla de la app Cocina (`cocina/`). Solo hace falta si usás Cocina. |
+| `cocina/` | App Cocina (comidas por día, stock de la casa y recetas), aparte de las otras. |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Para instalar la app en el celular. |
 | `_headers` | Cabeceras de seguridad para Cloudflare Pages. |
 
@@ -90,6 +92,13 @@ en forma de ramas**. Portafolios (pestañas, ej. Trabajo / Personal) → program
 qué está desbloqueado, bloqueado, en curso o en pausa.
 La vista **Rutinas** es un checklist diario: rutinas programadas por día de la semana y momento
 del día, con rachas y avance por semana o por mes.
+La vista **Objetivos** guarda objetivos SMART (específico, medible, alcanzable, relevante, temporal),
+con proyecto de Planes y categoría para filtrar. Se miden **con un número** (anotás avances, con
+revisión semanal o mensual opcional que avisa «toca revisar») o **con una rutina** (cuentan solos
+los días que la marcaste en Rutinas). Cada uno dice si vas en camino o atrasado según las fechas.
+La vista **Notas** guarda apuntes: buscador, filtro por categoría, ficha de cada nota
+(con formato simple: `# título`, `- lista`, `**negrita**`) y **⇩ exportar**, que descarga las notas
+que se ven (con el filtro y la búsqueda) en un archivo Markdown (`.md`).
 
 Comparte con la app de gastos solo la infraestructura:
 
@@ -124,13 +133,33 @@ Para activarlo (una sola vez), en Supabase:
    `supabase/functions/planes-avisos/index.ts` → **Deploy**. En la configuración de la función,
    desactivá **Verify JWT** (la función valida sola el secreto y la sesión).
 3. **SQL Editor**: `select vault.create_secret('<el mismo CRON_SECRET>', 'planes_cron_secret');`
-4. **SQL Editor**: pegá `supabase/8-planes-avisos.sql` → **Run** (tablas y tarea de cada minuto).
+4. **SQL Editor**: pegá `supabase/9-planes-avisos.sql` → **Run** (tablas y tarea de cada minuto).
 5. En la app: **Rutinas → 🔔 → activar avisos**, y **probar aviso** para confirmar.
 
 En Android funciona desde Chrome; en iPhone, solo con Planes instalada en la pantalla de inicio.
 
 Probar sin Supabase: `python3 scripts/build-planes-preview.py` arma `preview/planes.html`
 (un solo archivo, modo local).
+
+## Cocina (app aparte)
+
+La carpeta `cocina/` es otra app independiente: **planificador de comidas**.
+
+- **Semana**: los próximos 7 días con almuerzo y cena. Cada comida dice si alcanza el stock
+  (contando lo planeado antes); 🎲 completa los huecos al azar solo con platos que alcanzan.
+  «✓ comí» descuenta del stock lo que usó el plato.
+- **Stock**: todo lo que hay en casa por lugar (freezer, heladera, verduras, alacena, otros).
+  Las porciones de las bases son un ítem más; los ingredientes se conectan con las recetas por
+  el nombre, y se pueden cargar cosas que no se usan en ninguna receta.
+- **Recetas**: bases que se cocinan por tanda («＋ cociné 1 tanda» suma porciones y descuenta
+  ingredientes) y platos que combinan bases con otros ingredientes por persona.
+
+Igual que Planes: mismo proyecto de Cloudflare (se publica en `https://…pages.dev/cocina/`),
+mismas cuentas, su propia tabla (`cocina_datos`) e instalable como app aparte. Para activarla
+en Supabase (una sola vez):
+
+1. **SQL Editor → New query**: pegá `supabase/8-cocina.sql` completo → **Run**.
+2. **Authentication → URL Configuration → Redirect URLs**: agregá `https://<tu-proyecto>.pages.dev/cocina/`.
 
 ## Próximos pasos
 
