@@ -983,8 +983,10 @@ function listRow(p, t, tree, st, nkids){
   return '<div class="li s-' + t.status + (i.blocked ? " blocked" : "") + (i.unlocked ? " unlocked" : "") + '" data-id="' + t.id + '">' + fold +
     '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (t.status === "done" ? " checked" : "") + ">" +
     '<button type="button" class="st" data-act="status" title="Toque: cambiar estado · Doble toque: pausar">' + ICON[t.status] + "</button>" +
-    '<div class="li-main"><span class="li-tline"><span class="li-title">' + esc(t.title) + "</span>" + noteDot(t) + "</span>" + meta + "</div>" + badge +
+    '<div class="li-main"><span class="li-tline"><span class="li-title">' + esc(t.title) + "</span>" +
+      (t.notes && t.notes.trim() ? noteDot(t) : "") + "</span>" + meta + "</div>" + badge +
     '<span class="li-tools">' +
+    '<button type="button" class="li-btn" data-act="notes" title="Notas" aria-label="Notas">🗒</button>' +
     '<button type="button" class="li-btn" data-act="sub" title="Agregar subtarea">＋</button>' +
     '<button type="button" class="li-btn" data-act="rename" title="Renombrar">✎</button>' +
     '<button type="button" class="li-btn" data-act="goto" title="Ver en el mapa">◎</button>' +
