@@ -448,7 +448,10 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .card .note-dot:not(.has) { opacity: 0; }
 .card:hover .note-dot, .card.selected .note-dot { opacity: .7; }
 .card .note-dot.has { opacity: 1; }
-.li .note-dot { width: 12px; height: 12px; }
+/* en la lista, igual que en el mapa: junto a los botones; el vacío bien visible */
+.li-tools { align-items: center; }
+.li .note-dot { width: 13px; height: 13px; margin: 0 9px 0 6px; border-color: var(--muted); opacity: 1; }
+.li .note-dot::after { inset: -12px; }
 
 .notes-box { width: min(520px, 100%); }
 .notes-head { display: flex; align-items: center; gap: 10px; }
