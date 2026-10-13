@@ -325,10 +325,6 @@ var HTML = `<div class="layout" id="layoutEl">
     <div class="sec">Habilidades</div>
     <div class="skills" id="skills"></div>
     <div class="row2">
-      <button class="btn" id="undo" title="Ctrl+Z">↶ deshacer</button>
-      <button class="btn" id="redo" title="Ctrl+Y">↷ rehacer</button>
-    </div>
-    <div class="row2">
       <button class="btn" id="exportBtn" title="Guardar una copia de todas las habilidades en JSON">⇩ exportar</button>
       <button class="btn" id="importBtn" title="Cargar habilidades desde un JSON">⇧ importar</button>
     </div>
@@ -354,6 +350,8 @@ var HTML = `<div class="layout" id="layoutEl">
         <button class="swatch" data-color="verde" title="Recurso">recurso</button>
       </div>
       <div class="toolbar" id="toolbar">
+        <button class="btn sq" id="undo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">↶</button>
+        <button class="btn sq" id="redo" title="Rehacer (Ctrl+Y)" aria-label="Rehacer">↷</button>
         <button class="btn" id="layout" title="Acomoda los nodos en columnas según sus conexiones">⇶<span class="lbl"> reordenar</span></button>
         <button class="btn" id="fit" title="Ver todo">⤢<span class="lbl"> centrar</span></button>
         <button class="btn sq" id="zoomOut" aria-label="Alejar">−</button>
