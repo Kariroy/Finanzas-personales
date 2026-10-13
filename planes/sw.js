@@ -1,12 +1,13 @@
 // Service worker de Planes (alcance /planes/, separado del de finanzas).
 // Los archivos de la app se piden primero a la red (cada deploy se ve enseguida)
 // y solo sin conexión se usa la copia guardada. Supabase no pasa por acá.
-var CACHE = "planes-v2";
+var CACHE = "planes-v3";
 var SHELL = [
   "./",
   "index.html",
   "planes.css",
   "planes.js",
+  "aprender.js",
   "../config.js",
   "manifest.webmanifest",
   "icons/icon-192.png"
