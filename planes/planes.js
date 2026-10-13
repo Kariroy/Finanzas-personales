@@ -21,6 +21,7 @@ if(!Array.isArray(state.programs)) state.programs = [];
 if(!Array.isArray(state.portfolios)) state.portfolios = [];
 if(!Array.isArray(state.routines)) state.routines = [];
 if(!state.routineDone || typeof state.routineDone !== "object") state.routineDone = {};
+normalizeData();
 if(!Array.isArray(state.notes)) state.notes = [];
 if(!Array.isArray(state.goals)) state.goals = [];
 if(!state.mode) state.mode = matchMedia("(max-width: 800px)").matches ? "list" : "map";
@@ -166,6 +167,37 @@ function pushHist(s){
   if(hist.length > 200) hist.shift();
   fut = [];
 }
+// Completa o corrige datos viejos o incompletos (por ejemplo un proyecto sin posición del
+// mapa) para que nunca rompan la app: sin esto, un solo dato raro trababa toda la pantalla.
+function normalizeData(){
+  var isObj = function(o){ return o && typeof o === "object"; };
+  var num = function(v){ return typeof v === "number" && isFinite(v); };
+  state.portfolios = (Array.isArray(state.portfolios) ? state.portfolios : []).filter(function(f){ return isObj(f) && f.id; });
+  state.programs = (Array.isArray(state.programs) ? state.programs : []).filter(function(g){ return isObj(g) && g.id; });
+  state.programs.forEach(function(g){ if(typeof g.name !== "string") g.name = "Programa"; });
+  state.projects = (Array.isArray(state.projects) ? state.projects : []).filter(function(p){ return isObj(p) && p.id; });
+  state.projects.forEach(function(p){
+    if(typeof p.name !== "string") p.name = "Proyecto";
+    if(!num(p.updated)) p.updated = 0;
+    if(!isObj(p.view) || !num(p.view.x) || !num(p.view.y) || !num(p.view.z) || p.view.z <= 0) p.view = { x: 60, y: 120, z: 1 };
+    p.tasks = (Array.isArray(p.tasks) ? p.tasks : []).filter(function(t){ return isObj(t) && t.id; });
+    var ids = {};
+    p.tasks.forEach(function(t, i){
+      ids[t.id] = 1;
+      if(typeof t.title !== "string") t.title = "Tarea";
+      if(!ICON[t.status]) t.status = "todo";
+      if(!num(t.x)) t.x = 0;
+      if(!num(t.y)) t.y = i * (H + GY);
+    });
+    p.deps = (Array.isArray(p.deps) ? p.deps : []).filter(function(d){ return isObj(d) && ids[d.from] && ids[d.to] && d.from !== d.to; });
+  });
+  if(!Array.isArray(state.routines)) state.routines = [];
+  state.routines = state.routines.filter(function(r){ return isObj(r) && r.id; });
+  state.routines.forEach(function(r){ if(!Array.isArray(r.days)) r.days = []; if(typeof r.name !== "string") r.name = "Rutina"; });
+  if(!isObj(state.routineDone) || Array.isArray(state.routineDone)) state.routineDone = {};
+  if(state.current && !proj()) state.current = state.projects[0] ? state.projects[0].id : null;
+}
+
 function restore(s){
   var o = JSON.parse(s);
   state.projects = o.projects;
@@ -173,6 +205,7 @@ function restore(s){
   state.portfolios = o.portfolios || [];
   state.routines = o.routines || [];
   state.routineDone = o.routineDone || {};
+  normalizeData();
   state.notes = o.notes || [];
   state.goals = o.goals || [];
   state.current = o.current;
@@ -195,7 +228,7 @@ function change(fn){
 }
 
 // ---------- vista ----------
-function view(){ var p = proj(); return p ? p.view : { x: 0, y: 0, z: 1 }; }
+function view(){ var p = proj(); return p ? (p.view || (p.view = { x: 60, y: 120, z: 1 })) : { x: 0, y: 0, z: 1 }; }
 function applyView(){
   var v = view();
   world.style.transform = "translate(" + v.x + "px," + v.y + "px) scale(" + v.z + ")";
@@ -2145,6 +2178,7 @@ function applyData(d){
   state.projects = Array.isArray(d.projects) ? d.projects : [];
   state.routines = Array.isArray(d.routines) ? d.routines : [];
   state.routineDone = d.routineDone && typeof d.routineDone === "object" ? d.routineDone : {};
+  normalizeData();
   state.notes = Array.isArray(d.notes) ? d.notes : [];
   state.goals = Array.isArray(d.goals) ? d.goals : [];
   if(!proj()) state.current = state.projects[0] ? state.projects[0].id : null;
