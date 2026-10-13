@@ -118,14 +118,11 @@ button, select, input, textarea { font: inherit; color: inherit; }
   background: #1a222d; border: 1px solid var(--line-2); border-radius: 999px; padding: 7px 14px 7px 10px; cursor: pointer;
   box-shadow: 0 6px 18px rgba(0,0,0,.45); font-weight: 600; transform-origin: left center;
   animation: nm-in .16s ease-out both; animation-delay: calc(var(--i) * 40ms); }
-.nmenu.flip .nm-item { transform: translateX(-100%); transform-origin: right center; animation-name: nm-in-flip; }
 .nm-item:hover { border-color: var(--accent); }
 .nm-item .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--faint)); flex: none; }
-.nm-item small { color: var(--muted); font-weight: 400; }
 .nm-item.on { border-color: var(--c, var(--accent)); background: color-mix(in srgb, var(--c, var(--accent)) 16%, #1a222d); }
 .nm-item.back { color: var(--muted); font-weight: 400; }
-@keyframes nm-in { from { opacity: 0; translate: -10px 6px; } to { opacity: 1; translate: 0 0; } }
-@keyframes nm-in-flip { from { opacity: 0; translate: 10px 6px; } to { opacity: 1; translate: 0 0; } }
+@keyframes nm-in { from { opacity: 0; translate: -8px -8px; } to { opacity: 1; translate: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .nm-item { animation: none; } }
 
 .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); pointer-events: none; text-align: center; padding: 16px; line-height: 1.7; }
@@ -265,8 +262,8 @@ var W = 230, H = 56;      // tamaño de la card (igual que --card-w / --card-h)
 var GX = 60, GY = 18;     // separación entre columnas / filas al reordenar
 var GRID = 10;
 var TYPES = {
-  concepto: { label: "Concepto", hint: "entender o recordar", color: "var(--concepto)" },
-  accion:   { label: "Acción",   hint: "poder hacer, se repite", color: "var(--accion)" }
+  concepto: { label: "Concepto", color: "var(--concepto)" },
+  accion:   { label: "Acción",   color: "var(--accion)" }
 };
 
 var $ = function(id){ return document.getElementById(id); };
@@ -559,11 +556,11 @@ function renderMenu(){
   var items;
   if(menu.view === "root"){
     var ty = TYPES[t.type];
-    items = [{ act: "tipo", html: '<span class="dot" style="--c:' + (ty ? ty.color : "var(--faint)") + '"></span>Tipo <small>' + (ty ? ty.label : "sin definir") + ' ▸</small>' }];
+    items = [{ act: "tipo", html: '<span class="dot" style="--c:' + (ty ? ty.color : "var(--faint)") + '"></span>Tipo' + (ty ? ": " + ty.label : "") + ' ▸' }];
   } else {
     items = Object.keys(TYPES).map(function(k){
       var x = TYPES[k];
-      return { act: "set", val: k, on: t.type === k, color: x.color, html: '<span class="dot"></span>' + x.label + ' <small>' + x.hint + '</small>' };
+      return { act: "set", val: k, on: t.type === k, color: x.color, html: '<span class="dot"></span>' + x.label };
     }).concat([
       { act: "set", val: "", on: !t.type, html: '<span class="dot"></span>Sin tipo' },
       { act: "back", cls: "back", html: "‹ volver" }
@@ -576,18 +573,17 @@ function renderMenu(){
   box.hidden = false;
   placeMenu();
 }
-// Los botones salen del borde superior derecho de la card y bajan en diagonal.
-// Si no entran a la derecha (celular), salen del lado izquierdo en espejo.
+// Los botones salen debajo de la card y bajan en diagonal hacia la derecha.
 function placeMenu(){
   var box = $("nmenu");
   if(!menu || box.hidden || !els[menu.id]) return;
   var cr = canvas.getBoundingClientRect(), r = els[menu.id].getBoundingClientRect();
-  var flip = r.right + 190 > cr.right && r.left - 190 > cr.left;
-  box.classList.toggle("flip", flip);
-  var x0 = flip ? r.left - cr.left - 10 : r.right - cr.left + 10, y0 = r.top - cr.top - 6;
-  var step = isMobile() ? 46 : 38;
+  var n = box.children.length, dx = 22, step = isMobile() ? 46 : 38;
+  var widest = Math.max.apply(null, Array.prototype.map.call(box.children, function(b){ return b.offsetWidth; }));
+  var x0 = r.left - cr.left + 6, y0 = r.bottom - cr.top + 8;
+  x0 = Math.max(8, Math.min(x0, cr.width - 8 - widest - (n - 1) * dx));   // que no se salga por la derecha
   Array.prototype.forEach.call(box.children, function(b, i){
-    b.style.left = (x0 + (flip ? -1 : 1) * i * 22) + "px";
+    b.style.left = (x0 + i * dx) + "px";
     b.style.top = (y0 + i * step) + "px";
   });
 }
