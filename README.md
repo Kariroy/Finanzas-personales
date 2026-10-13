@@ -101,7 +101,7 @@ La vista **Notas** guarda apuntes: buscador, filtro por categoría, ficha de cad
 que se ven (con el filtro y la búsqueda) en un archivo Markdown (`.md`).
 La vista **Aprender** (`planes/aprender.js`) organiza habilidades en diagramas: cada habilidad es un
 lienzo con cards **concepto** / **acción**, niveles bronce → plata → oro → diamante (con el criterio de
-cada uno), un **corazón** (criterio de logro visible) por card, **requisitos** que bloquean una card hasta
+cada uno), un **objetivo** (qué tiene que salir y cuánto) por card, **requisitos** que bloquean una card hasta
 que la requerida llegue a Plata, y **notas adhesivas** de colores (traba, idea, pregunta, recurso).
 Se guarda en la cuenta con el resto de Planes.
 
