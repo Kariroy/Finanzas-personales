@@ -54,6 +54,7 @@
         <button type="button" data-mode="routines" role="tab" title="Rutinas">↻<span class="lbl"> Rutinas</span></button>
         <button type="button" data-mode="notes" role="tab" title="Notas">✎<span class="lbl"> Notas</span></button>
         <button type="button" data-mode="goals" role="tab" title="Objetivos">◎<span class="lbl"> Objetivos</span></button>
+        <button type="button" data-mode="aprender" role="tab" title="Aprender">✦<span class="lbl"> Aprender</span></button>
       </div>
       <button class="icon-btn help-btn only-mobile" data-help aria-label="Ayuda y reglas">?</button>
     </div>
@@ -131,6 +132,11 @@
         </div>
         <article class="nt-card" id="ntCard"></article>
       </div>
+    </section>
+
+    <!-- Aprender: la app de /aprender/ dentro de Planes (mismo sitio, mismos datos del navegador) -->
+    <section class="apr" id="aprender" hidden>
+      <iframe id="aprFrame" title="Aprender"></iframe>
     </section>
 
     <section class="rt gl" id="goals" hidden>
