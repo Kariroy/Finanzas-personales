@@ -739,3 +739,7 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 @media (max-width: 800px) { .arch-item .x { opacity: 1; font-size: 16px; padding: 4px 7px; } }
 .toast.act.show { pointer-events: auto; }
 .toast button { margin-left: 12px; background: none; border: 0; color: var(--doing); font-weight: 700; cursor: pointer; padding: 2px 4px; }
+.side-done { margin-right: auto; background: none; border: 0; color: var(--muted); cursor: pointer; padding: 6px 2px; font-weight: 600; }
+.side-done:hover { color: var(--text); }
+.row3[hidden] { display: none; }
+.arch-box { margin-top: 0; border-top: 0; padding-top: 0; }

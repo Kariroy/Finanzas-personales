@@ -434,6 +434,13 @@ function renderProjects(){
   var tab = activeTab();
   renderTabs(tab);
   var inTab = function(g){ return tab === "all" || portOf(g) === tab; };
+  // Botón "Mostrar terminados": el panel muestra lo activo o lo terminado, nunca mezclado.
+  var nDone = archivedLists(inTab).n;
+  if(state.showArchived && !nDone) state.showArchived = false;
+  $("showDone").textContent = state.showArchived ? "← Activos" : "📦 Mostrar terminados" + (nDone ? " (" + nDone + ")" : "");
+  $("showDone").hidden = !nDone && !state.showArchived;
+  $("createRow").hidden = !!state.showArchived;
+  if(state.showArchived){ list.innerHTML = ""; renderArchive(inTab); return; }
   var groups = state.programs.filter(function(g){ return !g.archived && inTab(g); })
     .sort(function(a, b){ return a.name.localeCompare(b.name, "es"); });
   var loose = state.projects.filter(function(p){ return !progOf(p) && !p.archived; });
@@ -482,7 +489,6 @@ function renderProjects(){
     }
     list.appendChild(box);
   });
-  renderArchive(inTab);
 }
 
 // ---------- terminados (archivo) ----------
@@ -537,7 +543,7 @@ function celebrate(fin){
 }
 function fmtDate(ms){ var d = new Date(ms); return d.getDate() + "/" + (d.getMonth() + 1) + "/" + d.getFullYear(); }
 
-function renderArchive(inTab){
+function archivedLists(inTab){
   var progs = state.programs.filter(function(g){ return g.archived && inTab(g); })
     .sort(function(a, b){ return b.archived - a.archived; });
   var projs = state.projects.filter(function(p){
@@ -546,18 +552,20 @@ function renderArchive(inTab){
     if(g && g.archived) return false;                       // va dentro de su programa archivado
     return g ? inTab(g) : activeTab() === "all";
   }).sort(function(a, b){ return b.archived - a.archived; });
-  var n = progs.length + projs.length;
-  if(!n) return;
-  var open = !!state.archOpen;
+  return { progs: progs, projs: projs, n: progs.length + projs.length };
+}
+
+$("showDone").addEventListener("click", function(){
+  state.showArchived = !state.showArchived;
+  save();
+  renderProjects();
+  $("projects").scrollTop = 0;
+});
+
+function renderArchive(inTab){
+  var a = archivedLists(inTab), progs = a.progs, projs = a.projs;
   var box = document.createElement("div");
   box.className = "arch-box";
-  var h = document.createElement("button");
-  h.type = "button";
-  h.className = "arch-h";
-  h.innerHTML = '<span class="caret">' + (open ? "▾" : "▸") + "</span>📦 Terminados <span class=\"n\">" + n + "</span>";
-  h.addEventListener("click", function(){ state.archOpen = !open; save(); renderProjects(); });
-  box.appendChild(h);
-  if(open){
     var body = document.createElement("div");
     body.className = "arch-body";
     progs.forEach(function(g){
@@ -584,7 +592,6 @@ function renderArchive(inTab){
     });
     projs.forEach(function(p){ body.appendChild(archivedProject(p, false)); });
     box.appendChild(body);
-  }
   $("projects").appendChild(box);
 }
 

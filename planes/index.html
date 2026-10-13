@@ -22,23 +22,19 @@
 <div class="layout">
   <aside class="side" id="side">
     <div class="side-head">
+      <button type="button" class="side-done" id="showDone" hidden></button>
       <button class="icon-btn help-btn" data-help aria-label="Ayuda y reglas" title="Ayuda y reglas">?</button>
       <button class="icon-btn only-mobile" id="closeSide" aria-label="Cerrar panel">×</button>
     </div>
 
     <div class="tabs" id="tabs" role="tablist" aria-label="Portafolios"></div>
     <div class="tab-info" id="tabInfo" hidden></div>
-    <div class="row3">
+    <div class="row3" id="createRow">
       <button class="btn" id="newProgram">+ programa</button>
       <button class="btn" id="newProject">+ proyecto</button>
       <button class="btn" id="newTask">+ tarea</button>
     </div>
     <div class="projects" id="projects"></div>
-
-    <div class="row2">
-      <button class="btn" id="undo" title="Ctrl+Z">↶ deshacer</button>
-      <button class="btn" id="redo" title="Ctrl+Y">↷ rehacer</button>
-    </div>
 
     <div class="account" id="account" hidden>
       <div class="account-txt">
@@ -72,6 +68,8 @@
         <p>Doble clic en cualquier lugar para crear la primera tarea.</p>
       </div>
       <div class="toolbar">
+        <button class="btn sq" id="undo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">↶</button>
+        <button class="btn sq" id="redo" title="Rehacer (Ctrl+Y)" aria-label="Rehacer">↷</button>
         <button class="btn" id="layout" title="Acomoda las tareas en columnas según sus dependencias">⇶ reordenar</button>
         <button class="btn" id="fit" title="Ver todo">⤢ centrar</button>
         <button class="btn sq" id="zoomOut" aria-label="Alejar">−</button>
