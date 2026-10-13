@@ -738,4 +738,3 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .arch-item .x:hover { opacity: 1; color: var(--text); }
 .arch-item .del:hover { color: var(--danger); }
 @media (max-width: 800px) { .arch-item .x { opacity: 1; font-size: 16px; padding: 4px 7px; } }
-.gl .nt-search { margin-top: 0; }
