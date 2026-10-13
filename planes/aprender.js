@@ -1,5 +1,5 @@
 // Aprender: vista de Planes para organizar habilidades en diagramas (cards concepto / acción,
-// niveles bronce → diamante con criterio, corazón, requisitos que bloquean y notas adhesivas).
+// niveles bronce → diamante con criterio, objetivo, requisitos que bloquean y notas adhesivas).
 // Se dibuja dentro de un shadow root para que sus estilos e ids no choquen con los de Planes.
 // Los datos viven en el estado de Planes (state.aprender) y se guardan/sincronizan con él.
 (function(){
@@ -197,6 +197,12 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .note-dot:hover { border-color: var(--text); opacity: 1; }
 .note-dot.has { background: var(--text); border-color: var(--text); opacity: 1; }
 .card .note-dot { margin-right: -4px; }
+/* objetivo y requiere, al lado del puntito de notas: aparecen al pasar o con la card elegida */
+.mt { display: inline-flex; align-items: center; background: none; border: 0; padding: 0 2px; cursor: pointer; font-size: 12px; line-height: 1; color: var(--muted); opacity: 0; transition: opacity .1s; }
+.card:hover .mt, .card.selected .mt { opacity: 1; }
+.mt svg { display: block; }
+.mt.goal.has, .mt.goal:hover { color: var(--heart); }
+.mt.req:hover { color: var(--req); }
 .card .note-dot:not(.has) { opacity: 0; }
 .card:hover .note-dot, .card.selected .note-dot { opacity: .7; }
 .card .note-dot.has { opacity: 1; }
@@ -286,7 +292,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
     transform: translateX(-100%); transition: transform .2s; box-shadow: 0 0 40px rgba(0,0,0,.5); }
   .layout.side-collapsed .side { display: flex; }
   .side.open { transform: none; }
-  .tools { opacity: 1; }
+  .tools, .mt { opacity: 1; }
   .skill .x { opacity: 1; font-size: 15px; padding: 4px 6px; }
   .skill { padding: 11px 10px; }
   .btn { padding: 10px 12px; }
@@ -397,10 +403,11 @@ var HTML = `<div class="layout" id="layoutEl">
     <ul class="help">
       <li>Cada <b>habilidad</b> del panel izquierdo es un diagrama. Tocala para verla.</li>
       <li><b>Conexión</b> (línea continua) A → B = <b>B es parte de A</b>. Arrastrá el <b>puerto ●</b> del borde derecho a otra card = conectarlas · a un lugar vacío = nuevo nodo.</li>
-      <li><b>Requisito</b> (<b style="color:var(--req)">flecha punteada</b>) A ⇢ B = <b>B requiere A</b>. Se crea desde el menú de la card: «Requiere…» y tocás la otra card.</li>
+      <li><b>Requisito</b> (<b style="color:var(--req)">flecha punteada</b>) A ⇢ B = <b>B requiere A</b>. Se crea con el botón <b style="color:var(--req)">⇢</b> de la card y tocando después la card requerida.</li>
       <li><b>🔒 Bloqueada</b>: si alguna card requerida está por debajo de Plata, la card que la requiere se atenúa y no puede subir de nivel. Se desbloquea sola cuando todas llegan a Plata.</li>
-      <li>Tocá una <b>card</b> = menú debajo: <b style="color:var(--concepto)">concepto</b> / <b style="color:var(--accion)">acción</b>, <b style="color:var(--heart)">corazón</b> y requisitos.</li>
-      <li><b style="color:var(--heart)">Corazón</b> = criterio de logro visible (ej. «corazón simétrico 8 de 10»). Sin corazón, una card no pasa de Plata.</li>
+      <li>Tocá una <b>card</b> = menú debajo para elegir <b style="color:var(--concepto)">concepto</b> / <b style="color:var(--accion)">acción</b>.</li>
+      <li>Al lado del puntito de notas: <b style="color:var(--heart)">◎ objetivo</b> y <b style="color:var(--req)">⇢ requiere</b> (flechita punteada).</li>
+      <li><b style="color:var(--heart)">Objetivo</b> = lo que tiene que salir y cuánto (ej. «corazón simétrico 8 de 10»). Sin objetivo, una card no pasa de Plata.</li>
       <li><b>Estado</b>: tocá el círculo al inicio de la card para subirlo. El nivel de cada card es independiente del de sus partes.</li>
       <li><b>Notas</b>: el <b>puntito</b> de la card (lleno si tiene notas).</li>
       <li>Tocá una <b>línea</b> o <b>flecha</b> = seleccionarla para quitarla.</li>
@@ -414,7 +421,7 @@ var HTML = `<div class="layout" id="layoutEl">
       <span></span><span class="h">Acción</span><span class="h">Concepto</span>
       <b style="color:var(--bronce)">Bronce</b><span>lo entiendo o lo hice una vez</span><span>lo leí</span>
       <b style="color:var(--plata)">Plata</b><span>me sale con atención deliberada</span><span>lo recuerdo con ayuda</span>
-      <b style="color:var(--oro)">Oro</b><span>cumplo el corazón de forma consistente</span><span>lo explico sin mirar</span>
+      <b style="color:var(--oro)">Oro</b><span>cumplo el objetivo de forma consistente</span><span>lo explico sin mirar</span>
       <b style="color:var(--diamante)">Diamante</b><span>automatizado, me sale mientras pienso en otra cosa</span><span>lo uso sin pensarlo</span>
     </div>
     <div class="help-h">Notas adhesivas <span style="font-weight:400;text-transform:none;letter-spacing:0">(botón ▣ nota)</span></div>
@@ -465,7 +472,7 @@ function engine(root, api){
   // Criterio de cada nivel según el tipo (una card sin tipo usa los de acción).
   var CRITERIA = {
     accion:   { bronce: "lo entiendo o lo hice una vez", plata: "me sale con atención deliberada",
-                oro: "cumplo el corazón de forma consistente", diamante: "automatizado, me sale mientras pienso en otra cosa" },
+                oro: "cumplo el objetivo de forma consistente", diamante: "automatizado, me sale mientras pienso en otra cosa" },
     concepto: { bronce: "lo leí", plata: "lo recuerdo con ayuda", oro: "lo explico sin mirar", diamante: "lo uso sin pensarlo" }
   };
   var TYPES = {
@@ -729,6 +736,8 @@ function engine(root, api){
         '<div class="head"><button class="st" data-act="level"></button><span class="title"></span></div>' +
         (t.heart ? '<div class="heart"></div>' : '') +
         '<div class="meta">' + (bl.length ? '<span class="lock">🔒</span>' : '') + (kids ? '<span class="kids" title="Partes">→ ' + kids + '</span>' : '') +
+          '<button class="mt goal' + (t.heart ? " has" : "") + '" data-act="heart" title="' + (t.heart ? "Editar objetivo" : "Agregar objetivo") + '" aria-label="Objetivo">◎</button>' +
+          '<button class="mt req" data-act="req" title="Requiere… (tocá después la card requerida)" aria-label="Requiere"><svg width="15" height="10" viewBox="0 0 15 10" aria-hidden="true"><path d="M1 5 H10" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.5 2" fill="none"/><path d="M9 1.5 L13.5 5 L9 8.5 Z" fill="currentColor"/></svg></button>' +
           noteDot(t) + '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nueva parte (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
         '</div>' +
         '<span class="port out" data-port="out" title="Arrastrá para conectar"></span>';
@@ -736,7 +745,7 @@ function engine(root, api){
       st.innerHTML = lv ? '<span class="medal m-' + t.level + '" style="--m:' + lv.color + '"></span>' : "○";
       st.title = levelTip(p, t, lv, bl);
       c.querySelector(".title").textContent = t.title;
-      if(t.heart){ var hz = c.querySelector(".heart"); hz.textContent = "♥ " + t.heart; hz.title = "Corazón: " + t.heart; }
+      if(t.heart){ var hz = c.querySelector(".heart"); hz.textContent = "◎ " + t.heart; hz.title = "Objetivo: " + t.heart; }
       if(bl.length) c.querySelector(".lock").title = "Bloqueada: requiere llevar a Plata " + bl.map(function(x){ return "«" + x.title + "»"; }).join(", ");
       cardsEl.appendChild(c);
       els[t.id] = c;
@@ -817,21 +826,15 @@ function engine(root, api){
     if(pick){ var t = cur() && byId(cur(), pick.to); $("pickTxt").textContent = "Tocá la card que «" + (t ? t.title : "") + "» requiere"; }
   }
 
-  // ---------- menú del nodo: tipo, corazón y requisitos, en diagonal debajo de la card ----------
+  // ---------- menú del nodo: el tipo, en diagonal debajo de la card ----------
   function openMenu(id){ menu = { id: id }; renderMenu(); }
   function closeMenu(){ if(!menu) return; menu = null; renderMenu(); }
   function renderMenu(){
     var box = $("nmenu"), p = cur(), t = menu && p && byId(p, menu.id);
     if(!t || !els[menu.id]){ menu = null; box.hidden = true; box.innerHTML = ""; return; }
-    var n = reqsOf(p, t.id).length;
     var items = Object.keys(TYPES).map(function(k){
       return { act: "set", val: k, on: t.type === k, color: TYPES[k].color, html: '<span class="dot"></span>' + TYPES[k].label };
-    }).concat([
-      { act: "set", val: "", on: !t.type, html: '<span class="dot"></span>Sin tipo' },
-      { act: "heart", cls: "tool", color: "var(--heart)", html: '<span class="dot"></span>' + (t.heart ? "Editar corazón" : "Corazón") },
-      { act: "req", cls: "tool", color: "var(--req)", html: '<span class="dot"></span>Requiere…' }
-    ]);
-    if(n) items.push({ act: "unreq", cls: "tool", html: '<span class="dot"></span>' + (n > 1 ? "Quitar requisitos (" + n + ")" : "Quitar requisito") });
+    }).concat([{ act: "set", val: "", on: !t.type, html: '<span class="dot"></span>Sin tipo' }]);
     box.innerHTML = items.map(function(it, i){
       return '<button type="button" class="nm-item' + (it.on ? " on" : "") + (it.cls ? " " + it.cls : "") + '" style="--i:' + i + (it.color ? ";--c:" + it.color : "") +
         '" data-menu="' + it.act + '" data-val="' + (it.val || "") + '">' + it.html + "</button>";
@@ -864,12 +867,6 @@ function engine(root, api){
       var v = b.dataset.val || null;
       if((t.type || null) !== v) change(function(){ if(v) t.type = v; else delete t.type; });
       else renderMenu();
-    } else if(act === "heart"){ renderMenu(); editHeart(t.id); }
-    else if(act === "req"){ renderMenu(); startPick(t.id); }
-    else if(act === "unreq"){
-      var n = reqsOf(p, t.id).length;
-      change(function(){ p.reqs = p.reqs.filter(function(r){ return r.to !== t.id; }); });
-      toast(n > 1 ? "Requisitos quitados" : "Requisito quitado");
     }
   });
 
@@ -894,8 +891,8 @@ function engine(root, api){
       var bl = blockers(p, t);
       if(bl.length){ toast("🔒 Bloqueada: primero llevá a Plata " + bl.map(function(x){ return "«" + x.title + "»"; }).join(", ")); return; }
       if(rank(next) >= ORO && !(t.heart && t.heart.trim())){
-        ask({ title: "Para pasar a " + LEVELS[next].label + ", escribí el corazón de «" + t.title + "»",
-              text: "El criterio de logro visible. Ej.: corazón simétrico 8 de 10.", input: "", placeholder: "Corazón…", ok: "guardar y subir" }, function(v){
+        ask({ title: "Para pasar a " + LEVELS[next].label + ", escribí el objetivo de «" + t.title + "»",
+              text: "Qué tiene que salir y cuánto. Ej.: corazón simétrico 8 de 10.", input: "", placeholder: "Objetivo…", ok: "guardar y subir" }, function(v){
           change(function(){ t.heart = v; t.level = next; });
           toast("Estado: " + LEVELS[next].label);
         });
@@ -911,12 +908,12 @@ function engine(root, api){
   }
   function editHeart(id){
     var t = byId(cur(), id); if(!t) return;
-    ask({ title: "Corazón de «" + t.title + "»", text: "Criterio de logro visible, ej.: corazón simétrico 8 de 10. Dejalo vacío para quitarlo.",
-          input: t.heart || "", placeholder: "Corazón…", ok: "guardar", allowEmpty: true }, function(v){
+    ask({ title: "Objetivo de «" + t.title + "»", text: "Qué tiene que salir y cuánto, ej.: corazón simétrico 8 de 10. Dejalo vacío para quitarlo.",
+          input: t.heart || "", placeholder: "Objetivo…", ok: "guardar", allowEmpty: true }, function(v){
       if(v === (t.heart || "")) return;
       var drop = !v && rank(t.level) >= ORO;
       change(function(){ if(v) t.heart = v; else delete t.heart; if(drop) t.level = "plata"; });
-      if(drop) toast("Sin corazón no puede estar en Oro: bajó a Plata");
+      if(drop) toast("Sin objetivo no puede estar en Oro: bajó a Plata");
     });
   }
   // Progreso de la habilidad: bronce 25 %, plata 50 %, oro 75 %, diamante 100 % por nodo, promediado.
@@ -1303,6 +1300,8 @@ function engine(root, api){
     else if(act === "child") newChild(id);
     else if(act === "level") cycleLevel(id);
     else if(act === "notes"){ closeMenu(); openNotes(id); }
+    else if(act === "heart"){ closeMenu(); editHeart(id); }
+    else if(act === "req"){ closeMenu(); startPick(id); }
     else if(act === "del"){
       var p = cur(), t = byId(p, id), k = dependents(p, id).length;
       sel = { node: id };
