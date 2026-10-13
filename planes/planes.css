@@ -615,7 +615,13 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .nt-hint { color: var(--faint); margin-left: 6px; }
 @media (min-width: 801px) { .nt-box textarea { font-size: 13px; } .nt-search input { font-size: 13px; } }
 .nt .rt-inner[hidden] { display: none; }
-/* Con 4 vistas, en pantallas angostas solo la elegida muestra el nombre. */
+/* ---------- aprender (la app de /aprender/ en un marco) ---------- */
+.apr { position: absolute; left: 0; right: 0; bottom: 0; top: 56px; background: var(--bg); border-top: 1px solid var(--line); }
+.apr[hidden] { display: none; }
+.apr iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--bg); }
+@media (max-width: 800px) { .apr { top: 60px; } }
+
+/* Con 5 vistas, en pantallas angostas solo la elegida muestra el nombre. */
 @media (max-width: 440px) {
   .seg button { padding: 6px 10px; }
   .seg button:not(.on) .lbl { display: none; }

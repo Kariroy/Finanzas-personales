@@ -1370,8 +1370,10 @@ function ask(o, onOk){
 function exportJSON(){
   closeSideMobile();
   var json = JSON.stringify({ app: "aprender", version: 3, skills: state.skills }, null, 2);
-  var inFrame = true; try { inFrame = window.self !== window.top; } catch(e){}
-  if(!inFrame){
+  // Se puede descargar salvo dentro de un marco de otro sitio (ej. una vista previa); dentro de Planes sí.
+  var canDownload = true;
+  try { if(window.self !== window.top) canDownload = !!window.top.location.href; } catch(e){ canDownload = false; }
+  if(canDownload){
     var url = URL.createObjectURL(new Blob([json], { type: "application/json" })), a = document.createElement("a");
     a.href = url; a.download = "aprender-" + new Date().toISOString().slice(0, 10) + ".json";
     document.body.appendChild(a); a.click(); a.remove();

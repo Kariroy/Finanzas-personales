@@ -360,6 +360,7 @@ function renderAll(){
   renderRoutines();
   renderNotes();
   renderGoals();
+  renderAprender();
   renderCards();
   renderWires();
   applyView();
@@ -1265,6 +1266,16 @@ $("modeSeg").addEventListener("click", function(e){
   save();
   renderAll();
 });
+
+// ---------- aprender ----------
+// La app de /aprender/ se carga en un marco la primera vez que se abre la vista.
+function renderAprender(){
+  var on = state.mode === "aprender";
+  $("aprender").hidden = !on;
+  if(on && !$("aprFrame").getAttribute("src")) $("aprFrame").setAttribute("src", "../aprender/index.html");
+  // Aprender trae su propia ayuda: en el celular no mostrar dos «?».
+  var hb = document.querySelector(".topbar .help-btn"); if(hb) hb.hidden = on;
+}
 
 // ---------- panel lateral ----------
 function newProject(program){
