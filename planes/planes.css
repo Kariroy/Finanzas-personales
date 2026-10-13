@@ -622,11 +622,6 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 }
 
 /* ---------- objetivos (SMART) ---------- */
-.gl-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
-.gl-stat { --c: var(--doing); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 4px; text-align: center; cursor: pointer; color: inherit; }
-.gl-stat b { display: block; font-size: 17px; color: var(--c); }
-.gl-stat span { color: var(--muted); font-size: 10px; }
-.gl-stat.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 10%, var(--card)); }
 .gl-frow { display: flex; align-items: center; gap: 6px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .gl-frow::-webkit-scrollbar { display: none; }
 .gl-frow:empty { display: none; }

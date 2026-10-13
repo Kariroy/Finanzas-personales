@@ -1854,7 +1854,7 @@ var GL_ST = {
   over: { name: "vencido", c: "var(--danger)" },
   soon: { name: "por empezar", c: "var(--todo)" }
 };
-var glUi = { q: "", proj: "", cat: "", st: "", sort: "due", open: null }, glEditing = null, glEdKind = "num", glEdReview = "none";
+var glUi = { q: "", proj: "", cat: "", sort: "due", open: null }, glEditing = null, glEdKind = "num", glEdReview = "none";
 
 function glById(id){ for(var i = 0; i < state.goals.length; i++) if(state.goals[i].id === id) return state.goals[i]; return null; }
 function glRoutine(id){ for(var i = 0; i < state.routines.length; i++) if(state.routines[i].id === id) return state.routines[i]; return null; }
@@ -1958,16 +1958,7 @@ function renderGoals(){
     var p = g.project && glProject(g.project);
     return !q || ntNorm([g.title, g.cat, g.S, g.A, g.R, p ? p.name : ""].join(" ")).indexOf(q) >= 0;
   });
-  var cnt = { ok: 0, late: 0, rev: 0, done: 0 };
-  base.forEach(function(g){ var s = glStatus(g); if(s === "ok") cnt.ok++; if(s === "late" || s === "over") cnt.late++; if(s === "done") cnt.done++; if(glReviewDue(g)) cnt.rev++; });
-  $("glStats").innerHTML = state.goals.length ? [["ok", "en camino", "var(--doing)"], ["late", "atrasados", "var(--paused)"], ["rev", "a revisar", "var(--ready)"], ["done", "cumplidos", "var(--done)"]].map(function(x){
-    return '<button type="button" class="gl-stat' + (glUi.st === x[0] ? " on" : "") + '" data-gs="' + x[0] + '" style="--c:' + x[2] + '"><b>' + cnt[x[0]] + "</b><span>" + x[1] + "</span></button>";
-  }).join("") : "";
-
-  var list = base.filter(function(g){
-    var s = glStatus(g);
-    return !glUi.st || (glUi.st === "rev" ? glReviewDue(g) : glUi.st === "late" ? s === "late" || s === "over" : s === glUi.st);
-  });
+  var list = base;
   var rank = { over: 0, late: 1, ok: 2, soon: 3, done: 4 };
   list.sort(function(a, b){
     if(glUi.sort === "risk") return rank[glStatus(a)] - rank[glStatus(b)] || (glPct(a) - glExpected(a)) - (glPct(b) - glExpected(b));
@@ -2088,7 +2079,6 @@ $("glListView").addEventListener("click", function(e){
   var b;
   if((b = e.target.closest("[data-gp]"))){ glUi.proj = b.dataset.gp; return renderGoals(); }
   if((b = e.target.closest("[data-gc]"))){ glUi.cat = b.dataset.gc; return renderGoals(); }
-  if((b = e.target.closest("[data-gs]"))){ glUi.st = glUi.st === b.dataset.gs ? "" : b.dataset.gs; return renderGoals(); }
   if((b = e.target.closest(".gl-goal"))) glOpen(b.dataset.gid);
 });
 $("glList").addEventListener("keydown", function(e){
