@@ -22,23 +22,19 @@
 <div class="layout">
   <aside class="side" id="side">
     <div class="side-head">
+      <button type="button" class="side-done" id="showDone" hidden></button>
       <button class="icon-btn help-btn" data-help aria-label="Ayuda y reglas" title="Ayuda y reglas">?</button>
       <button class="icon-btn only-mobile" id="closeSide" aria-label="Cerrar panel">×</button>
     </div>
 
     <div class="tabs" id="tabs" role="tablist" aria-label="Portafolios"></div>
     <div class="tab-info" id="tabInfo" hidden></div>
-    <div class="row3">
+    <div class="row3" id="createRow">
       <button class="btn" id="newProgram">+ programa</button>
       <button class="btn" id="newProject">+ proyecto</button>
       <button class="btn" id="newTask">+ tarea</button>
     </div>
     <div class="projects" id="projects"></div>
-
-    <div class="row2">
-      <button class="btn" id="undo" title="Ctrl+Z">↶ deshacer</button>
-      <button class="btn" id="redo" title="Ctrl+Y">↷ rehacer</button>
-    </div>
 
     <div class="account" id="account" hidden>
       <div class="account-txt">
@@ -54,8 +50,7 @@
     <div class="topbar">
       <button class="icon-btn menu" id="openSide" aria-label="Mostrar u ocultar el panel" title="Mostrar / ocultar panel">☰</button>
       <div class="seg" id="modeSeg" role="tablist">
-        <button type="button" data-mode="map" role="tab" title="Mapa">▦<span class="lbl"> Mapa</span></button>
-        <button type="button" data-mode="list" role="tab" title="Lista">☑<span class="lbl"> Lista</span></button>
+        <button type="button" data-mode="proj" id="projToggle" role="tab" title="Tocá para cambiar entre Mapa y Lista">▦<span class="lbl"> Mapa</span></button>
         <button type="button" data-mode="routines" role="tab" title="Rutinas">↻<span class="lbl"> Rutinas</span></button>
         <button type="button" data-mode="notes" role="tab" title="Notas">✎<span class="lbl"> Notas</span></button>
         <button type="button" data-mode="goals" role="tab" title="Objetivos">◎<span class="lbl"> Objetivos</span></button>
@@ -72,6 +67,8 @@
         <p>Doble clic en cualquier lugar para crear la primera tarea.</p>
       </div>
       <div class="toolbar">
+        <button class="btn sq" id="undo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">↶</button>
+        <button class="btn sq" id="redo" title="Rehacer (Ctrl+Y)" aria-label="Rehacer">↷</button>
         <button class="btn" id="layout" title="Acomoda las tareas en columnas según sus dependencias">⇶ reordenar</button>
         <button class="btn" id="fit" title="Ver todo">⤢ centrar</button>
         <button class="btn sq" id="zoomOut" aria-label="Alejar">−</button>
@@ -138,22 +135,10 @@
 
     <section class="rt gl" id="goals" hidden>
       <div class="rt-inner" id="glListView">
-        <div class="rt-top">
-          <h2>Objetivos</h2>
-          <span class="nt-count" id="glCount"></span>
-        </div>
-        <div class="gl-stats" id="glStats"></div>
+        <div class="rt-top"><h2>Objetivos</h2></div>
         <div class="nt-search"><input type="search" id="glSearch" placeholder="Buscar objetivos…" autocomplete="off" aria-label="Buscar objetivos"></div>
         <div class="gl-frow" id="glFProj"></div>
         <div class="gl-frow" id="glFCat"></div>
-        <div class="gl-frow"><span class="gl-lbl">Orden</span>
-          <select class="gl-sort" id="glSort" aria-label="Ordenar">
-            <option value="due">fecha límite</option>
-            <option value="risk">más atrasados primero</option>
-            <option value="pct">avance</option>
-            <option value="new">más nuevos</option>
-          </select>
-        </div>
         <div id="glList"></div>
         <button type="button" class="rt-fab" id="glAdd">+ objetivo</button>
       </div>
@@ -349,6 +334,7 @@
         — clic en un wire + Supr = borrarlo · Supr = borrar tarea · rueda = zoom · arrastrar el fondo = mover<br>
         — <b>puntito</b> al lado del nombre = notas de la tarea (lleno = tiene notas)<br>
         — ☰ = mostrar / ocultar este panel<br>
+        — un proyecto con todas sus tareas hechas pasa <b>solo</b> a «📦 Terminados», al final del panel (si algo vuelve a quedar pendiente, vuelve solo); <b>↺</b> lo restaura<br>
         — <b>↻ Rutinas</b> = checklist diario: tocá una rutina para marcarla; Semana / Mes para ver tu avance<br>
         — <b>◎ Objetivos</b> = objetivos SMART: se miden con un número (anotás avances; revisión semanal o mensual) o con una rutina (se cuentan solos los días que la marcaste)<br>
         — <b>✎ Notas</b> = apuntes: buscalos y filtralos por categoría; «⇩ exportar» descarga las que se ven en un archivo<br>

@@ -21,6 +21,7 @@ if(!Array.isArray(state.programs)) state.programs = [];
 if(!Array.isArray(state.portfolios)) state.portfolios = [];
 if(!Array.isArray(state.routines)) state.routines = [];
 if(!state.routineDone || typeof state.routineDone !== "object") state.routineDone = {};
+normalizeData();
 if(!Array.isArray(state.notes)) state.notes = [];
 if(!Array.isArray(state.goals)) state.goals = [];
 if(!state.mode) state.mode = matchMedia("(max-width: 800px)").matches ? "list" : "map";
@@ -166,6 +167,37 @@ function pushHist(s){
   if(hist.length > 200) hist.shift();
   fut = [];
 }
+// Completa o corrige datos viejos o incompletos (por ejemplo un proyecto sin posición del
+// mapa) para que nunca rompan la app: sin esto, un solo dato raro trababa toda la pantalla.
+function normalizeData(){
+  var isObj = function(o){ return o && typeof o === "object"; };
+  var num = function(v){ return typeof v === "number" && isFinite(v); };
+  state.portfolios = (Array.isArray(state.portfolios) ? state.portfolios : []).filter(function(f){ return isObj(f) && f.id; });
+  state.programs = (Array.isArray(state.programs) ? state.programs : []).filter(function(g){ return isObj(g) && g.id; });
+  state.programs.forEach(function(g){ if(typeof g.name !== "string") g.name = "Programa"; });
+  state.projects = (Array.isArray(state.projects) ? state.projects : []).filter(function(p){ return isObj(p) && p.id; });
+  state.projects.forEach(function(p){
+    if(typeof p.name !== "string") p.name = "Proyecto";
+    if(!num(p.updated)) p.updated = 0;
+    if(!isObj(p.view) || !num(p.view.x) || !num(p.view.y) || !num(p.view.z) || p.view.z <= 0) p.view = { x: 60, y: 120, z: 1 };
+    p.tasks = (Array.isArray(p.tasks) ? p.tasks : []).filter(function(t){ return isObj(t) && t.id; });
+    var ids = {};
+    p.tasks.forEach(function(t, i){
+      ids[t.id] = 1;
+      if(typeof t.title !== "string") t.title = "Tarea";
+      if(!ICON[t.status]) t.status = "todo";
+      if(!num(t.x)) t.x = 0;
+      if(!num(t.y)) t.y = i * (H + GY);
+    });
+    p.deps = (Array.isArray(p.deps) ? p.deps : []).filter(function(d){ return isObj(d) && ids[d.from] && ids[d.to] && d.from !== d.to; });
+  });
+  if(!Array.isArray(state.routines)) state.routines = [];
+  state.routines = state.routines.filter(function(r){ return isObj(r) && r.id; });
+  state.routines.forEach(function(r){ if(!Array.isArray(r.days)) r.days = []; if(typeof r.name !== "string") r.name = "Rutina"; });
+  if(!isObj(state.routineDone) || Array.isArray(state.routineDone)) state.routineDone = {};
+  if(state.current && !proj()) state.current = state.projects[0] ? state.projects[0].id : null;
+}
+
 function restore(s){
   var o = JSON.parse(s);
   state.projects = o.projects;
@@ -173,6 +205,7 @@ function restore(s){
   state.portfolios = o.portfolios || [];
   state.routines = o.routines || [];
   state.routineDone = o.routineDone || {};
+  normalizeData();
   state.notes = o.notes || [];
   state.goals = o.goals || [];
   state.current = o.current;
@@ -190,12 +223,14 @@ function change(fn){
   if(fn(p) === false) return;
   pushHist(before);
   if(p) p.updated = Date.now();
+  var fin = autoArchive();
   save();
   renderAll();
+  if(fin.length) celebrate(fin);
 }
 
 // ---------- vista ----------
-function view(){ var p = proj(); return p ? p.view : { x: 0, y: 0, z: 1 }; }
+function view(){ var p = proj(); return p ? (p.view || (p.view = { x: 60, y: 120, z: 1 })) : { x: 0, y: 0, z: 1 }; }
 function applyView(){
   var v = view();
   world.style.transform = "translate(" + v.x + "px," + v.y + "px) scale(" + v.z + ")";
@@ -308,7 +343,18 @@ function isSelDep(d){ return sel && sel.dep && sel.dep.from === d.from && sel.de
 
 function renderAll(){
   canvas.hidden = state.mode !== "map";
-  Array.prototype.forEach.call($("modeSeg").children, function(b){ b.classList.toggle("on", b.dataset.mode === state.mode); });
+  // El panel de programas y proyectos (y el ☰) solo tienen sentido en Mapa y Lista.
+  var projView = state.mode === "map" || state.mode === "list";
+  document.querySelector(".layout").classList.toggle("no-side", !projView);
+  if(!projView) $("side").classList.remove("open");
+  var inProj = state.mode === "map" || state.mode === "list";
+  if(inProj) state.projMode = state.mode;
+  Array.prototype.forEach.call($("modeSeg").children, function(b){
+    b.classList.toggle("on", b.dataset.mode === "proj" ? inProj : b.dataset.mode === state.mode);
+  });
+  // Un solo botón para Mapa y Lista: muestra la vista actual (o la última usada).
+  var pm = state.projMode === "list" ? "list" : "map";
+  $("projToggle").innerHTML = (pm === "list" ? "☑" : "▦") + '<span class="lbl"> ' + (pm === "list" ? "Lista" : "Mapa") + "</span>";
   renderProjects();
   renderList();
   renderRoutines();
@@ -398,19 +444,26 @@ function renderProjects(){
   var sortFn = function(a, b){ return b.updated - a.updated; };  // últimos editados primero
   var tab = activeTab();
   renderTabs(tab);
-  var groups = state.programs.filter(function(g){ return tab === "all" || portOf(g) === tab; })
+  var inTab = function(g){ return tab === "all" || portOf(g) === tab; };
+  // Botón "Mostrar terminados": el panel muestra lo activo o lo terminado, nunca mezclado.
+  var nDone = archivedLists(inTab).n;
+  if(state.showArchived && !nDone) state.showArchived = false;
+  $("showDone").textContent = state.showArchived ? "← Activos" : "📦 Mostrar terminados" + (nDone ? " (" + nDone + ")" : "");
+  $("showDone").hidden = !nDone && !state.showArchived;
+  $("createRow").hidden = !!state.showArchived;
+  if(state.showArchived){ list.innerHTML = ""; renderArchive(inTab); return; }
+  var groups = state.programs.filter(function(g){ return !g.archived && inTab(g); })
     .sort(function(a, b){ return a.name.localeCompare(b.name, "es"); });
-  var loose = state.projects.filter(function(p){ return !progOf(p); });
+  var loose = state.projects.filter(function(p){ return !progOf(p) && !p.archived; });
   if(loose.length && tab === "all") groups.push({ id: null, name: "Sin programa", open: state.looseOpen !== false });
 
   list.innerHTML = "";
   if(!groups.length){
     list.innerHTML = '<div class="no-projects">' + (tab === "all" ? "Creá un programa y adentro tus proyectos." :
       "Este portafolio no tiene programas. Creá uno con «+ programa» o pasá uno existente con ✎.") + "</div>";
-    return;
   }
   groups.forEach(function(g){
-    var all = state.projects.filter(function(p){ return progOf(p) === g.id; });
+    var all = state.projects.filter(function(p){ return progOf(p) === g.id && !p.archived; });
     var shown = all.slice().sort(sortFn);
     var tot = all.reduce(function(acc, p){ var st = projStats(p); acc.n += st.n; acc.done += st.done; return acc; }, { n: 0, done: 0 });
     var pct = tot.n ? Math.round(tot.done * 100 / tot.n) : 0;
@@ -447,6 +500,136 @@ function renderProjects(){
     }
     list.appendChild(box);
   });
+}
+
+// ---------- terminados (archivo) ----------
+// Los proyectos terminados (y los programas con todo terminado) salen solos del panel
+// y quedan juntos al final, plegados. Restaurar un programa trae sus proyectos.
+// Restaurar a mano: queda activo aunque esté completo (no se vuelve a archivar solo).
+// Restaurar un proyecto trae también su programa; restaurar un programa trae sus proyectos.
+function unarchive(item){
+  var back = function(x){ delete x.archived; delete x.autoArchived; x.keepActive = true; };
+  change(function(){
+    back(item);
+    if(item.tasks){
+      var g = programById(progOf(item));
+      if(g && g.archived) back(g);
+    } else state.projects.forEach(function(p){ if(progOf(p) === item.id && p.archived) back(p); });
+  });
+  toast("«" + item.name + "» volvió a tus " + (item.tasks ? "proyectos" : "programas"));
+}
+
+// Archivo automático. Un proyecto con tareas y todas hechas pasa solo a Terminados
+// (sin tareas, nunca); si vuelve a tener algo pendiente, vuelve solo. Un programa se
+// archiva cuando todos sus proyectos están archivados. Devuelve lo recién archivado.
+function autoArchive(){
+  var now = Date.now(), fin = [];
+  state.projects.forEach(function(p){
+    var st = projStats(p), complete = st.n > 0 && st.pending === 0;
+    if(!complete){
+      delete p.keepActive;
+      if(p.archived && p.autoArchived){ delete p.archived; delete p.autoArchived; }
+      return;
+    }
+    if(!p.archived && !p.keepActive){ p.archived = now; p.autoArchived = true; fin.push(p); }
+  });
+  state.programs.forEach(function(g){
+    var ps = state.projects.filter(function(p){ return progOf(p) === g.id; });
+    var allDone = ps.length > 0 && ps.every(function(p){ return p.archived; });
+    if(!allDone){
+      delete g.keepActive;
+      if(g.archived && g.autoArchived){ delete g.archived; delete g.autoArchived; }
+      return;
+    }
+    if(!g.archived && !g.keepActive){ g.archived = now; g.autoArchived = true; fin.push(g); }
+  });
+  return fin;
+}
+function celebrate(fin){
+  var prog = fin.filter(function(x){ return !x.tasks; })[0];
+  var msg = prog ? "🎉 Programa «" + prog.name + "» terminado → 📦 Terminados"
+    : fin.length === 1 ? "🎉 «" + fin[0].name + "» terminado → 📦 Terminados"
+    : "🎉 " + fin.length + " proyectos terminados → 📦 Terminados";
+  toast(msg, { label: "deshacer", fn: undo });
+}
+function fmtDate(ms){ var d = new Date(ms); return d.getDate() + "/" + (d.getMonth() + 1) + "/" + d.getFullYear(); }
+
+function archivedLists(inTab){
+  var progs = state.programs.filter(function(g){ return g.archived && inTab(g); })
+    .sort(function(a, b){ return b.archived - a.archived; });
+  var projs = state.projects.filter(function(p){
+    if(!p.archived) return false;
+    var g = programById(progOf(p));
+    if(g && g.archived) return false;                       // va dentro de su programa archivado
+    return g ? inTab(g) : activeTab() === "all";
+  }).sort(function(a, b){ return b.archived - a.archived; });
+  return { progs: progs, projs: projs, n: progs.length + projs.length };
+}
+
+$("showDone").addEventListener("click", function(){
+  state.showArchived = !state.showArchived;
+  save();
+  renderProjects();
+  $("projects").scrollTop = 0;
+});
+
+function renderArchive(inTab){
+  var a = archivedLists(inTab), progs = a.progs, projs = a.projs;
+  var box = document.createElement("div");
+  box.className = "arch-box";
+    var body = document.createElement("div");
+    body.className = "arch-body";
+    progs.forEach(function(g){
+      var ps = state.projects.filter(function(p){ return progOf(p) === g.id; });
+      var el = document.createElement("div");
+      el.className = "arch-item prog-a";
+      el.innerHTML = '<div class="txt"><div class="name"></div><div class="sub">programa · ' + ps.length + " proyecto" +
+        (ps.length === 1 ? "" : "s") + " · archivado " + fmtDate(g.archived) + "</div></div>" +
+        '<button class="x rest" title="Restaurar">↺</button><button class="x del" title="Borrar definitivamente">×</button>';
+      el.querySelector(".name").textContent = g.name;
+      el.addEventListener("click", function(e){
+        if(e.target.closest(".rest")) unarchive(g);
+        else if(e.target.closest(".del")) ask({ title: "¿Borrar definitivamente el programa «" + g.name + "»" +
+          (ps.length ? " y sus " + ps.length + " proyecto(s) con todas sus tareas?" : "?"), ok: "borrar", danger: true }, function(){
+          change(function(){
+            state.programs = state.programs.filter(function(x){ return x.id !== g.id; });
+            state.projects = state.projects.filter(function(p){ return p.program !== g.id; });
+            if(!proj()) state.current = state.projects[0] ? state.projects[0].id : null;
+          });
+        });
+      });
+      body.appendChild(el);
+      ps.forEach(function(p){ body.appendChild(archivedProject(p, true)); });
+    });
+    projs.forEach(function(p){ body.appendChild(archivedProject(p, false)); });
+    box.appendChild(body);
+  $("projects").appendChild(box);
+}
+
+function archivedProject(p, inProgram){
+  var g = programById(progOf(p));
+  var el = document.createElement("div");
+  el.className = "arch-item" + (inProgram ? " sub-a" : "") + (p.id === state.current ? " active" : "");
+  el.innerHTML = '<div class="txt"><div class="name"></div><div class="sub">' +
+    (inProgram ? "proyecto" : (g ? "de " + esc(g.name) : "proyecto") + " · archivado " + fmtDate(p.archived)) + "</div></div>" +
+    (inProgram ? "" : '<button class="x rest" title="Restaurar">↺</button><button class="x del" title="Borrar definitivamente">×</button>');
+  el.querySelector(".name").textContent = p.name;
+  el.title = "Tocá para verlo";
+  el.addEventListener("click", function(e){
+    if(e.target.closest(".rest")){ unarchive(p); return; }
+    if(e.target.closest(".del")){
+      ask({ title: "¿Borrar definitivamente el proyecto «" + p.name + "» y todas sus tareas?", ok: "borrar", danger: true }, function(){
+        change(function(){
+          state.projects = state.projects.filter(function(x){ return x.id !== p.id; });
+          if(state.current === p.id) state.current = state.projects[0] ? state.projects[0].id : null;
+        });
+      });
+      return;
+    }
+    if(state.current !== p.id){ state.current = p.id; sel = null; save(); renderAll(); }
+    closeSideMobile();
+  });
+  return el;
 }
 
 function projectItem(p){
@@ -696,12 +879,21 @@ function ensureVisible(t){
 }
 
 var toastTimer;
-function toast(msg){
+// Aviso breve arriba. Con action ({ label, fn }) muestra un botón (por ejemplo «deshacer»).
+function toast(msg, action){
   var el = $("toast");
   el.textContent = msg;
+  el.classList.toggle("act", !!action);
+  if(action){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = action.label;
+    b.addEventListener("click", function(){ el.classList.remove("show"); clearTimeout(toastTimer); action.fn(); });
+    el.appendChild(b);
+  }
   el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(function(){ el.classList.remove("show"); }, 2200);
+  toastTimer = setTimeout(function(){ el.classList.remove("show"); }, action ? 6000 : 2200);
 }
 
 // ---------- puntero: mover, conectar, pan, pinch ----------
@@ -1064,8 +1256,12 @@ $("listAddBtn").addEventListener("click", listAddTask);
 $("listNew").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); listAddTask(); } });
 
 $("modeSeg").addEventListener("click", function(e){
-  var b = e.target.closest("[data-mode]"); if(!b || b.dataset.mode === state.mode) return;
-  state.mode = b.dataset.mode;
+  var b = e.target.closest("[data-mode]"); if(!b) return;
+  var m = b.dataset.mode;
+  // Mapa ⇄ Lista: si ya estás en una, el botón cambia a la otra; si no, vuelve a la última usada.
+  if(m === "proj") m = state.mode === "map" ? "list" : state.mode === "list" ? "map" : (state.projMode === "list" ? "list" : "map");
+  if(m === state.mode) return;
+  state.mode = m;
   save();
   renderAll();
 });
@@ -1759,7 +1955,7 @@ var GL_ST = {
   over: { name: "vencido", c: "var(--danger)" },
   soon: { name: "por empezar", c: "var(--todo)" }
 };
-var glUi = { q: "", proj: "", cat: "", st: "", sort: "due", open: null }, glEditing = null, glEdKind = "num", glEdReview = "none";
+var glUi = { q: "", proj: "", cat: "", sort: "due", open: null }, glEditing = null, glEdKind = "num", glEdReview = "none";
 
 function glById(id){ for(var i = 0; i < state.goals.length; i++) if(state.goals[i].id === id) return state.goals[i]; return null; }
 function glRoutine(id){ for(var i = 0; i < state.routines.length; i++) if(state.routines[i].id === id) return state.routines[i]; return null; }
@@ -1863,16 +2059,7 @@ function renderGoals(){
     var p = g.project && glProject(g.project);
     return !q || ntNorm([g.title, g.cat, g.S, g.A, g.R, p ? p.name : ""].join(" ")).indexOf(q) >= 0;
   });
-  var cnt = { ok: 0, late: 0, rev: 0, done: 0 };
-  base.forEach(function(g){ var s = glStatus(g); if(s === "ok") cnt.ok++; if(s === "late" || s === "over") cnt.late++; if(s === "done") cnt.done++; if(glReviewDue(g)) cnt.rev++; });
-  $("glStats").innerHTML = state.goals.length ? [["ok", "en camino", "var(--doing)"], ["late", "atrasados", "var(--paused)"], ["rev", "a revisar", "var(--ready)"], ["done", "cumplidos", "var(--done)"]].map(function(x){
-    return '<button type="button" class="gl-stat' + (glUi.st === x[0] ? " on" : "") + '" data-gs="' + x[0] + '" style="--c:' + x[2] + '"><b>' + cnt[x[0]] + "</b><span>" + x[1] + "</span></button>";
-  }).join("") : "";
-
-  var list = base.filter(function(g){
-    var s = glStatus(g);
-    return !glUi.st || (glUi.st === "rev" ? glReviewDue(g) : glUi.st === "late" ? s === "late" || s === "over" : s === glUi.st);
-  });
+  var list = base;
   var rank = { over: 0, late: 1, ok: 2, soon: 3, done: 4 };
   list.sort(function(a, b){
     if(glUi.sort === "risk") return rank[glStatus(a)] - rank[glStatus(b)] || (glPct(a) - glExpected(a)) - (glPct(b) - glExpected(b));
@@ -1881,7 +2068,6 @@ function renderGoals(){
     var da = glStatus(a) === "done", db = glStatus(b) === "done";
     return (glReviewDue(b) - glReviewDue(a)) || (da - db) || a.due.localeCompare(b.due);
   });
-  $("glCount").textContent = state.goals.length ? (list.length !== state.goals.length ? list.length + " de " : "") + state.goals.length + (state.goals.length === 1 ? " objetivo" : " objetivos") : "";
 
   $("glList").innerHTML = !state.goals.length
     ? '<div class="rt-empty">Todavía no tenés objetivos.<br>Tocá «+ objetivo» y completá las 5 letras SMART.<br>Se pueden medir con un número o con una de tus rutinas.</div>'
@@ -1988,12 +2174,10 @@ function glAddCheckin(v){
 }
 
 $("glSearch").addEventListener("input", function(e){ glUi.q = e.target.value; renderGoals(); });
-$("glSort").addEventListener("change", function(e){ glUi.sort = e.target.value; renderGoals(); });
 $("glListView").addEventListener("click", function(e){
   var b;
   if((b = e.target.closest("[data-gp]"))){ glUi.proj = b.dataset.gp; return renderGoals(); }
   if((b = e.target.closest("[data-gc]"))){ glUi.cat = b.dataset.gc; return renderGoals(); }
-  if((b = e.target.closest("[data-gs]"))){ glUi.st = glUi.st === b.dataset.gs ? "" : b.dataset.gs; return renderGoals(); }
   if((b = e.target.closest(".gl-goal"))) glOpen(b.dataset.gid);
 });
 $("glList").addEventListener("keydown", function(e){
@@ -2157,6 +2341,7 @@ function applyData(d){
   state.projects = Array.isArray(d.projects) ? d.projects : [];
   state.routines = Array.isArray(d.routines) ? d.routines : [];
   state.routineDone = d.routineDone && typeof d.routineDone === "object" ? d.routineDone : {};
+  normalizeData();
   state.notes = Array.isArray(d.notes) ? d.notes : [];
   state.goals = Array.isArray(d.goals) ? d.goals : [];
   if(!proj()) state.current = state.projects[0] ? state.projects[0].id : null;
