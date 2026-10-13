@@ -24,6 +24,7 @@ if(!state.routineDone || typeof state.routineDone !== "object") state.routineDon
 normalizeData();
 if(!Array.isArray(state.notes)) state.notes = [];
 if(!Array.isArray(state.goals)) state.goals = [];
+state.aprender = aprData(state.aprender);
 if(!state.mode) state.mode = matchMedia("(max-width: 800px)").matches ? "list" : "map";
 // Al tocar un aviso de rutina se abre /planes/?rutinas: ir directo a la vista Rutinas.
 if(/[?&]rutinas\b/.test(location.search)){
@@ -1069,6 +1070,7 @@ canvas.addEventListener("wheel", function(e){
 
 // ---------- teclado ----------
 document.addEventListener("keydown", function(e){
+  if(state.mode === "aprender") return;   // Aprender tiene sus propios atajos
   var tg = e.target;
   if(!$("ask").hidden || !$("notesDlg").hidden || !$("rtSheet").hidden || !$("avSheet").hidden || !$("ntSheet").hidden || !$("glSheet").hidden) return;
   if(editing || tg.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName)) return;
@@ -1269,12 +1271,25 @@ $("modeSeg").addEventListener("click", function(e){
 
 // ---------- aprender ----------
 // La app de /aprender/ se carga en un marco la primera vez que se abre la vista.
+// Habilidades en diagramas (planes/aprender.js). Sus datos van en state.aprender y se guardan con todo lo demás.
+function aprData(d){
+  var A = window.PlanesAprender;
+  if(!A) return d || { skills: [], current: null };
+  return A.normalize(d) || A.initialData();
+}
 function renderAprender(){
-  var on = state.mode === "aprender";
+  var on = state.mode === "aprender", A = window.PlanesAprender;
   $("aprender").hidden = !on;
-  if(on && !$("aprFrame").getAttribute("src")) $("aprFrame").setAttribute("src", "../aprender/index.html");
+  if(on && A){
+    A.mount($("aprender"), {
+      state: function(){ return state.aprender; },
+      save: save,
+      visible: function(){ return state.mode === "aprender"; }
+    });
+    A.show();
+  }
   // Aprender trae su propia ayuda: en el celular no mostrar dos «?».
-  var hb = document.querySelector(".topbar .help-btn"); if(hb) hb.hidden = on;
+  var hb = document.querySelector(".topbar .help-btn"); if(hb) hb.style.display = on ? "none" : "";
 }
 
 // ---------- panel lateral ----------
@@ -2332,7 +2347,7 @@ $("glTitle").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.p
 
 // ---------- cuenta y sincronización (Supabase) ----------
 // Una fila por persona en planes_datos (ver supabase/7-planes.sql) con
-// { portfolios, programs, projects, routines, routineDone, notes, goals }. Lo demás (vista elegida, pliegues) queda en el navegador.
+// { portfolios, programs, projects, routines, routineDone, notes, goals, aprender }. Lo demás (vista elegida, pliegues) queda en el navegador.
 var CFG = window.APP_CONFIG || {};
 var REMOTE = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
 var sb = (REMOTE && window.supabase && window.supabase.createClient)
@@ -2343,7 +2358,7 @@ var sync = { at: null, timer: null, busy: false, pending: false };
 
 function setSync(text){ $("syncState").textContent = text; }
 
-function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, notes: state.notes, goals: state.goals }; }
+function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, notes: state.notes, goals: state.goals, aprender: state.aprender }; }
 
 // Reemplaza programas y proyectos por los de otra copia, conservando la vista local.
 function applyData(d){
@@ -2355,6 +2370,8 @@ function applyData(d){
   normalizeData();
   state.notes = Array.isArray(d.notes) ? d.notes : [];
   state.goals = Array.isArray(d.goals) ? d.goals : [];
+  state.aprender = aprData(d.aprender);
+  if(window.PlanesAprender) window.PlanesAprender.reload();
   if(!proj()) state.current = state.projects[0] ? state.projects[0].id : null;
   hist = []; fut = []; sel = null;
   try { localStorage.setItem(storeKey, JSON.stringify(state)); } catch(e){}
@@ -2392,6 +2409,7 @@ function push(){
 // Trae la versión de la nube si otro dispositivo la cambió (y acá no hay cambios sin subir).
 function pull(){
   if(!user || sync.pending || sync.busy || editing || drag || !$("glSheet").hidden || !$("ntSheet").hidden) return;
+  if(window.PlanesAprender && window.PlanesAprender.busy()) return;
   sb.from("planes_datos").select("updated_at").eq("user_id", user.id).maybeSingle().then(function(r){
     if(r.error || !r.data || r.data.updated_at === sync.at) return;
     return sb.from("planes_datos").select("data, updated_at").eq("user_id", user.id).single().then(function(r2){
@@ -2410,7 +2428,8 @@ function onSession(s){
   if(!user){
     // Sin sesión: no dejar a la vista datos de la cuenta anterior.
     storeKey = KEY; sync.at = null; clearTimeout(sync.timer); sync.pending = false;
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.notes = []; state.goals = []; state.current = null;
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
+    if(window.PlanesAprender) window.PlanesAprender.reload();
     hist = []; fut = []; sel = null;
     renderAll();
     return;
@@ -2494,7 +2513,8 @@ if(REMOTE){
     $("signInBtn").disabled = $("signUpBtn").disabled = true;
   } else {
     // Mientras se sabe si hay sesión, no mostrar datos locales de nadie.
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.notes = []; state.goals = []; state.current = null;
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
+    if(window.PlanesAprender) window.PlanesAprender.reload();
     renderAll();
     var params = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));
     if(params.get("error_description")){

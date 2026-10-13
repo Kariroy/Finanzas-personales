@@ -134,10 +134,8 @@
       </div>
     </section>
 
-    <!-- Aprender: la app de /aprender/ dentro de Planes (mismo sitio, mismos datos del navegador) -->
-    <section class="apr" id="aprender" hidden>
-      <iframe id="aprFrame" title="Aprender"></iframe>
-    </section>
+    <!-- Aprender: habilidades en diagramas (planes/aprender.js la dibuja adentro) -->
+    <section class="apr" id="aprender" hidden></section>
 
     <section class="rt gl" id="goals" hidden>
       <div class="rt-inner" id="glListView">
@@ -364,6 +362,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="../config.js"></script>
+<script src="aprender.js"></script>
 <script src="planes.js"></script>
 <script>
   if("serviceWorker" in navigator && location.protocol === "https:"){

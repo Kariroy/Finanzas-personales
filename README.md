@@ -23,7 +23,6 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 | `planes/` | App Planes (planificador de tareas), aparte de la de gastos. |
 | `supabase/8-cocina.sql` | Tabla de la app Cocina (`cocina/`). Solo hace falta si usás Cocina. |
 | `cocina/` | App Cocina (comidas por día, stock de la casa y recetas), aparte de las otras. |
-| `aprender/` | App Aprender (también como ventana «Aprender» dentro de Planes): organizador de diagramas de habilidades, como el mapa de Planes, con niveles, corazón, requisitos y notas adhesivas. Un solo `index.html`, datos en el navegador con exportar/importar JSON. |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Para instalar la app en el celular. |
 | `_headers` | Cabeceras de seguridad para Cloudflare Pages. |
 
@@ -100,6 +99,11 @@ los días que la marcaste en Rutinas). Cada uno dice si vas en camino o atrasado
 La vista **Notas** guarda apuntes: buscador, filtro por categoría, ficha de cada nota
 (con formato simple: `# título`, `- lista`, `**negrita**`) y **⇩ exportar**, que descarga las notas
 que se ven (con el filtro y la búsqueda) en un archivo Markdown (`.md`).
+La vista **Aprender** (`planes/aprender.js`) organiza habilidades en diagramas: cada habilidad es un
+lienzo con cards **concepto** / **acción**, niveles bronce → plata → oro → diamante (con el criterio de
+cada uno), un **corazón** (criterio de logro visible) por card, **requisitos** que bloquean una card hasta
+que la requerida llegue a Plata, y **notas adhesivas** de colores (traba, idea, pregunta, recurso).
+Se guarda en la cuenta con el resto de Planes.
 
 Comparte con la app de gastos solo la infraestructura:
 
