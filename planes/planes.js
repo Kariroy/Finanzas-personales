@@ -398,19 +398,19 @@ function renderProjects(){
   var sortFn = function(a, b){ return b.updated - a.updated; };  // últimos editados primero
   var tab = activeTab();
   renderTabs(tab);
-  var inTab = function(g){ return tab === "all" || portOf(g) === tab; };
-  var groups = state.programs.filter(function(g){ return !g.archived && inTab(g); })
+  var groups = state.programs.filter(function(g){ return tab === "all" || portOf(g) === tab; })
     .sort(function(a, b){ return a.name.localeCompare(b.name, "es"); });
-  var loose = state.projects.filter(function(p){ return !progOf(p) && !p.archived; });
+  var loose = state.projects.filter(function(p){ return !progOf(p); });
   if(loose.length && tab === "all") groups.push({ id: null, name: "Sin programa", open: state.looseOpen !== false });
 
   list.innerHTML = "";
   if(!groups.length){
     list.innerHTML = '<div class="no-projects">' + (tab === "all" ? "Creá un programa y adentro tus proyectos." :
       "Este portafolio no tiene programas. Creá uno con «+ programa» o pasá uno existente con ✎.") + "</div>";
+    return;
   }
   groups.forEach(function(g){
-    var all = state.projects.filter(function(p){ return progOf(p) === g.id && !p.archived; });
+    var all = state.projects.filter(function(p){ return progOf(p) === g.id; });
     var shown = all.slice().sort(sortFn);
     var tot = all.reduce(function(acc, p){ var st = projStats(p); acc.n += st.n; acc.done += st.done; return acc; }, { n: 0, done: 0 });
     var pct = tot.n ? Math.round(tot.done * 100 / tot.n) : 0;
@@ -425,12 +425,10 @@ function renderProjects(){
       '<div class="txt"><div class="name"></div><div class="sub">' + all.length + " proyecto" + (all.length === 1 ? "" : "s") +
       " · " + pct + "%</div></div>" +
       (g.id ? '<button class="x add" title="Nuevo proyecto en este programa">＋</button>' +
-              '<button class="x arch' + (tot.n && pct === 100 ? " ready" : "") + '" title="Archivar en Terminados">📦</button>' +
               '<button class="x ren" title="Editar programa">✎</button><button class="x del" title="Borrar programa">×</button>' : "");
     head.querySelector(".name").textContent = g.name;
     head.addEventListener("click", function(e){
       if(e.target.closest(".add")){ newProject(g.id); return; }
-      if(e.target.closest(".arch")){ archive(g, "programa"); return; }
       if(e.target.closest(".ren")){ renameProgram(g); return; }
       if(e.target.closest(".del")){ deleteProgram(g, all.length); return; }
       if(g.id) g.open = !open; else state.looseOpen = !open;
@@ -449,97 +447,6 @@ function renderProjects(){
     }
     list.appendChild(box);
   });
-  renderArchive(inTab);
-}
-
-// ---------- terminados (archivo) ----------
-// Programas y proyectos archivados: salen del panel y quedan juntos al final, plegados.
-// Archivar un programa se lleva sus proyectos; restaurarlo los trae de vuelta.
-function archive(item, kind){
-  change(function(){ item.archived = Date.now(); });
-  toast("«" + item.name + "» pasó a 📦 Terminados");
-}
-function unarchive(item){
-  change(function(){ delete item.archived; });
-  toast("«" + item.name + "» volvió a tus " + (item.tasks ? "proyectos" : "programas"));
-}
-function fmtDate(ms){ var d = new Date(ms); return d.getDate() + "/" + (d.getMonth() + 1) + "/" + d.getFullYear(); }
-
-function renderArchive(inTab){
-  var progs = state.programs.filter(function(g){ return g.archived && inTab(g); })
-    .sort(function(a, b){ return b.archived - a.archived; });
-  var projs = state.projects.filter(function(p){
-    if(!p.archived) return false;
-    var g = programById(progOf(p));
-    if(g && g.archived) return false;                       // va dentro de su programa archivado
-    return g ? inTab(g) : activeTab() === "all";
-  }).sort(function(a, b){ return b.archived - a.archived; });
-  var n = progs.length + projs.length;
-  if(!n) return;
-  var open = !!state.archOpen;
-  var box = document.createElement("div");
-  box.className = "arch-box";
-  var h = document.createElement("button");
-  h.type = "button";
-  h.className = "arch-h";
-  h.innerHTML = '<span class="caret">' + (open ? "▾" : "▸") + "</span>📦 Terminados <span class=\"n\">" + n + "</span>";
-  h.addEventListener("click", function(){ state.archOpen = !open; save(); renderProjects(); });
-  box.appendChild(h);
-  if(open){
-    var body = document.createElement("div");
-    body.className = "arch-body";
-    progs.forEach(function(g){
-      var ps = state.projects.filter(function(p){ return progOf(p) === g.id; });
-      var el = document.createElement("div");
-      el.className = "arch-item prog-a";
-      el.innerHTML = '<div class="txt"><div class="name"></div><div class="sub">programa · ' + ps.length + " proyecto" +
-        (ps.length === 1 ? "" : "s") + " · archivado " + fmtDate(g.archived) + "</div></div>" +
-        '<button class="x rest" title="Restaurar">↺</button><button class="x del" title="Borrar definitivamente">×</button>';
-      el.querySelector(".name").textContent = g.name;
-      el.addEventListener("click", function(e){
-        if(e.target.closest(".rest")) unarchive(g);
-        else if(e.target.closest(".del")) ask({ title: "¿Borrar definitivamente el programa «" + g.name + "»" +
-          (ps.length ? " y sus " + ps.length + " proyecto(s) con todas sus tareas?" : "?"), ok: "borrar", danger: true }, function(){
-          change(function(){
-            state.programs = state.programs.filter(function(x){ return x.id !== g.id; });
-            state.projects = state.projects.filter(function(p){ return p.program !== g.id; });
-            if(!proj()) state.current = state.projects[0] ? state.projects[0].id : null;
-          });
-        });
-      });
-      body.appendChild(el);
-      ps.forEach(function(p){ body.appendChild(archivedProject(p, true)); });
-    });
-    projs.forEach(function(p){ body.appendChild(archivedProject(p, false)); });
-    box.appendChild(body);
-  }
-  $("projects").appendChild(box);
-}
-
-function archivedProject(p, inProgram){
-  var g = programById(progOf(p));
-  var el = document.createElement("div");
-  el.className = "arch-item" + (inProgram ? " sub-a" : "") + (p.id === state.current ? " active" : "");
-  el.innerHTML = '<div class="txt"><div class="name"></div><div class="sub">' +
-    (inProgram ? "proyecto" : (g ? "de " + esc(g.name) : "proyecto") + " · archivado " + fmtDate(p.archived)) + "</div></div>" +
-    (inProgram ? "" : '<button class="x rest" title="Restaurar">↺</button><button class="x del" title="Borrar definitivamente">×</button>');
-  el.querySelector(".name").textContent = p.name;
-  el.title = "Tocá para verlo";
-  el.addEventListener("click", function(e){
-    if(e.target.closest(".rest")){ unarchive(p); return; }
-    if(e.target.closest(".del")){
-      ask({ title: "¿Borrar definitivamente el proyecto «" + p.name + "» y todas sus tareas?", ok: "borrar", danger: true }, function(){
-        change(function(){
-          state.projects = state.projects.filter(function(x){ return x.id !== p.id; });
-          if(state.current === p.id) state.current = state.projects[0] ? state.projects[0].id : null;
-        });
-      });
-      return;
-    }
-    if(state.current !== p.id){ state.current = p.id; sel = null; save(); renderAll(); }
-    closeSideMobile();
-  });
-  return el;
 }
 
 function projectItem(p){
@@ -549,11 +456,9 @@ function projectItem(p){
   el.className = "proj" + (p.id === state.current ? " active" : "");
   el.innerHTML = '<span class="ring" style="--p:' + pct + '"></span><div class="txt"><div class="name"></div>' +
     '<div class="sub">' + st.pending + " por hacer · ed. " + d.toISOString().slice(0, 10) + "</div></div>" +
-    '<button class="x arch' + (st.n && !st.pending ? " ready" : "") + '" title="Archivar en Terminados">📦</button>' +
     '<button class="x ren" title="Editar proyecto">✎</button><button class="x del" title="Borrar proyecto">×</button>';
   el.querySelector(".name").textContent = p.name;
   el.addEventListener("click", function(e){
-    if(e.target.closest(".arch")){ archive(p, "proyecto"); return; }
     if(e.target.closest(".ren")){ editProject(p); return; }
     if(e.target.closest(".del")){
       ask({ title: "¿Borrar el proyecto «" + p.name + "» y todas sus tareas?", ok: "borrar", danger: true }, function(){
