@@ -751,3 +751,19 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 /* Rutinas, Notas y Objetivos no usan el panel de proyectos: se oculta junto con el ☰. */
 .layout.no-side .side { display: none; }
 .layout.no-side #openSide { display: none; }
+
+/* ---------- selección múltiple ---------- */
+.sel-box { position: absolute; z-index: 4; border: 1px solid var(--doing); background: rgba(88, 166, 255, .10); border-radius: 3px; pointer-events: none; }
+.sel-box[hidden] { display: none; }
+.multi-bar {
+  position: absolute; left: 50%; bottom: 68px; transform: translateX(-50%); z-index: 5;
+  display: flex; align-items: center; gap: 4px; padding: 6px 8px;
+  background: #141a22; border: 1px solid var(--doing); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, .4);
+}
+.multi-bar[hidden] { display: none; }
+.multi-bar span { color: var(--text); font-weight: 600; margin-right: 6px; white-space: nowrap; }
+.multi-bar button { background: none; border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; cursor: pointer; color: var(--muted); }
+.multi-bar button:hover { color: var(--text); border-color: var(--line-2); }
+.multi-bar button[data-mact="doing"] { color: var(--doing); }
+.multi-bar button[data-mact="done"] { color: var(--done); }
+.multi-bar .del:hover { color: var(--danger); }

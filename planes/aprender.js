@@ -255,6 +255,8 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .toolbar .btn { background: #141a22; }
 .toolbar .btn.primary { background: #b62324; }
 .toolbar.pick { background: #141a22; border: 1px solid var(--accent); border-radius: 8px; padding: 6px 6px 6px 12px; max-width: calc(100% - 20px); }
+.sel-box { position: absolute; z-index: 4; border: 1px solid var(--accent); background: rgba(88, 166, 255, .10); border-radius: 3px; pointer-events: none; }
+.sel-box[hidden] { display: none; }
 .toolbar.pick span { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette { position: absolute; bottom: calc(62px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); z-index: 3;
   display: flex; gap: 6px; background: #141a22; border: 1px solid var(--line-2); border-radius: 8px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
@@ -357,6 +359,12 @@ var HTML = `<div class="layout" id="layoutEl">
         <button class="btn sq" id="zoomOut" aria-label="Alejar">−</button>
         <button class="btn sq" id="zoomIn" aria-label="Acercar">+</button>
         <button class="btn" id="noteBtn" title="Nota adhesiva">▣ nota</button>
+      </div>
+      <div class="sel-box" id="selBox" hidden></div>
+      <div class="toolbar pick" id="multiBar" hidden>
+        <span id="multiN"></span>
+        <button class="btn primary" id="multiDel">× borrar</button>
+        <button class="btn" id="multiClear">soltar</button>
       </div>
       <div class="toolbar" id="wireBar" hidden>
         <button class="btn primary" id="wireDel">× quitar conexión</button>
@@ -682,7 +690,8 @@ function engine(root, api){
   }
 
   // ---------- dibujo ----------
-  function isSelNode(id){ return sel && sel.node === id; }
+  var multi = [];          // selección múltiple de nodos (recuadro o Ctrl+click)
+  function isSelNode(id){ return (sel && sel.node === id) || multi.indexOf(id) >= 0; }
   function isSelDep(d){ return sel && sel.dep && sel.dep.from === d.from && sel.dep.to === d.to; }
   function isSelReq(r){ return sel && sel.req && sel.req.from === r.from && sel.req.to === r.to; }
 
@@ -816,9 +825,14 @@ function engine(root, api){
   // Barra de abajo: normal · línea o flecha seleccionada · eligiendo requisito.
   function renderBars(){
     var line = !!(sel && (sel.dep || sel.req));
+    var p0 = cur();
+    if(p0) multi = multi.filter(function(id){ return byId(p0, id); });
+    var many = !pick && multi.length > 1;
     $("pickBar").hidden = !pick;
-    $("wireBar").hidden = !!pick || !line;
-    $("toolbar").hidden = !!pick || line;
+    $("multiBar").hidden = !many;
+    if(many) $("multiN").textContent = multi.length + " seleccionadas";
+    $("wireBar").hidden = !!pick || many || !line;
+    $("toolbar").hidden = !!pick || many || line;
     if(pick || line) $("palette").hidden = true;
     $("wireDel").textContent = sel && sel.req ? "× quitar requisito" : "× quitar conexión";
     if(pick){ var t = cur() && byId(cur(), pick.to); $("pickTxt").textContent = "Tocá la card que «" + (t ? t.title : "") + "» requiere"; }
@@ -1072,6 +1086,7 @@ function engine(root, api){
   // ---------- acciones ----------
   function select(s){
     sel = s;
+    multi = [];
     Object.keys(els).forEach(function(k){ els[k].classList.toggle("selected", isSelNode(k)); });
     Object.keys(sEls).forEach(function(k){ sEls[k].classList.toggle("selected", !!(sel && sel.sticky === k)); });
     renderWires();
@@ -1089,7 +1104,43 @@ function engine(root, api){
     });
     if(t){ ensureVisible(t); startEdit(t.id); }
   }
+  // Selección de varios nodos: con uno solo se comporta como la selección normal.
+  function setMulti(ids){
+    if(ids.length === 1){ select({ node: ids[0] }); return; }
+    sel = null;
+    multi = ids;
+    Object.keys(els).forEach(function(k){ els[k].classList.toggle("selected", isSelNode(k)); });
+    Object.keys(sEls).forEach(function(k){ sEls[k].classList.remove("selected"); });
+    renderWires();
+    renderBars();
+  }
+  function multiDelete(){
+    var ids = multi.slice();
+    change(function(p){
+      p.nodes = p.nodes.filter(function(t){ return ids.indexOf(t.id) < 0; });
+      p.deps = p.deps.filter(function(d){ return ids.indexOf(d.from) < 0 && ids.indexOf(d.to) < 0; });
+      p.reqs = p.reqs.filter(function(r){ return ids.indexOf(r.from) < 0 && ids.indexOf(r.to) < 0; });
+      multi = []; sel = null;
+    });
+    toast(ids.length + " cards borradas · Ctrl+Z para deshacer");
+  }
+  $("multiDel").addEventListener("click", multiDelete);
+  $("multiClear").addEventListener("click", function(){ select(null); });
+  function moveDragIds(base, id, ids){
+    var p = cur();
+    return Object.assign(base, { kind: "move", id: id, items: ids.map(function(k){ return byId(p, k); }).filter(Boolean).map(function(t){ return { t: t, x: t.x, y: t.y }; }) });
+  }
+  function boxHits(d, cx, cy){
+    var v = view(), p = cur();
+    var x1 = Math.min(d.ox, cx), x2 = Math.max(d.ox, cx), y1 = Math.min(d.oy, cy), y2 = Math.max(d.oy, cy);
+    return p.nodes.filter(function(t){
+      var tx = t.x * v.z + v.x, ty = t.y * v.z + v.y, tw = W * v.z, th = cardH(t.id) * v.z;
+      return tx < x2 && tx + tw > x1 && ty < y2 && ty + th > y1;
+    }).map(function(t){ return t.id; });
+  }
+
   function deleteSelected(){
+    if(multi.length > 1){ multiDelete(); return; }
     if(!sel) return;
     if(sel.node){
       var id = sel.node;
@@ -1138,9 +1189,20 @@ function engine(root, api){
     lastTap = { id: id, t: now };
     return false;
   }
+  // Click derecho (o rueda apretada) y arrastrar = mover el lienzo, sin menú contextual.
+  canvas.addEventListener("contextmenu", function(e){ if(!e.target.closest('[contenteditable="true"], [contenteditable="plaintext-only"]')) e.preventDefault(); });
   canvas.addEventListener("pointerdown", function(e){
-    if(e.button !== 0 && e.pointerType === "mouse") return;
+    var mouse = e.pointerType === "mouse";
+    if(mouse && e.button !== 0 && e.button !== 1 && e.button !== 2) return;
     var p = cur(); if(!p) return;
+    if(mouse && e.button !== 0){
+      if(e.target.closest(".toolbar") || e.target.closest(".palette")) return;
+      e.preventDefault();
+      var v0 = view();
+      drag = { sx: e.clientX, sy: e.clientY, moved: false, kind: "pan", vx: v0.x, vy: v0.y };
+      canvas.setPointerCapture(e.pointerId);
+      return;
+    }
     if(editing){
       if(e.target.closest('[contenteditable="true"], [contenteditable="plaintext-only"]')) return;
       if(root.activeElement) root.activeElement.blur();
@@ -1173,13 +1235,27 @@ function engine(root, api){
         if(!inc.length) drag = moveDrag(base, id, e.shiftKey);
         else drag = Object.assign(base, { kind: "wire", from: inc[inc.length - 1], hide: { from: inc[inc.length - 1], to: id } });
       }
+    } else if(card && !pick && (e.ctrlKey || e.metaKey)){
+      // Ctrl/⌘ + click: sumar o sacar de la selección múltiple.
+      var cid = card.dataset.id, cur0 = multi.length ? multi.slice() : (sel && sel.node ? [sel.node] : []);
+      var i = cur0.indexOf(cid);
+      if(i >= 0) cur0.splice(i, 1); else cur0.push(cid);
+      closeMenu();
+      if(cur0.length) setMulti(cur0); else select(null);
+      return;
+    } else if(card && !pick && multi.length > 1 && multi.indexOf(card.dataset.id) >= 0){
+      drag = moveDragIds(base, card.dataset.id, multi);
     } else if(card){
       drag = moveDrag(base, card.dataset.id, e.shiftKey);
-      if(!pick && !isSelNode(card.dataset.id)) select({ node: card.dataset.id });
+      if(!pick && (!isSelNode(card.dataset.id) || multi.length)) select({ node: card.dataset.id });
     } else if(wire && !pick){
       if(wire.dataset.rfrom) select({ req: { from: wire.dataset.rfrom, to: wire.dataset.rto } });
       else select({ dep: { from: wire.dataset.from, to: wire.dataset.to } });
       return;
+    } else if(mouse && !pick){
+      // Mantener click y arrastrar sobre el fondo = recuadro de selección.
+      var r0 = canvas.getBoundingClientRect();
+      drag = Object.assign(base, { kind: "box", ox: e.clientX - r0.left, oy: e.clientY - r0.top, add: e.ctrlKey || e.metaKey || e.shiftKey });
     } else {
       var v = view();
       drag = Object.assign(base, { kind: "pan", vx: v.x, vy: v.y });
@@ -1212,6 +1288,17 @@ function engine(root, api){
       if(drag.kind === "smove" && sEls[drag.s.id]) sEls[drag.s.id].classList.add("dragging");
     }
     var v = view();
+    if(drag.kind === "box"){
+      var r = canvas.getBoundingClientRect(), cx = e.clientX - r.left, cy = e.clientY - r.top, bx = $("selBox");
+      bx.hidden = false;
+      bx.style.left = Math.min(drag.ox, cx) + "px"; bx.style.top = Math.min(drag.oy, cy) + "px";
+      bx.style.width = Math.abs(cx - drag.ox) + "px"; bx.style.height = Math.abs(cy - drag.oy) + "px";
+      var hits = boxHits(drag, cx, cy);
+      if(drag.add && !drag.prev) drag.prev = multi.length ? multi.slice() : (sel && sel.node ? [sel.node] : []);
+      var prev = drag.prev || [];
+      Object.keys(els).forEach(function(k){ els[k].classList.toggle("selected", hits.indexOf(k) >= 0 || prev.indexOf(k) >= 0); });
+      return;
+    }
     if(drag.kind === "pan"){ v.x = drag.vx + dx; v.y = drag.vy + dy; applyView(); }
     else if(drag.kind === "move"){
       drag.items.forEach(function(it){
@@ -1245,10 +1332,17 @@ function engine(root, api){
     drag = null;
     canvas.classList.remove("panning");
     if(e.type === "pointercancel"){ tempWire = null; renderAll(); return; }
-    if(d.kind === "pan"){
+    if(d.kind === "box"){
+      $("selBox").hidden = true;
+      if(!d.moved){ closeMenu(); if(sel || multi.length) select(null); return; }
+      var r = canvas.getBoundingClientRect(), hit = boxHits(d, e.clientX - r.left, e.clientY - r.top);
+      if(d.add) (d.prev || []).forEach(function(id){ if(hit.indexOf(id) < 0) hit.push(id); });
+      closeMenu();
+      if(hit.length) setMulti(hit); else select(null);
+    } else if(d.kind === "pan"){
       if(d.moved) save();
       else if(pick) endPick();
-      else if(sel) select(null);
+      else if(sel || multi.length) select(null);
     } else if(d.kind === "smove" || d.kind === "resize"){
       if(d.moved){ pushHist(d.before); p.updated = Date.now(); save(); renderAll(); }
       else if(d.kind === "smove" && isDoubleTap(e, d.s.id)) editSticky(d.s.id);

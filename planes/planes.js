@@ -339,7 +339,8 @@ function branchWidth(p, id){
 }
 
 // ---------- dibujo ----------
-function isSelTask(id){ return sel && sel.task === id; }
+var multi = [];          // selección múltiple (ids de tareas), con recuadro o Ctrl+click
+function isSelTask(id){ return (sel && sel.task === id) || multi.indexOf(id) >= 0; }
 function isSelDep(d){ return sel && sel.dep && sel.dep.from === d.from && sel.dep.to === d.to; }
 
 function renderAll(){
@@ -371,6 +372,7 @@ function renderAll(){
   $("newTask").disabled = !p;
   $("layout").disabled = !p;
   canvas.classList.toggle("hl", state.highlight !== false);
+  renderMultiBar();
   $("highlight").checked = state.highlight !== false;
 }
 
@@ -804,9 +806,47 @@ function startEdit(id, span){
 // Cambia la selección sin rehacer las cards (así el doble clic sigue funcionando).
 function select(s){
   sel = s;
+  multi = [];
+  paintSel();
+}
+function paintSel(){
   Object.keys(els).forEach(function(k){ els[k].classList.toggle("selected", isSelTask(k)); });
   renderWires();
+  renderMultiBar();
 }
+// Selección de varias tareas: con una sola se comporta como la selección normal.
+function setMulti(ids){
+  if(ids.length === 1){ select({ task: ids[0] }); return; }
+  sel = null;
+  multi = ids;
+  paintSel();
+}
+function renderMultiBar(){
+  var p = proj(), bar = $("multiBar");
+  if(p) multi = multi.filter(function(id){ return byId(p, id); });
+  bar.hidden = multi.length < 2 || state.mode !== "map";
+  if(!bar.hidden) $("multiN").textContent = multi.length + " seleccionadas";
+}
+function multiStatus(st){
+  var ids = multi.slice();
+  change(function(p){ ids.forEach(function(id){ var t = byId(p, id); if(t) t.status = st; }); });
+}
+function multiDelete(){
+  var ids = multi.slice();
+  change(function(p){
+    p.tasks = p.tasks.filter(function(t){ return ids.indexOf(t.id) < 0; });
+    p.deps = p.deps.filter(function(d){ return ids.indexOf(d.from) < 0 && ids.indexOf(d.to) < 0; });
+    multi = []; sel = null;
+  });
+  toast(ids.length + " tareas borradas", { label: "deshacer", fn: undo });
+}
+$("multiBar").addEventListener("click", function(e){
+  var b = e.target.closest("[data-mact]"); if(!b) return;
+  var a = b.dataset.mact;
+  if(a === "del") multiDelete();
+  else if(a === "clear") select(null);
+  else multiStatus(a);
+});
 
 function newChild(id){
   var p = proj(), parent = byId(p, id); if(!parent) return;
@@ -822,6 +862,7 @@ function newChild(id){
 }
 
 function deleteSelected(){
+  if(multi.length > 1){ multiDelete(); return; }
   if(!sel) return;
   if(sel.task){
     var id = sel.task;
@@ -899,9 +940,21 @@ function toast(msg, action){
 }
 
 // ---------- puntero: mover, conectar, pan, pinch ----------
+// Click derecho (o rueda apretada) y arrastrar = mover el mapa, sin menú contextual.
+canvas.addEventListener("contextmenu", function(e){ if(!e.target.closest(".title[contenteditable=true]")) e.preventDefault(); });
+
 canvas.addEventListener("pointerdown", function(e){
-  if(e.button !== 0 && e.pointerType === "mouse") return;
+  var mouse = e.pointerType === "mouse";
+  if(mouse && e.button !== 0 && e.button !== 1 && e.button !== 2) return;
   var p = proj(); if(!p) return;
+  if(mouse && e.button !== 0){
+    if(e.target.closest(".toolbar") || e.target.closest(".menu") || e.target.closest("#multiBar")) return;
+    e.preventDefault();
+    var v0 = view();
+    drag = { sx: e.clientX, sy: e.clientY, moved: false, kind: "pan", vx: v0.x, vy: v0.y };
+    canvas.setPointerCapture(e.pointerId);
+    return;
+  }
   if(editing){ if(!e.target.closest(".title[contenteditable=true]")) document.activeElement.blur(); else return; }
 
   pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
@@ -913,7 +966,7 @@ canvas.addEventListener("pointerdown", function(e){
     return;
   }
   var t = e.target;
-  if(t.closest("[data-act]") || t.closest(".toolbar") || t.closest(".menu")) return;
+  if(t.closest("[data-act]") || t.closest(".toolbar") || t.closest(".menu") || t.closest("#multiBar")) return;
 
   var card = t.closest(".card"), port = t.closest(".port"), wire = t.closest(".wire");
   var base = { sx: e.clientX, sy: e.clientY, moved: false, before: snapshot() };
@@ -928,17 +981,51 @@ canvas.addEventListener("pointerdown", function(e){
       else drag = Object.assign(base, { kind: "wire", from: inc[inc.length - 1], hide: { from: inc[inc.length - 1], to: id } });
     }
   } else if(card){
-    drag = moveDrag(base, card.dataset.id, e.shiftKey);
-    if(!isSelTask(card.dataset.id)) select({ task: card.dataset.id });
+    var cid = card.dataset.id;
+    if(e.ctrlKey || e.metaKey){
+      // Ctrl/⌘ + click: sumar o sacar de la selección múltiple.
+      var cur = multi.length ? multi.slice() : (sel && sel.task ? [sel.task] : []);
+      var i = cur.indexOf(cid);
+      if(i >= 0) cur.splice(i, 1); else cur.push(cid);
+      if(cur.length) setMulti(cur); else select(null);
+      return;
+    }
+    if(multi.length > 1 && multi.indexOf(cid) >= 0) drag = moveDragIds(base, cid, multi);
+    else {
+      drag = moveDrag(base, cid, e.shiftKey);
+      if(!isSelTask(cid) || multi.length) select({ task: cid });
+    }
   } else if(wire){
     select({ dep: { from: wire.dataset.from, to: wire.dataset.to } });
     return;
+  } else if(mouse){
+    // Mantener click y arrastrar sobre el fondo = recuadro de selección.
+    var r0 = canvas.getBoundingClientRect();
+    drag = Object.assign(base, { kind: "box", ox: e.clientX - r0.left, oy: e.clientY - r0.top, add: e.ctrlKey || e.metaKey || e.shiftKey });
   } else {
     var v = view();
     drag = Object.assign(base, { kind: "pan", vx: v.x, vy: v.y });
   }
   canvas.setPointerCapture(e.pointerId);
 });
+
+function moveDragIds(base, id, ids){
+  var p = proj();
+  return Object.assign(base, {
+    kind: "move", id: id,
+    items: ids.map(function(k){ return byId(p, k); }).filter(Boolean).map(function(t){ return { t: t, x: t.x, y: t.y }; })
+  });
+}
+
+// Tareas que toca el recuadro (en coordenadas de la pantalla).
+function boxHits(d, cx, cy){
+  var r = canvas.getBoundingClientRect(), v = view(), p = proj();
+  var x1 = Math.min(d.ox, cx), x2 = Math.max(d.ox, cx), y1 = Math.min(d.oy, cy), y2 = Math.max(d.oy, cy);
+  return p.tasks.filter(function(t){
+    var tx = t.x * v.z + v.x, ty = t.y * v.z + v.y, tw = W * v.z, th = cardH(t.id) * v.z;
+    return tx < x2 && tx + tw > x1 && ty < y2 && ty + th > y1;
+  }).map(function(t){ return t.id; });
+}
 
 function moveDrag(base, id, subtree){
   var p = proj();
@@ -969,6 +1056,15 @@ canvas.addEventListener("pointermove", function(e){
     if(drag.kind === "move") drag.items.forEach(function(it){ var c = els[it.t.id]; if(c) c.classList.add("dragging"); });
   }
   var v = view();
+  if(drag.kind === "box"){
+    var r = canvas.getBoundingClientRect(), cx = e.clientX - r.left, cy = e.clientY - r.top, bx = $("selBox");
+    bx.hidden = false;
+    bx.style.left = Math.min(drag.ox, cx) + "px"; bx.style.top = Math.min(drag.oy, cy) + "px";
+    bx.style.width = Math.abs(cx - drag.ox) + "px"; bx.style.height = Math.abs(cy - drag.oy) + "px";
+    var hits = boxHits(drag, cx, cy), base0 = drag.add ? (drag.prev || (drag.prev = multi.length ? multi.slice() : (sel && sel.task ? [sel.task] : []))) : [];
+    Object.keys(els).forEach(function(k){ els[k].classList.toggle("selected", hits.indexOf(k) >= 0 || base0.indexOf(k) >= 0); });
+    return;
+  }
   if(drag.kind === "pan"){
     v.x = drag.vx + dx; v.y = drag.vy + dy;
     applyView();
@@ -1005,8 +1101,14 @@ function endPointer(e){
   canvas.classList.remove("panning");
   if(e.type === "pointercancel"){ tempWire = null; renderAll(); return; }
 
-  if(d.kind === "pan"){
-    if(d.moved) save(); else if(sel) select(null);
+  if(d.kind === "box"){
+    $("selBox").hidden = true;
+    if(!d.moved){ if(sel || multi.length) select(null); return; }
+    var r = canvas.getBoundingClientRect(), ids = boxHits(d, e.clientX - r.left, e.clientY - r.top);
+    if(d.add) (d.prev || []).forEach(function(id){ if(ids.indexOf(id) < 0) ids.push(id); });
+    if(ids.length) setMulti(ids); else select(null);
+  } else if(d.kind === "pan"){
+    if(d.moved) save(); else if(sel || multi.length) select(null);
   } else if(d.kind === "move"){
     if(d.moved){ pushHist(d.before); p.updated = Date.now(); save(); renderAll(); }
   } else if(d.kind === "wire"){
