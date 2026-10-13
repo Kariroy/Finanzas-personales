@@ -104,9 +104,10 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .port:hover { border-color: var(--accent); background: var(--accent); }
 
 /* tipos */
-.card.t-concepto, .card.t-concepto:hover { border-left-color: var(--concepto); border-radius: 22px; padding-left: 16px; padding-right: 16px; }
-.card.t-accion, .card.t-accion:hover { border-left-color: var(--accion); }
-.meta .type { margin-right: auto; font-weight: 600; }
+.card.t-concepto, .card.t-concepto:hover { border-left-color: var(--concepto); border-radius: 22px; padding-left: 16px; padding-right: 16px;
+  background: color-mix(in srgb, var(--concepto) 11%, var(--card)); border-color: color-mix(in srgb, var(--concepto) 28%, var(--line)); }
+.card.t-accion, .card.t-accion:hover { border-left-color: var(--accion);
+  background: color-mix(in srgb, var(--accion) 10%, var(--card)); border-color: color-mix(in srgb, var(--accion) 26%, var(--line)); }
 /* estado: botón al inicio de la card, como el círculo de estado de Planes (toque = siguiente estado) */
 .card .head { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
 .card .head .title { flex: 1; }
@@ -139,9 +140,6 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .ring { width: 18px; height: 18px; border-radius: 50%; flex: none; background: conic-gradient(var(--oro) calc(var(--p) * 1%), var(--line-2) 0);
   -webkit-mask: radial-gradient(circle, transparent 4px, #000 5px); mask: radial-gradient(circle, transparent 4px, #000 5px); }
 .nm-item .dot.gem { border-radius: 2px; transform: rotate(45deg) scale(.85); }
-.meta .type + .kids { margin-right: 0; }
-.t-concepto .meta .type { color: var(--concepto); }
-.t-accion .meta .type { color: var(--accion); }
 
 /* menú del nodo: botones en diagonal al costado de la card */
 .nmenu { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 4; }
@@ -170,7 +168,6 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .ask-title { font-weight: 600; line-height: 1.5; }
 .ask-text { color: var(--muted); line-height: 1.6; }
 .ask input, .ask textarea { background: var(--input); border: 1px solid var(--line-2); border-radius: 6px; padding: 10px; font-size: 16px; width: 100%; }
-.ask textarea { min-height: 200px; font-size: 11px; resize: vertical; }
 .ask input:focus, .ask textarea:focus { outline: none; border-color: var(--accent); }
 .ask-btns { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .help { margin: 0; padding-left: 0; list-style: none; color: var(--muted); line-height: 1.6; font-size: 11.5px; display: grid; gap: 4px; }
@@ -216,10 +213,6 @@ button, select, input, textarea { font: inherit; color: inherit; }
       <button class="btn" id="undo" title="Ctrl+Z">↶ deshacer</button>
       <button class="btn" id="redo" title="Ctrl+Y">↷ rehacer</button>
     </div>
-    <div class="row2">
-      <button class="btn" id="exportBtn">⇩ exportar</button>
-      <button class="btn" id="importBtn">⇧ importar</button>
-    </div>
   </aside>
   <div class="stage">
     <div class="topbar">
@@ -254,10 +247,8 @@ button, select, input, textarea { font: inherit; color: inherit; }
     <div class="ask-title" id="askTitle"></div>
     <div class="ask-text" id="askText" hidden></div>
     <input type="text" id="askInput" maxlength="120">
-    <textarea id="askArea" readonly hidden></textarea>
     <div class="ask-btns">
       <button type="button" class="btn" id="askCancel">cancelar</button>
-      <button type="button" class="btn" id="askAlt" hidden></button>
       <button type="button" class="btn primary" id="askOk">aceptar</button>
     </div>
   </div>
@@ -290,17 +281,16 @@ button, select, input, textarea { font: inherit; color: inherit; }
       <li><b>Doble clic</b> = crear nodo / renombrar · <b>✎</b> renombrar · <b>+</b> nodo conectado · <b>×</b> borrar.</li>
       <li>Arrastrá el fondo = mover · rueda o dos dedos = zoom · <b>⇶ reordenar</b> acomoda todo en columnas.</li>
       <li>Teclado: <b>Tab</b> nuevo nodo conectado · <b>Supr</b> borrar · <b>Enter</b> renombrar · <b>Ctrl+Z / Ctrl+Y</b>.</li>
-      <li>Los datos quedan en este navegador. Usá <b>exportar</b> para guardar una copia en JSON.</li>
+      <li>Los datos quedan guardados en este navegador.</li>
     </ul>
     <div class="ask-btns"><button type="button" class="btn primary" id="helpClose">entendido</button></div>
   </div>
 </div>
-<input type="file" id="fileIn" accept="application/json,.json" hidden>
 
 <script>
 // Aprender: organizador de diagramas de habilidades (basado en el mapa de Planes).
 // Cada habilidad es un lienzo con cards (nodos) y conexiones A→B.
-// Los datos quedan en este navegador (localStorage); exportar/importar en JSON.
+// Los datos quedan en este navegador (localStorage).
 (function(){
 "use strict";
 
@@ -315,11 +305,6 @@ var LEVELS = {
   oro:      { label: "Oro",      color: "var(--oro)" },
   diamante: { label: "Diamante", color: "var(--diamante)" }
 };
-// Opciones del menú del nodo: campo del nodo, valores posibles y texto para "ninguno".
-var FIELDS = {
-  tipo:   { key: "type",  label: "Tipo",   none: "Sin tipo",   opts: null },
-  estado: { key: "level", label: "Estado", none: "Sin estado", opts: null }
-};
 var TYPES = {
   concepto: { label: "Concepto", color: "var(--concepto)" },
   accion:   { label: "Acción",   color: "var(--accion)" }
@@ -333,7 +318,6 @@ var hist = [], fut = [];
 var sel = null;          // {node: id} | {dep: {from, to}}
 var els = {};            // id de nodo → elemento de la card
 var drag = null, pinch = null, pointers = {}, tempWire = null, editing = null;
-FIELDS.tipo.opts = TYPES; FIELDS.estado.opts = LEVELS;
 var menu = null;         // {id, view: "root" | "tipo"} menú abierto sobre un nodo
 
 // ---------- datos ----------
@@ -575,7 +559,7 @@ function renderCards(){
       '<span class="port in" data-port="in" title="Arrastrá para reconectar o quitar la conexión"></span>' +
       '<div class="head"><button class="st" data-act="level" title="' + (lv ? lv.label : "Sin estado") + ' · tocá para cambiar">' +
         (lv ? '<span class="medal m-' + t.level + '" style="--m:' + lv.color + '"></span>' : "○") + '</button><span class="title"></span></div>' +
-      '<div class="meta">' + (ty ? '<span class="type">' + ty.label.toLowerCase() + '</span>' : '') + (kids ? '<span class="kids" title="Nodos conectados">→ ' + kids + '</span>' : '') +
+      '<div class="meta">' + (kids ? '<span class="kids" title="Nodos conectados">→ ' + kids + '</span>' : '') +
         noteDot(t) + '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nuevo nodo conectado (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
       '</div>' +
       '<span class="port out" data-port="out" title="Arrastrá para conectar"></span>';
@@ -610,29 +594,15 @@ function renderWireBar(){
   $("toolbar").hidden = on;
 }
 
-// ---------- menú del nodo (en diagonal, al costado de la card) ----------
-function openMenu(id){ menu = { id: id, view: "root" }; renderMenu(); }
+// ---------- menú del nodo: el tipo, en diagonal debajo de la card ----------
+function openMenu(id){ menu = { id: id }; renderMenu(); }
 function closeMenu(){ if(!menu) return; menu = null; renderMenu(); }
 function renderMenu(){
   var box = $("nmenu"), p = cur(), t = menu && p && byId(p, menu.id);
   if(!t || !els[menu.id]){ menu = null; box.hidden = true; box.innerHTML = ""; return; }
-  var items, f = FIELDS[menu.view];
-  if(!f){
-    // raíz: una entrada por campo, con su valor actual
-    items = Object.keys(FIELDS).map(function(name){
-      var fl = FIELDS[name], o = fl.opts[t[fl.key]];
-      return { act: "open", val: name, html: '<span class="dot' + (name === "estado" && t[fl.key] === "diamante" ? " gem" : "") + '" style="--c:' + (o ? o.color : "var(--faint)") + '"></span>' +
-        fl.label + (o ? ": " + o.label : "") + " ▸" };
-    }).concat([{ act: "notes", html: '<span class="dot" style="--c:' + (t.notes ? "var(--text)" : "var(--faint)") + '"></span>Notas' }]);
-  } else {
-    items = Object.keys(f.opts).map(function(k){
-      var x = f.opts[k];
-      return { act: "set", val: k, on: t[f.key] === k, color: x.color, html: '<span class="dot' + (k === "diamante" ? " gem" : "") + '"></span>' + x.label };
-    }).concat([
-      { act: "set", val: "", on: !t[f.key], html: '<span class="dot"></span>' + f.none },
-      { act: "back", cls: "back", html: "‹ volver" }
-    ]);
-  }
+  var items = Object.keys(TYPES).map(function(k){
+    return { act: "set", val: k, on: t.type === k, color: TYPES[k].color, html: '<span class="dot"></span>' + TYPES[k].label };
+  }).concat([{ act: "set", val: "", on: !t.type, html: '<span class="dot"></span>Sin tipo' }]);
   box.innerHTML = items.map(function(it, i){
     return '<button type="button" class="nm-item' + (it.on ? " on" : "") + (it.cls ? " " + it.cls : "") + '" style="--i:' + i + (it.color ? ";--c:" + it.color : "") +
       '" data-menu="' + it.act + '" data-val="' + (it.val || "") + '">' + it.html + "</button>";
@@ -660,14 +630,11 @@ $("nmenu").addEventListener("click", function(e){
   var b = e.target.closest("[data-menu]"); if(!b || !menu) return;
   var p = cur(), t = byId(p, menu.id); if(!t) return;
   var act = b.dataset.menu;
-  if(act === "open"){ menu.view = b.dataset.val; renderMenu(); }
-  else if(act === "notes"){ var nid = menu.id; closeMenu(); openNotes(nid); }
-  else if(act === "back"){ menu.view = "root"; renderMenu(); }
-  else if(act === "set"){
-    var f = FIELDS[menu.view], v = b.dataset.val || null, id = menu.id;
-    if((t[f.key] || null) !== v) change(function(){ if(v) t[f.key] = v; else delete t[f.key]; });
-    menu = { id: id, view: "root" }; renderMenu();
-    toast(v ? f.label + ": " + f.opts[v].label : f.none);
+  if(act === "set"){
+    var v = b.dataset.val || null;
+    menu = null;
+    if((t.type || null) !== v) change(function(){ if(v) t.type = v; else delete t.type; });
+    else renderMenu();
   }
 });
 
@@ -1026,20 +993,17 @@ document.addEventListener("keydown", function(e){
 
 // ---------- ventana propia (reemplaza prompt/confirm, que muchos celulares bloquean) ----------
 function ask(o, onOk){
-  var box = $("ask"), input = $("askInput"), area = $("askArea");
+  var box = $("ask"), input = $("askInput");
   $("askTitle").textContent = o.title;
   $("askText").hidden = !o.text; $("askText").textContent = o.text || "";
   input.hidden = o.input === undefined;
   input.value = o.input || "";
   input.placeholder = o.placeholder || "";
-  area.hidden = o.area === undefined; area.value = o.area || "";
   $("askOk").textContent = o.ok || "aceptar";
   $("askOk").classList.toggle("danger", !!o.danger);
-  $("askCancel").textContent = o.cancel || "cancelar";
-  $("askAlt").hidden = !o.alt; $("askAlt").textContent = o.alt ? o.alt.label : "";
   box.hidden = false;
   setTimeout(function(){ if(input.hidden) $("askOk").focus(); else { input.focus(); input.select(); } }, 30);
-  function close(){ box.hidden = true; $("askOk").onclick = $("askCancel").onclick = $("askAlt").onclick = box.onclick = box.onkeydown = null; }
+  function close(){ box.hidden = true; $("askOk").onclick = $("askCancel").onclick = box.onclick = box.onkeydown = null; }
   function accept(){
     var v = input.value.replace(/\s+/g, " ").trim();
     if(!input.hidden && !v){ input.focus(); return; }
@@ -1048,57 +1012,12 @@ function ask(o, onOk){
   }
   $("askOk").onclick = accept;
   $("askCancel").onclick = close;
-  $("askAlt").onclick = function(){ close(); o.alt.fn(); };
   box.onclick = function(e){ if(e.target === box) close(); };
   box.onkeydown = function(e){
     if(e.key === "Escape"){ e.preventDefault(); close(); }
     else if(e.key === "Enter" && e.target === input){ e.preventDefault(); accept(); }
   };
 }
-
-// ---------- exportar / importar ----------
-function exportJSON(){
-  var json = JSON.stringify({ app: "aprender", version: 2, skills: state.skills }, null, 2);
-  var inFrame = true; try { inFrame = window.self !== window.top; } catch(e){}
-  if(!inFrame){
-    var url = URL.createObjectURL(new Blob([json], { type: "application/json" })), a = document.createElement("a");
-    a.href = url; a.download = "aprender-" + new Date().toISOString().slice(0, 10) + ".json";
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
-    toast("JSON exportado");
-    return;
-  }
-  // dentro de otra página no se puede descargar: mostrar el texto para copiar
-  ask({ title: "Exportar", text: "Copiá este texto y guardalo en un archivo .json.", area: json, ok: "copiar", cancel: "cerrar" }, function(){
-    if(navigator.clipboard) navigator.clipboard.writeText(json).then(function(){ toast("Copiado"); }, function(){ toast("Seleccioná el texto y copialo a mano"); });
-  });
-}
-$("fileIn").addEventListener("change", function(e){
-  var f = e.target.files[0]; e.target.value = "";
-  if(!f) return;
-  f.text().then(function(txt){
-    var data;
-    try { data = JSON.parse(txt); if(!data || !Array.isArray(data.skills)) throw 0; }
-    catch(err){ toast("Ese archivo no es un JSON de Aprender"); return; }
-    var ok = data.skills.filter(function(s){ return s && Array.isArray(s.nodes) && Array.isArray(s.deps); }).map(function(s){
-      s.id = s.id || uid(); s.name = s.name || "Sin nombre"; s.updated = s.updated || Date.now(); s.view = s.view || { x: 60, y: 120, z: 1 }; return s;
-    });
-    function apply(replace){
-      change(function(){
-        if(replace) state.skills = ok;
-        else {
-          var ids = {}; ok.forEach(function(s){ ids[s.id] = 1; });
-          state.skills = state.skills.filter(function(s){ return !ids[s.id]; }).concat(ok);
-        }
-        state.current = ok[0] ? ok[0].id : state.current;
-        sel = null;
-      });
-      toast("Importadas " + ok.length + " habilidades");
-    }
-    ask({ title: "Importar " + ok.length + " habilidad(es)", text: "¿Las sumás a las que tenés o reemplazás todo?", ok: "sumar",
-          alt: { label: "reemplazar todo", fn: function(){ apply(true); } } }, function(){ apply(false); });
-  });
-});
 
 // ---------- botones ----------
 $("newSkill").addEventListener("click", newSkill);
@@ -1112,8 +1031,6 @@ $("newNode").addEventListener("click", function(){
 });
 $("undo").addEventListener("click", undo);
 $("redo").addEventListener("click", redo);
-$("exportBtn").addEventListener("click", exportJSON);
-$("importBtn").addEventListener("click", function(){ $("fileIn").click(); });
 $("layout").addEventListener("click", function(){
   change(function(p){ if(!p || !p.nodes.length) return false; layout(p); });
   fit();
