@@ -18,6 +18,7 @@
   --bg: #0d1117; --panel: #10151c; --panel-2: #161c24; --card: #151a21; --input: #0b0f14;
   --line: #262e39; --line-2: #323c49; --text: #d6dde6; --muted: #7d8896; --faint: #4b5563;
   --accent: #58a6ff; --teal: #56d4c4; --danger: #f47067;
+  --concepto: #c297ff; --accion: #f0883e;
   --card-w: 230px; --card-h: 56px;
   color-scheme: dark;
 }
@@ -103,6 +104,30 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .port.in { left: -8px; }
 .port:hover { border-color: var(--accent); background: var(--accent); }
 
+/* tipos */
+.card.t-concepto, .card.t-concepto:hover { border-left-color: var(--concepto); }
+.card.t-accion, .card.t-accion:hover { border-left-color: var(--accion); }
+.meta .type { margin-right: auto; font-weight: 600; }
+.meta .type + .kids { margin-right: 0; }
+.t-concepto .meta .type { color: var(--concepto); }
+.t-accion .meta .type { color: var(--accion); }
+
+/* menú del nodo: botones en diagonal al costado de la card */
+.nmenu { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 4; }
+.nm-item { position: absolute; display: flex; align-items: center; gap: 8px; white-space: nowrap;
+  background: #1a222d; border: 1px solid var(--line-2); border-radius: 999px; padding: 7px 14px 7px 10px; cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0,0,0,.45); font-weight: 600; transform-origin: left center;
+  animation: nm-in .16s ease-out both; animation-delay: calc(var(--i) * 40ms); }
+.nmenu.flip .nm-item { transform: translateX(-100%); transform-origin: right center; animation-name: nm-in-flip; }
+.nm-item:hover { border-color: var(--accent); }
+.nm-item .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--faint)); flex: none; }
+.nm-item small { color: var(--muted); font-weight: 400; }
+.nm-item.on { border-color: var(--c, var(--accent)); background: color-mix(in srgb, var(--c, var(--accent)) 16%, #1a222d); }
+.nm-item.back { color: var(--muted); font-weight: 400; }
+@keyframes nm-in { from { opacity: 0; translate: -10px 6px; } to { opacity: 1; translate: 0 0; } }
+@keyframes nm-in-flip { from { opacity: 0; translate: 10px 6px; } to { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .nm-item { animation: none; } }
+
 .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); pointer-events: none; text-align: center; padding: 16px; line-height: 1.7; }
 .toolbar { position: absolute; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 3; }
 .toolbar .btn { background: #141a22; }
@@ -138,6 +163,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
   .icon-btn { width: 40px; height: 40px; }
   .cur-name { padding: 10px 12px; }
   .tools button { font-size: 15px; padding: 0 6px; }
+  .nm-item { padding: 10px 16px 10px 12px; font-size: 13px; }
 }
 </style>
 </head>
@@ -175,6 +201,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
         <svg class="wires" id="wires" xmlns="http://www.w3.org/2000/svg"></svg>
         <div class="cards" id="cards"></div>
       </div>
+      <div class="nmenu" id="nmenu" hidden></div>
       <div class="empty" id="empty" hidden><p></p></div>
       <div class="toolbar" id="toolbar">
         <button class="btn" id="layout" title="Acomoda los nodos en columnas según sus conexiones">⇶ reordenar</button>
@@ -213,6 +240,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
       <li><b>Nodos</b> = cards. Una línea A → B conecta A con B.</li>
       <li>Arrastrá el <b>puerto ●</b> del borde derecho a otra card = conectarlas · a un lugar vacío = nuevo nodo conectado.</li>
       <li>Arrastrá el <b>puerto de entrada</b> (borde izquierdo) = reconectar a otra card · a vacío = quitar la conexión.</li>
+      <li>Tocá una <b>card</b> = se abre su menú al costado. <b>Tipo</b>: <b style="color:var(--concepto)">concepto</b> (algo para entender o recordar) o <b style="color:var(--accion)">acción</b> (algo para poder hacer, se entrena repitiendo).</li>
       <li>Tocá una <b>línea</b> = seleccionarla para quitarla.</li>
       <li>Arrastrá la <b>card</b> = moverla · <b>Shift + arrastrar</b> = mover con todo lo que sale de ella.</li>
       <li><b>Doble clic</b> = crear nodo / renombrar · <b>✎</b> renombrar · <b>+</b> nodo conectado · <b>×</b> borrar.</li>
@@ -236,6 +264,10 @@ var KEY = "aprender-v2";
 var W = 230, H = 56;      // tamaño de la card (igual que --card-w / --card-h)
 var GX = 60, GY = 18;     // separación entre columnas / filas al reordenar
 var GRID = 10;
+var TYPES = {
+  concepto: { label: "Concepto", hint: "entender o recordar", color: "var(--concepto)" },
+  accion:   { label: "Acción",   hint: "poder hacer, se repite", color: "var(--accion)" }
+};
 
 var $ = function(id){ return document.getElementById(id); };
 var canvas = $("canvas"), world = $("world"), wiresEl = $("wires"), cardsEl = $("cards");
@@ -245,6 +277,7 @@ var hist = [], fut = [];
 var sel = null;          // {node: id} | {dep: {from, to}}
 var els = {};            // id de nodo → elemento de la card
 var drag = null, pinch = null, pointers = {}, tempWire = null, editing = null;
+var menu = null;         // {id, view: "root" | "tipo"} menú abierto sobre un nodo
 
 // ---------- datos ----------
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
@@ -254,20 +287,20 @@ function newSkillObj(name){ return { id: uid(), name: name, updated: Date.now(),
 function demo(){
   function sk(name, list, links){
     var s = newSkillObj(name), by = {};
-    list.forEach(function(x){ var n = { id: uid(), title: x[1], x: x[2], y: x[3] }; s.nodes.push(n); by[x[0]] = n; });
+    list.forEach(function(x){ var n = { id: uid(), title: x[1], x: x[2], y: x[3] }; if(x[4]) n.type = x[4]; s.nodes.push(n); by[x[0]] = n; });
     links.forEach(function(l){ s.deps.push({ from: by[l[0]].id, to: by[l[1]].id }); });
     return s;
   }
   var latte = sk("Latte art", [
     ["la", "Latte art: corazón simétrico", 0, 140],
     ["le", "Leche", 290, 40], ["ve", "Vertido", 290, 240],
-    ["te", "Textura (microespuma)", 580, 0], ["tp", "Temperatura 55–65 °C", 580, 80],
-    ["al", "Altura y velocidad", 580, 240], ["co", "Corte final", 870, 240]
+    ["te", "Textura (microespuma)", 580, 0, "accion"], ["tp", "Temperatura 55–65 °C", 580, 80, "concepto"],
+    ["al", "Altura y velocidad", 580, 240, "accion"], ["co", "Corte final", 870, 240, "accion"]
   ], [["la","le"],["la","ve"],["le","te"],["le","tp"],["ve","al"],["al","co"]]);
   var dec = sk("Decidir con registro", [
     ["d", "Decidir con registro", 0, 60],
-    ["de", "Detectar decisiones importantes", 290, 0], ["fo", "Formato de la predicción", 290, 100],
-    ["re", "Revisión mensual", 580, 50]
+    ["de", "Detectar decisiones importantes", 290, 0, "accion"], ["fo", "Formato de la predicción", 290, 100, "concepto"],
+    ["re", "Revisión mensual", 580, 50, "accion"]
   ], [["d","de"],["d","fo"],["de","re"],["fo","re"]]);
   return [latte, dec];
 }
@@ -358,6 +391,7 @@ function applyView(){
   var g = 22 * v.z;
   canvas.style.backgroundSize = g + "px " + g + "px";
   canvas.style.backgroundPosition = v.x + "px " + v.y + "px";
+  placeMenu();
 }
 function toWorld(cx, cy){ var r = canvas.getBoundingClientRect(), v = view(); return { x: (cx - r.left - v.x) / v.z, y: (cy - r.top - v.y) / v.z }; }
 function zoomAt(cx, cy, factor){
@@ -458,6 +492,7 @@ function renderAll(){
   $("curName").textContent = p ? p.name : "";
   $("curName").hidden = !p;
   renderWireBar();
+  renderMenu();
 }
 
 function renderCards(){
@@ -472,14 +507,15 @@ function renderCards(){
   p.nodes.forEach(function(t){
     var kids = dependents(p, t.id).length;
     var c = document.createElement("div");
-    c.className = "card" + (!prereqs(p, t.id).length && kids ? " root" : "") + (isSelNode(t.id) ? " selected" : "");
+    var ty = TYPES[t.type];
+    c.className = "card" + (ty ? " t-" + t.type : !prereqs(p, t.id).length && kids ? " root" : "") + (isSelNode(t.id) ? " selected" : "");
     c.dataset.id = t.id;
     c.style.left = t.x + "px";
     c.style.top = t.y + "px";
     c.innerHTML =
       '<span class="port in" data-port="in" title="Arrastrá para reconectar o quitar la conexión"></span>' +
       '<span class="title"></span>' +
-      '<div class="meta">' + (kids ? '<span class="kids" title="Nodos conectados">→ ' + kids + '</span>' : '') +
+      '<div class="meta">' + (ty ? '<span class="type">' + ty.label.toLowerCase() + '</span>' : '') + (kids ? '<span class="kids" title="Nodos conectados">→ ' + kids + '</span>' : '') +
         '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nuevo nodo conectado (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
       '</div>' +
       '<span class="port out" data-port="out" title="Arrastrá para conectar"></span>';
@@ -514,6 +550,63 @@ function renderWireBar(){
   $("toolbar").hidden = on;
 }
 
+// ---------- menú del nodo (en diagonal, al costado de la card) ----------
+function openMenu(id){ menu = { id: id, view: "root" }; renderMenu(); }
+function closeMenu(){ if(!menu) return; menu = null; renderMenu(); }
+function renderMenu(){
+  var box = $("nmenu"), p = cur(), t = menu && p && byId(p, menu.id);
+  if(!t || !els[menu.id]){ menu = null; box.hidden = true; box.innerHTML = ""; return; }
+  var items;
+  if(menu.view === "root"){
+    var ty = TYPES[t.type];
+    items = [{ act: "tipo", html: '<span class="dot" style="--c:' + (ty ? ty.color : "var(--faint)") + '"></span>Tipo <small>' + (ty ? ty.label : "sin definir") + ' ▸</small>' }];
+  } else {
+    items = Object.keys(TYPES).map(function(k){
+      var x = TYPES[k];
+      return { act: "set", val: k, on: t.type === k, color: x.color, html: '<span class="dot"></span>' + x.label + ' <small>' + x.hint + '</small>' };
+    }).concat([
+      { act: "set", val: "", on: !t.type, html: '<span class="dot"></span>Sin tipo' },
+      { act: "back", cls: "back", html: "‹ volver" }
+    ]);
+  }
+  box.innerHTML = items.map(function(it, i){
+    return '<button type="button" class="nm-item' + (it.on ? " on" : "") + (it.cls ? " " + it.cls : "") + '" style="--i:' + i + (it.color ? ";--c:" + it.color : "") +
+      '" data-menu="' + it.act + '" data-val="' + (it.val || "") + '">' + it.html + "</button>";
+  }).join("");
+  box.hidden = false;
+  placeMenu();
+}
+// Los botones salen del borde superior derecho de la card y bajan en diagonal.
+// Si no entran a la derecha (celular), salen del lado izquierdo en espejo.
+function placeMenu(){
+  var box = $("nmenu");
+  if(!menu || box.hidden || !els[menu.id]) return;
+  var cr = canvas.getBoundingClientRect(), r = els[menu.id].getBoundingClientRect();
+  var flip = r.right + 190 > cr.right && r.left - 190 > cr.left;
+  box.classList.toggle("flip", flip);
+  var x0 = flip ? r.left - cr.left - 10 : r.right - cr.left + 10, y0 = r.top - cr.top - 6;
+  var step = isMobile() ? 46 : 38;
+  Array.prototype.forEach.call(box.children, function(b, i){
+    b.style.left = (x0 + (flip ? -1 : 1) * i * 22) + "px";
+    b.style.top = (y0 + i * step) + "px";
+  });
+}
+$("nmenu").addEventListener("pointerdown", function(e){ e.stopPropagation(); });
+$("nmenu").addEventListener("dblclick", function(e){ e.stopPropagation(); });
+$("nmenu").addEventListener("click", function(e){
+  var b = e.target.closest("[data-menu]"); if(!b || !menu) return;
+  var p = cur(), t = byId(p, menu.id); if(!t) return;
+  var act = b.dataset.menu;
+  if(act === "tipo"){ menu.view = "tipo"; renderMenu(); }
+  else if(act === "back"){ menu.view = "root"; renderMenu(); }
+  else if(act === "set"){
+    var v = b.dataset.val || null, id = menu.id;
+    if((t.type || null) !== v) change(function(){ if(v) t.type = v; else delete t.type; });
+    menu = { id: id, view: "root" }; renderMenu();
+    toast(v ? "Tipo: " + TYPES[v].label : "Sin tipo");
+  }
+});
+
 // ---------- panel lateral: habilidades ----------
 function renderSkills(){
   var list = $("skills");
@@ -539,7 +632,7 @@ function renderSkills(){
         return;
       }
       closeSideMobile();
-      if(state.current !== p.id){ state.current = p.id; sel = null; save(); renderAll(); if(!p.fitted){ p.fitted = true; fit(); } }
+      if(state.current !== p.id){ state.current = p.id; sel = null; menu = null; save(); renderAll(); if(!p.fitted){ p.fitted = true; fit(); } }
     });
     el.addEventListener("dblclick", function(e){ if(!e.target.closest(".x")) renameSkill(p); });
     list.appendChild(el);
@@ -661,6 +754,7 @@ canvas.addEventListener("pointerdown", function(e){
   var t = e.target;
   if(t.closest("[data-act]") || t.closest(".toolbar")) return;
   var card = t.closest(".card"), port = t.closest(".port"), wire = t.closest(".wire");
+  if(!card || card.dataset.id !== (menu && menu.id) || port) closeMenu();
   var base = { sx: e.clientX, sy: e.clientY, moved: false, before: snapshot() };
   if(port && card){
     var id = card.dataset.id;
@@ -704,7 +798,7 @@ canvas.addEventListener("pointermove", function(e){
     if(Math.hypot(dx, dy) < 5) return;
     drag.moved = true;
     if(drag.kind === "pan") canvas.classList.add("panning");
-    if(drag.kind === "move") drag.items.forEach(function(it){ var c = els[it.t.id]; if(c) c.classList.add("dragging"); });
+    if(drag.kind === "move"){ closeMenu(); drag.items.forEach(function(it){ var c = els[it.t.id]; if(c) c.classList.add("dragging"); }); }
   }
   var v = view();
   if(drag.kind === "pan"){ v.x = drag.vx + dx; v.y = drag.vy + dy; applyView(); }
@@ -740,11 +834,14 @@ function endPointer(e){
     if(d.moved) save(); else if(sel) select(null);
   } else if(d.kind === "move"){
     if(d.moved){ pushHist(d.before); p.updated = Date.now(); save(); renderAll(); }
-    else if(e.pointerType !== "mouse"){
-      // doble toque en una card = renombrar
+    else {
+      // toque en una card = abrir / cerrar su menú · doble toque (celular) = renombrar
       var now = Date.now();
-      if(lastTap && lastTap.id === d.id && now - lastTap.t < 350){ lastTap = null; startEdit(d.id); }
-      else lastTap = { id: d.id, t: now };
+      if(e.pointerType !== "mouse" && lastTap && lastTap.id === d.id && now - lastTap.t < 350){ lastTap = null; closeMenu(); startEdit(d.id); }
+      else {
+        lastTap = { id: d.id, t: now };
+        if(menu && menu.id === d.id) closeMenu(); else openMenu(d.id);
+      }
     }
   } else if(d.kind === "wire"){
     tempWire = null;
@@ -790,7 +887,7 @@ canvas.addEventListener("dblclick", function(e){
   var el = document.elementFromPoint(e.clientX, e.clientY) || e.target;
   if(el.closest("[data-act]") || el.closest(".toolbar") || el.closest(".port")) return;
   var card = el.closest(".card");
-  if(card){ startEdit(card.dataset.id); return; }
+  if(card){ closeMenu(); startEdit(card.dataset.id); return; }
   if(el.closest(".wire")) return;
   var w = toWorld(e.clientX, e.clientY), t;
   change(function(){ t = makeNode(p, w.x - W / 2, w.y - H / 2); sel = { node: t.id }; });
@@ -814,7 +911,7 @@ document.addEventListener("keydown", function(e){
   else if(k === "delete" || k === "backspace"){ e.preventDefault(); deleteSelected(); }
   else if((k === "enter" || k === "f2") && sel && sel.node){ e.preventDefault(); startEdit(sel.node); }
   else if(k === "tab" && sel && sel.node){ e.preventDefault(); newChild(sel.node); }
-  else if(k === "escape") select(null);
+  else if(k === "escape"){ closeMenu(); select(null); }
 });
 
 // ---------- ventana propia (reemplaza prompt/confirm, que muchos celulares bloquean) ----------
