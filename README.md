@@ -23,6 +23,7 @@ Los datos se guardan en **Supabase** y la página se publica en **Cloudflare Pag
 | `planes/` | App Planes (planificador de tareas), aparte de la de gastos. |
 | `supabase/8-cocina.sql` | Tabla de la app Cocina (`cocina/`). Solo hace falta si usás Cocina. |
 | `cocina/` | App Cocina (comidas por día, stock de la casa y recetas), aparte de las otras. |
+| `aprender/` | App Aprender (demo): planificar y seguir el aprendizaje de habilidades. Un solo `index.html`, datos en el navegador (localStorage) con exportar/importar JSON. |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Para instalar la app en el celular. |
 | `_headers` | Cabeceras de seguridad para Cloudflare Pages. |
 

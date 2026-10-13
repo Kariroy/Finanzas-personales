@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<meta name="description" content="Planificá y seguí el aprendizaje de habilidades: corazón, fractal, cuello de botella y sesiones">
+<title>Aprender</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Aprender">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+:root {
+  --bg: #0d1117; --panel: #10151c; --panel-2: #161c24; --card: #151a21; --input: #0b0f14;
+  --line: #262e39; --line-2: #323c49; --text: #d6dde6; --muted: #7d8896; --faint: #4b5563;
+  --doing: #58a6ff; --paused: #f0883e; --done: #3fb950; --ready: #e3c341; --danger: #f47067; --teal: #56d4c4;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.5 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+button, select, input, textarea { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+
+.head { position: sticky; top: 0; z-index: 6; background: rgba(13,17,23,.94); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); padding-top: env(safe-area-inset-top, 0px); }
+.head-in { max-width: 560px; margin: 0 auto; padding: 8px 12px; display: flex; align-items: center; gap: 8px; min-height: 56px; }
+.brand { font-weight: 700; font-size: 16px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wrap { max-width: 560px; margin: 0 auto; padding: 14px 16px 110px; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; cursor: pointer; text-align: center; }
+.btn:active { background: #1f2a36; }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; font-weight: 700; }
+.btn.ok { background: #1f6f35; border-color: #2a8a45; color: #fff; font-weight: 700; }
+.btn.ghost { background: none; }
+.btn.danger { color: var(--danger); background: none; border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+.btn.block { width: 100%; }
+.btn.sm { min-height: 38px; padding: 6px 10px; font-size: 13px; }
+.icon { background: none; border: 0; color: var(--muted); cursor: pointer; min-width: 44px; min-height: 44px; border-radius: 10px; font-size: 18px; display: inline-flex; align-items: center; justify-content: center; }
+.icon:active { background: var(--panel-2); color: var(--text); }
+.row-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.row-btns > .btn { flex: 1; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+.card.hl { border-color: color-mix(in srgb, var(--ready) 60%, var(--line)); background: color-mix(in srgb, var(--ready) 6%, var(--card)); }
+.card.heart { border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); background: color-mix(in srgb, var(--danger) 5%, var(--card)); }
+.card.tap { cursor: pointer; }
+.card.tap:active { border-color: var(--line-2); }
+.sec-h { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; }
+.sec-h::before { content: ""; width: 4px; height: 14px; border-radius: 1px; background: var(--c, var(--doing)); flex: none; }
+.sec-h::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.sec-h small { letter-spacing: 0; text-transform: none; font-weight: 400; color: var(--faint); order: 3; }
+.muted { color: var(--muted); } .faint { color: var(--faint); }
+.small { font-size: 12px; }
+.empty { color: var(--muted); text-align: center; padding: 22px 10px; line-height: 1.6; }
+.tag { --c: var(--doing); display: inline-block; border-radius: 5px; padding: 1px 7px; font-size: 11px; font-weight: 700; color: var(--c);
+  background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 32%, transparent); white-space: nowrap; vertical-align: middle; }
+.tag.pend { --c: var(--muted); } .tag.curso { --c: var(--doing); } .tag.dom { --c: var(--done); } .tag.lock { --c: var(--paused); } .tag.neck { --c: var(--ready); }
+.tag.piano { --c: var(--teal); } .tag.decidir { --c: #c297ff; }
+.note { font-size: 13px; border-radius: 10px; padding: 10px 12px; margin: 10px 0; line-height: 1.5;
+  --c: var(--ready); color: var(--c); background: color-mix(in srgb, var(--c) 8%, transparent); border: 1px solid color-mix(in srgb, var(--c) 30%, transparent); }
+.note.bad { --c: var(--danger); } .note.good { --c: var(--done); } .note.info { --c: var(--doing); } .note.warn { --c: var(--paused); }
+.note b { color: var(--text); }
+.kicker { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+h1 { font-size: 18px; margin: 0 0 6px; line-height: 1.35; }
+h2 { font-size: 16px; margin: 0 0 6px; line-height: 1.35; }
+.heart-line { font-size: 16px; font-weight: 700; line-height: 1.45; }
+.heart-line em { font-style: normal; color: var(--danger); }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 12px; color: var(--muted); font-size: 12px; margin-top: 8px; }
+.bar { height: 6px; background: var(--panel-2); border-radius: 99px; overflow: hidden; margin-top: 10px; }
+.bar i { display: block; height: 100%; background: var(--done); }
+
+/* formularios */
+label.f { display: block; margin-bottom: 14px; }
+.f-lbl { color: var(--muted); font-size: 12px; margin-bottom: 6px; display: block; }
+.f-lbl em { color: var(--faint); font-style: normal; }
+input[type=text], input[type=number], input[type=date], textarea, select { width: 100%; background: var(--input); border: 1px solid var(--line-2); border-radius: 10px; padding: 12px; font-size: 16px; color: var(--text); min-height: 48px; }
+textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--doing); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.of { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
+.of span { color: var(--muted); }
+.hint { color: var(--faint); font-size: 12px; margin-top: 6px; line-height: 1.5; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.chip { border: 1px solid var(--line); background: none; border-radius: 999px; padding: 8px 14px; cursor: pointer; color: var(--muted); font-size: 13px; min-height: 40px; }
+.chip:active { border-color: var(--doing); color: var(--text); }
+
+.seg { display: flex; background: #141a22; border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg button { flex: 1; background: none; border: 0; border-radius: 8px; padding: 10px 4px; min-height: 44px; cursor: pointer; color: var(--muted); font-size: 13px; }
+.seg button.on { background: #1f2a36; color: var(--text); font-weight: 700; }
+.seg button.on.dom { background: #173022; color: var(--done); }
+.seg button.on.curso { background: #172741; color: var(--doing); }
+
+.opt { display: block; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 14px; margin-bottom: 8px; cursor: pointer; }
+.opt b { display: block; margin-bottom: 4px; }
+.opt span { color: var(--muted); font-size: 13px; }
+.opt.on { border-color: var(--doing); background: #142033; }
+
+/* wizard */
+.steps { display: flex; gap: 6px; margin-bottom: 16px; }
+.steps i { flex: 1; height: 4px; border-radius: 4px; background: var(--line); }
+.steps i.on { background: var(--doing); }
+.preview { background: var(--input); border: 1px dashed var(--line-2); border-radius: 10px; padding: 12px; margin: 4px 0 12px; }
+.checks { list-style: none; padding: 0; margin: 0 0 12px; font-size: 13px; }
+.checks li { padding: 3px 0; color: var(--muted); }
+.checks li.ok { color: var(--done); }
+.checks li.no { color: var(--paused); }
+
+/* árbol */
+.tree { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.node { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); padding: 4px 4px 4px 0; min-height: 56px; }
+.node:first-child { border-top: 0; }
+.node .main { flex: 1; min-width: 0; cursor: pointer; padding: 8px 0; display: flex; gap: 8px; align-items: flex-start; }
+.node .ic { flex: none; width: 22px; text-align: center; }
+.node .nm { overflow-wrap: anywhere; }
+.node .sub { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.node.dom .nm { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+.node.lock .nm { color: var(--muted); }
+.node.neck { background: color-mix(in srgb, var(--ready) 8%, transparent); }
+.node .br { color: var(--faint); flex: none; margin-right: -2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--faint); font-size: 12px; margin-top: 8px; }
+
+/* sesiones */
+.chart { width: 100%; height: auto; display: block; }
+.sess { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding: 10px 0; }
+.sess:first-child { border-top: 0; }
+.sess .pct { width: 56px; flex: none; font-weight: 700; font-size: 16px; text-align: right; }
+.sess .main { flex: 1; min-width: 0; }
+.sess .aj { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.big-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-bottom: 10px; }
+.big-stats div { background: var(--panel-2); border-radius: 10px; padding: 10px 6px; text-align: center; }
+.big-stats b { display: block; font-size: 18px; }
+.big-stats span { color: var(--muted); font-size: 11px; }
+
+.fab { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 5;
+  background: #1f6feb; color: #fff; border: 0; border-radius: 999px; padding: 15px 26px; font-weight: 700; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,.45); font-size: 15px; }
+
+/* hojas */
+.sheet { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center; }
+.box { width: min(560px, 100%); background: var(--panel); border: 1px solid var(--line-2); border-radius: 16px 16px 0 0;
+  padding: 18px 16px calc(20px + env(safe-area-inset-bottom, 0px)); max-height: 92vh; overflow-y: auto; }
+.box h3 { margin: 0 0 12px; font-size: 16px; }
+.box p { margin: 0 0 14px; color: var(--muted); line-height: 1.55; }
+.box .btns { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+@media (min-width: 640px) { .sheet { align-items: center; } .box { border-radius: 16px; } }
+.pick { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 12px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 6px; cursor: pointer; background: var(--card); min-height: 52px; }
+.pick.on { border-color: var(--doing); background: #142033; }
+.pick input { width: 20px; height: 20px; flex: none; accent-color: #1f6feb; }
+
+.toast { position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 30; background: #1f2a36; border: 1px solid var(--line-2);
+  padding: 10px 16px; border-radius: 10px; max-width: calc(100% - 32px); box-shadow: 0 8px 24px rgba(0,0,0,.45); font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="head"><div class="head-in" id="head"></div></header>
+<main class="wrap" id="app"></main>
+<div id="sheet" class="sheet" hidden></div>
+<div id="toast" class="toast" hidden></div>
+<input type="file" id="fileIn" accept="application/json,.json" hidden>
+
+<script>
+'use strict';
+/* =========================================================
+   Datos
+   ========================================================= */
+const KEY = 'aprender.v1';
+const TIPOS = {
+  concepto:    { ic: '📘', nm: 'concepto',    hint: 'Se memoriza. El ejercicio es recuperar de memoria (tarjetas, explicarlo sin mirar).' },
+  habilidad:   { ic: '🔁', nm: 'habilidad',   hint: 'Se entrena con repeticiones.' },
+  desconocido: { ic: '❓', nm: 'desconocido', hint: 'Todavía no sabés qué es. Primero investigá; cuando sepas, cambiale el tipo o partilo en hijos.' },
+};
+const ESTADOS = { pendiente: { nm: 'pendiente', cls: 'pend' }, en_curso: { nm: 'en curso', cls: 'curso' }, dominado: { nm: 'dominado', cls: 'dom' } };
+const BORDE = { alto: 85, bajo: 50, ideal: 70 };
+const CONSISTENTE = 3; // sesiones seguidas en el criterio del corazón
+
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const hoy = () => fechaISO(new Date());
+function fechaISO(d) { const z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; }
+function enDias(n) { const d = new Date(); d.setDate(d.getDate() + n); return fechaISO(d); }
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+function nuevoNodo(o = {}) {
+  return Object.assign({
+    id: uid(), parentId: null, nombre: '', tipo: 'habilidad', estado: 'pendiente', dependeDe: [],
+    feedback: { tipo: null, sensor: '' }, ejercicio: { descripcion: '', repsPorSesion: 10, criterio: '' }, sesiones: [],
+  }, o);
+}
+function ses(diasAtras, reps, correctas, ajuste) { return { id: uid(), fecha: enDias(-diasAtras), reps, correctas, ajuste }; }
+
+function ejemplos() {
+  const textura = nuevoNodo({
+    nombre: 'Textura de la leche (microespuma)', tipo: 'habilidad', estado: 'en_curso',
+    feedback: { tipo: 'piano', sensor: '' },
+    ejercicio: {
+      descripcion: 'Texturizar 150 ml de agua con una gota de detergente en la jarra (se comporta como la leche y no la gastás). Purgar, airear 3 s, girar hasta que esté brillante.',
+      repsPorSesion: 10, criterio: 'Superficie lisa y brillante como pintura, sin burbujas visibles al golpear la jarra.',
+    },
+    sesiones: [
+      ses(6, 10, 3, 'Meto mucho aire de golpe. Probar bajar la jarra más despacio.'),
+      ses(4, 10, 5, 'Mejor. El remolino se corta: inclinar más la jarra.'),
+      ses(2, 10, 7, 'En el borde. Sigo igual, cuidar no pasarme de aire.'),
+      ses(1, 10, 7, 'Probar con leche real 2 de las 10.'),
+    ],
+  });
+  const temp = nuevoNodo({
+    nombre: 'Temperatura de la leche (55–65 °C)', tipo: 'concepto',
+    ejercicio: { descripcion: 'Decir sin mirar el termómetro a qué temperatura está la jarra tocándola; después comparar.', repsPorSesion: 10, criterio: 'Le pego con ±5 °C.' },
+  });
+  const vertido = nuevoNodo({
+    nombre: 'Altura y velocidad del vertido', tipo: 'habilidad', feedback: { tipo: 'piano', sensor: '' },
+    ejercicio: { descripcion: 'Verter en una taza con espresso (o agua con café soluble): arrancar alto y fino, bajar y engrosar cuando se llena la mitad.', repsPorSesion: 10, criterio: 'Aparece una mancha blanca redonda y centrada.' },
+  });
+  const corte = nuevoNodo({
+    nombre: 'Corte final', tipo: 'habilidad', dependeDe: [vertido.id], feedback: { tipo: 'piano', sensor: '' },
+    ejercicio: { descripcion: 'Con la mancha formada, levantar la jarra y cortar en línea recta atravesando el centro.', repsPorSesion: 10, criterio: 'Las dos mitades del corazón quedan iguales.' },
+  });
+  const latte = {
+    id: uid(), creada: enDias(-7),
+    quieroHacer: 'Servir cafés con latte art en casa',
+    meTraba: 'La leche me queda con burbujas y el dibujo sale deforme',
+    corazon: { verbo: 'Hacer', que: 'el corazón simétrico', estandar: 'en la taza, con las dos mitades iguales', cuanto: { n: 8, de: 10 }, plazo: enDias(14) },
+    cuelloId: null, nodos: [textura, temp, vertido, corte],
+  };
+
+  const detectar = nuevoNodo({
+    nombre: 'Detectar que estoy por tomar una decisión importante', tipo: 'habilidad', estado: 'en_curso',
+    feedback: { tipo: 'decidir', sensor: 'Registro escrito y revisión mensual' },
+    ejercicio: {
+      descripcion: 'A la noche repaso el día y anoto qué decisiones importantes tomé. Marco cuáles tenían predicción escrita antes.',
+      repsPorSesion: 10, criterio: 'La decisión figura en el registro con fecha anterior a decidir.',
+    },
+    sesiones: [ses(5, 6, 2, 'Me acuerdo tarde. Poner aviso en el celular a las 12 y a las 18.'), ses(2, 8, 5, 'Mejoró con el aviso. Sumar: decisiones de plata > $50.000 siempre cuentan.')],
+  });
+  const formato = nuevoNodo({
+    nombre: 'Formato de la predicción: qué espero + % de confianza', tipo: 'concepto', estado: 'dominado',
+    feedback: { tipo: 'decidir', sensor: 'Registro escrito' },
+    ejercicio: { descripcion: 'Escribir 10 predicciones de práctica con el formato.', repsPorSesion: 10, criterio: 'Cada una tiene resultado observable y un %.' },
+  });
+  const revision = nuevoNodo({
+    nombre: 'Revisión mensual: comparar predicción vs resultado', tipo: 'habilidad', dependeDe: [detectar.id],
+    feedback: { tipo: 'decidir', sensor: 'Revisión mensual del registro; opcional, simulación con IA para practicar' },
+    ejercicio: { descripcion: 'Simulación: 10 escenarios cortos (generados con IA) donde escribo la predicción y después veo el desenlace.', repsPorSesion: 10, criterio: 'Mis % de confianza se parecen a cuántas acerté.' },
+  });
+  const decidir = {
+    id: uid(), creada: enDias(-5),
+    quieroHacer: 'Tomar mejores decisiones en el trabajo y la plata',
+    meTraba: 'No sé si decido bien o si tuve suerte: no me acuerdo qué pensaba antes',
+    corazon: { verbo: 'Escribir', que: 'la predicción antes de cada decisión importante', estandar: 'con qué espero que pase y % de confianza', cuanto: { n: 9, de: 10 }, plazo: enDias(30) },
+    cuelloId: null, nodos: [detectar, formato, revision],
+  };
+  return { version: 1, habilidades: [latte, decidir] };
+}
+
+function cargar() {
+  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && Array.isArray(d.habilidades)) return d; } catch (e) {}
+  return ejemplos();
+}
+let db = cargar();
+function guardar() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('No se pudo guardar en este navegador. Exportá un JSON.'); } }
+guardar();
+
+/* =========================================================
+   Lógica del método
+   ========================================================= */
+const hab = id => db.habilidades.find(h => h.id === id);
+const nodo = (h, id) => h.nodos.find(n => n.id === id);
+const hijos = (h, pid) => h.nodos.filter(n => (n.parentId || null) === (pid || null));
+function ancestros(h, n) { const out = []; let p = n.parentId && nodo(h, n.parentId); while (p) { out.push(p); p = p.parentId && nodo(h, p.parentId); } return out; }
+function descendientes(h, n) { const out = []; (function rec(id) { hijos(h, id).forEach(c => { out.push(c); rec(c.id); }); })(n.id); return out; }
+
+/* prerrequisitos sin dominar (propios y de los ancestros) */
+function bloqueos(h, n) {
+  const ids = new Set();
+  [n, ...ancestros(h, n)].forEach(x => (x.dependeDe || []).forEach(id => { const d = nodo(h, id); if (d && d.estado !== 'dominado') ids.add(id); }));
+  return [...ids].map(id => nodo(h, id));
+}
+const bloqueado = (h, n) => bloqueos(h, n).length > 0;
+
+/* cuello sugerido: el más cercano (en curso antes que pendiente), bajando por el fractal hasta la hoja accionable */
+function sugerirCuello(h, pid = null) {
+  const libres = hijos(h, pid).filter(n => n.estado !== 'dominado' && !bloqueado(h, n));
+  const orden = [...libres.filter(n => n.estado === 'en_curso'), ...libres.filter(n => n.estado === 'pendiente')];
+  if (!orden.length) return null;
+  return sugerirCuello(h, orden[0].id) || orden[0];
+}
+function cuello(h) {
+  if (h.cuelloId) {
+    const n = nodo(h, h.cuelloId);
+    if (n && n.estado !== 'dominado') return { n, manual: true };
+    h.cuelloId = null;
+  }
+  const n = sugerirCuello(h);
+  return n ? { n, manual: false } : null;
+}
+
+const pctCorazon = h => Math.round(100 * h.corazon.cuanto.n / h.corazon.cuanto.de);
+const pctSes = s => s.reps > 0 ? Math.round(100 * s.correctas / s.reps) : 0;
+function frase(c) { return [c.verbo, c.que, c.estandar].map(s => (s || '').trim()).filter(Boolean).join(' '); }
+function fraseHTML(c) {
+  return `${esc(frase(c))}, <em>${c.cuanto.n} de ${c.cuanto.de}</em>${c.plazo ? ` · ${esc(plazoTxt(c.plazo))}` : ''}`;
+}
+function plazoTxt(p) {
+  const d = Math.round((new Date(p + 'T00:00') - new Date(hoy() + 'T00:00')) / 864e5);
+  if (d < 0) return `venció hace ${-d} d`;
+  if (d === 0) return 'vence hoy';
+  return `en ${d} d (${fmtFecha(p)})`;
+}
+function fmtFecha(iso) { const [y, m, d] = iso.split('-'); return `${+d}/${+m}${y !== String(new Date().getFullYear()) ? '/' + y.slice(2) : ''}`; }
+
+function borde(p) {
+  if (p > BORDE.alto) return { cls: 'info', txt: `<b>${p}%: muy fácil.</b> Subí la dificultad (más velocidad, menos ayudas, condiciones más reales) para volver al ~70%.` };
+  if (p < BORDE.bajo) return { cls: 'warn', txt: `<b>${p}%: muy difícil.</b> Bajá la dificultad o bajá un nivel del fractal: partí este nodo en algo más chico.` };
+  return { cls: 'good', txt: `<b>${p}%: estás en el borde.</b> Es la zona donde más se aprende. Seguí así, ajustando de a poco.` };
+}
+function listoParaDominar(h, n) {
+  if (n.estado === 'dominado' || n.sesiones.length < CONSISTENTE) return false;
+  const ult = [...n.sesiones].sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(-CONSISTENTE);
+  return ult.every(s => pctSes(s) >= pctCorazon(h));
+}
+
+/* validación del corazón */
+const VERBOS_VAGOS = ['aprender', 'saber', 'entender', 'comprender', 'mejorar', 'conocer', 'dominar', 'pensar', 'ser', 'estar', 'tener', 'manejar', 'practicar', 'estudiar'];
+const QUE_VAGO = /^(mejor|bien|mas|el aprendizaje|aprendizaje|la habilidad|todo|cosas|algo|bueno|buena|ingles|programacion|cocina|musica)$/;
+const RESULTADO = /\b(vend\w*|venta\w*|gan(ar|e|o|en|ado)\w*|elogi\w*|felicit\w*|likes?|seguidores|clientes?|aprob\w*|ascen\w*|premi\w*|cobr\w*|plata|dinero|facturar|reconoc\w*|viral|que me (digan|elijan|contraten|llamen))\b/;
+function revisarCorazon(c) {
+  const v = norm(c.verbo), q = norm(c.que), e = norm(c.estandar);
+  const checks = [
+    { ok: !!v && !VERBOS_VAGOS.includes(v.split(' ')[0]), txt: v ? (VERBOS_VAGOS.includes(v.split(' ')[0]) ? `"${c.verbo}" no se ve desde afuera. ¿Qué hacés cuando ya lo sabés?` : 'Verbo activo') : 'Falta el verbo activo' },
+    { ok: !!q && !QUE_VAGO.test(q) && q.split(/\s+/).length >= 2, txt: !q ? 'Falta qué se hace' : (QUE_VAGO.test(q) || q.split(/\s+/).length < 2) ? 'El "qué" es vago: nombrá algo concreto que se pueda ver' : 'Qué se hace' },
+    { ok: e.length >= 4, txt: e.length >= 4 ? 'Estándar de ejecución' : 'Falta el estándar: ¿cómo tiene que salir?' },
+    { ok: c.cuanto.n > 0 && c.cuanto.de > 0 && c.cuanto.n <= c.cuanto.de, txt: 'M · cuánto (ej. 8 de 10 intentos)' },
+    { ok: !!c.plazo, txt: 'T · plazo' },
+  ];
+  const resultado = RESULTADO.test(norm(frase(c)));
+  return { checks, ok: checks.every(x => x.ok), resultado };
+}
+
+/* =========================================================
+   UI general
+   ========================================================= */
+const $app = document.getElementById('app');
+const $head = document.getElementById('head');
+const $sheet = document.getElementById('sheet');
+let toastT;
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2600); }
+
+function head(titulo, back) {
+  $head.innerHTML = (back ? `<button class="icon" data-go="${esc(back)}" aria-label="Volver">←</button>` : '') +
+    `<span class="brand">${titulo}</span>` +
+    (back ? '' : `<button class="icon" data-go="#ajustes" aria-label="Ajustes">⚙️</button>`);
+}
+function ir(hash) { if (location.hash === hash) render(); else location.hash = hash; }
+
+/* hojas: ask({titulo, texto, html, botones:[{txt, cls, val}]}) -> Promise(val) */
+function ask({ titulo, texto = '', html = '', botones }) {
+  return new Promise(res => {
+    $sheet.innerHTML = `<div class="box" role="dialog" aria-modal="true"><h3>${esc(titulo)}</h3>${texto ? `<p>${texto}</p>` : ''}${html}
+      <div class="btns">${botones.map((b, i) => `<button class="btn ${b.cls || ''}" data-i="${i}">${esc(b.txt)}</button>`).join('')}</div></div>`;
+    $sheet.hidden = false;
+    const fin = v => { $sheet.hidden = true; $sheet.innerHTML = ''; $sheet.onclick = null; res(v); };
+    $sheet.onclick = e => {
+      if (e.target === $sheet) return fin(null);
+      const b = e.target.closest('[data-i]');
+      if (b) { const bt = botones[+b.dataset.i]; fin(bt.leer ? bt.leer($sheet) : bt.val); }
+    };
+    const first = $sheet.querySelector('input,textarea,select'); if (first) setTimeout(() => first.focus(), 50);
+  });
+}
+
+/* =========================================================
+   Pantallas
+   ========================================================= */
+function render() {
+  const p = location.hash.replace(/^#/, '').split('/');
+  window.scrollTo && (render.last !== location.hash) && window.scrollTo(0, 0);
+  render.last = location.hash;
+  if (p[0] === 'h' && hab(p[1])) return vHabilidad(hab(p[1]));
+  if (p[0] === 'n' && hab(p[1]) && nodo(hab(p[1]), p[2])) return vNodo(hab(p[1]), nodo(hab(p[1]), p[2]));
+  if (p[0] === 'nueva') return vWizard(null);
+  if (p[0] === 'editar' && hab(p[1])) return vWizard(hab(p[1]));
+  if (p[0] === 'ajustes') return vAjustes();
+  return vInicio();
+}
+
+/* ---------- Inicio ---------- */
+function vInicio() {
+  head('🎯 Aprender');
+  const hs = db.habilidades;
+  $app.innerHTML = (hs.length ? hs.map(h => {
+    const c = cuello(h), dom = h.nodos.filter(n => n.estado === 'dominado').length, tot = h.nodos.length;
+    const ultima = c && c.n.sesiones.length ? pctSes(c.n.sesiones[c.n.sesiones.length - 1]) : null;
+    return `<div class="card tap" data-go="#h/${h.id}">
+      <div class="kicker">❤️ corazón</div>
+      <div class="heart-line">${fraseHTML(h.corazon)}</div>
+      <div class="bar"><i style="width:${tot ? Math.round(100 * dom / tot) : 0}%"></i></div>
+      <div class="meta"><span>${dom}/${tot} nodos dominados</span>${tot && dom === tot ? '<span class="tag dom">todo dominado</span>' : ''}</div>
+      ${c ? `<div class="note" style="margin-bottom:0">🍾 <b>Cuello:</b> ${esc(c.n.nombre)}${ultima !== null ? ` · última sesión ${ultima}%` : ''}</div>`
+          : tot ? '' : '<div class="note info" style="margin-bottom:0">Falta armar el fractal</div>'}
+    </div>`;
+  }).join('') : `<div class="empty">Todavía no hay habilidades.<br>Arrancá por algo que <b>quieras hacer</b> y que algo te trabe.</div>`)
+  + `<button class="fab" data-go="#nueva">+ Nueva habilidad</button>`;
+}
+
+/* ---------- Wizard: Quiero hacer → Corazón ---------- */
+let draft = null;
+function vWizard(h) {
+  const key = h ? h.id : 'nueva';
+  if (!draft || draft.key !== key) {
+    draft = { key, paso: h ? 2 : 1, quieroHacer: h ? h.quieroHacer : '', meTraba: h ? h.meTraba : '',
+      corazon: h ? JSON.parse(JSON.stringify(h.corazon)) : { verbo: '', que: '', estandar: '', cuanto: { n: 8, de: 10 }, plazo: enDias(14) } };
+  }
+  head(h ? 'Editar corazón' : 'Nueva habilidad', h ? `#h/${h.id}` : '#');
+  const d = draft;
+  if (d.paso === 1) {
+    $app.innerHTML = `<div class="steps"><i class="on"></i><i></i></div>
+      <div class="kicker">Paso 1 · Quiero hacer</div>
+      <p class="muted small">No arranques por “quiero aprender X”. Arrancá por algo que querés <b>hacer</b> y lo que hoy te frena.</p>
+      <label class="f"><span class="f-lbl">¿Qué querés hacer?</span>
+        <textarea data-d="quieroHacer" placeholder="Ej. Servir cafés con latte art en casa">${esc(d.quieroHacer)}</textarea></label>
+      <label class="f"><span class="f-lbl">¿Qué te traba?</span>
+        <textarea data-d="meTraba" placeholder="Ej. La leche me queda con burbujas y el dibujo sale deforme">${esc(d.meTraba)}</textarea></label>
+      <div class="row-btns"><button class="btn primary block" data-act="w-next" ${d.quieroHacer.trim() && d.meTraba.trim() ? '' : 'disabled'}>Siguiente: el corazón →</button></div>`;
+    return;
+  }
+  const c = d.corazon;
+  $app.innerHTML = `<div class="steps"><i class="on"></i><i class="on"></i></div>
+    <div class="kicker">Paso 2 · Corazón</div>
+    ${d.quieroHacer ? `<p class="muted small">Querés <b>${esc(d.quieroHacer)}</b> y te traba: ${esc(d.meTraba)}.</p>` : ''}
+    <p class="muted small">¿Qué es lo que, cuando sale, se <b>ve</b> desde afuera? Como “que me salga el corazón” en latte art. Formato: <b>verbo activo + qué + estándar</b>.</p>
+    <label class="f"><span class="f-lbl">Verbo activo</span><input type="text" data-d="corazon.verbo" value="${esc(c.verbo)}" placeholder="Hacer, escribir, tocar, resolver…"></label>
+    <label class="f"><span class="f-lbl">Qué se hace</span><input type="text" data-d="corazon.que" value="${esc(c.que)}" placeholder="el corazón simétrico"></label>
+    <label class="f"><span class="f-lbl">Estándar de ejecución <em>· cómo tiene que salir</em></span><input type="text" data-d="corazon.estandar" value="${esc(c.estandar)}" placeholder="en la taza, con las dos mitades iguales"></label>
+    <div class="f"><span class="f-lbl">M · cuánto <em>· intentos que tienen que salir</em></span>
+      <div class="of"><input type="number" inputmode="numeric" min="1" data-d="corazon.cuanto.n" value="${c.cuanto.n}"><span>de</span><input type="number" inputmode="numeric" min="1" data-d="corazon.cuanto.de" value="${c.cuanto.de}"></div></div>
+    <label class="f" style="margin-top:14px"><span class="f-lbl">T · plazo</span><input type="date" data-d="corazon.plazo" value="${esc(c.plazo)}"></label>
+    <div id="w-live"></div>
+    <div class="row-btns">${h ? '' : '<button class="btn ghost" data-act="w-back">← Atrás</button>'}<button class="btn primary" data-act="w-fin" id="w-fin">${h ? 'Guardar' : 'Crear y armar el fractal →'}</button></div>`;
+  wizardLive();
+}
+function wizardLive() {
+  const el = document.getElementById('w-live'); if (!el) return;
+  const r = revisarCorazon(draft.corazon);
+  el.innerHTML = `<div class="kicker">Así queda</div><div class="preview heart-line">${frase(draft.corazon) ? fraseHTML(draft.corazon) : '<span class="faint">…</span>'}</div>
+    <ul class="checks">${r.checks.map(x => `<li class="${x.ok ? 'ok' : 'no'}">${x.ok ? '✓' : '✗'} ${esc(x.txt)}</li>`).join('')}</ul>
+    ${r.resultado ? `<div class="note warn">⚠️ <b>Esto suena a resultado externo</b> (vender, ganar, que te elogien…). Eso no depende solo de vos. Medí el <b>desempeño</b> de la habilidad: ¿qué hacés vos, y cómo tiene que salir?</div>` : ''}
+    ${r.ok ? '' : `<div class="note bad">Todavía no tiene corazón: completá lo que está en ✗ para seguir.</div>`}`;
+  const b = document.getElementById('w-fin'); if (b) b.disabled = !r.ok;
+}
+
+/* ---------- Detalle de habilidad ---------- */
+function vHabilidad(h) {
+  head('Habilidad', '#');
+  const c = cuello(h);
+  const tot = h.nodos.length, dom = h.nodos.filter(n => n.estado === 'dominado').length;
+  let cuelloHTML;
+  if (c) {
+    const n = c.n, s = n.sesiones, ult = s.length ? pctSes(s[s.length - 1]) : null;
+    cuelloHTML = `<div class="card hl">
+      <div class="kicker">🍾 Cuello de botella · ${c.manual ? 'elegido por vos' : 'sugerido'}</div>
+      <h2>${TIPOS[n.tipo].ic} ${esc(n.nombre)}</h2>
+      <div class="meta">${n.feedback.tipo ? `<span class="tag ${n.feedback.tipo}">${n.feedback.tipo === 'piano' ? '🎹 piano' : '🧭 decidir'}</span>` : '<span class="tag pend">feedback sin definir</span>'}
+        <span>${s.length} sesiones${ult !== null ? ` · última ${ult}%` : ''}</span></div>
+      <div class="row-btns" style="margin-top:12px"><button class="btn primary" data-go="#n/${h.id}/${n.id}">Entrenar →</button>
+        <button class="btn" data-act="cambiar-cuello">Cambiar</button></div>
+      ${c.manual ? `<button class="btn ghost sm block" style="margin-top:8px" data-act="cuello-auto">Volver al sugerido</button>` : ''}
+    </div>`;
+  } else if (tot) {
+    cuelloHTML = dom === tot
+      ? `<div class="note good">🎉 <b>Dominaste todos los nodos.</b> ¿Ya te sale el corazón ${h.corazon.cuanto.n} de ${h.corazon.cuanto.de}? Si no, falta algún nodo: agregalo.</div>`
+      : `<div class="note warn">Todos los nodos que faltan están bloqueados. Revisá las dependencias.</div>`;
+  } else cuelloHTML = '';
+
+  $app.innerHTML = `
+    <div class="card heart">
+      <div class="kicker">❤️ Corazón</div>
+      <div class="heart-line">${fraseHTML(h.corazon)}</div>
+      <div class="meta"><span>Quiero: ${esc(h.quieroHacer)}</span><span>Me traba: ${esc(h.meTraba)}</span></div>
+      <div class="bar"><i style="width:${tot ? Math.round(100 * dom / tot) : 0}%"></i></div>
+      <div class="meta"><span>${dom}/${tot} nodos dominados</span><span>criterio de dominio: ${pctCorazon(h)}%</span></div>
+      <div class="row-btns" style="margin-top:10px"><button class="btn sm" data-go="#editar/${h.id}">✏️ Editar</button><button class="btn sm danger" data-act="borrar-hab">Borrar</button></div>
+    </div>
+    ${cuelloHTML}
+    <div class="sec-h" style="--c:var(--teal)">Fractal <small>${tot} nodos</small></div>
+    ${tot ? `<div class="tree">${arbolHTML(h, null, 0, c && c.n.id)}</div>
+      <div class="legend"><span>📘 concepto</span><span>🔁 habilidad</span><span>❓ desconocido</span><span>🔒 bloqueado</span><span>＋ agregar hijo</span></div>`
+      : `<div class="empty">Partí la habilidad en sub-habilidades.<br>¿Qué partes tiene que salirte bien para que salga el corazón?</div>`}
+    <button class="btn block" style="margin-top:12px" data-act="nodo-nuevo" data-pid="">+ Agregar nodo</button>`;
+}
+function arbolHTML(h, pid, nivel, cuelloId) {
+  return hijos(h, pid).map(n => {
+    const lock = bloqueado(h, n), neck = n.id === cuelloId;
+    return `<div class="node ${n.estado === 'dominado' ? 'dom' : ''} ${lock ? 'lock' : ''} ${neck ? 'neck' : ''}" style="padding-left:${8 + nivel * 22}px">
+      ${nivel ? '<span class="br">└</span>' : ''}
+      <div class="main" data-go="#n/${h.id}/${n.id}"><span class="ic">${TIPOS[n.tipo].ic}</span>
+        <div><div class="nm">${esc(n.nombre)}</div><div class="sub">
+          <span class="tag ${ESTADOS[n.estado].cls}">${ESTADOS[n.estado].nm}</span>
+          ${lock ? `<span class="tag lock">🔒 bloqueado</span>` : ''}${neck ? `<span class="tag neck">🍾 cuello</span>` : ''}
+        </div></div></div>
+      <button class="icon" data-act="nodo-nuevo" data-pid="${n.id}" aria-label="Agregar hijo">＋</button>
+    </div>` + arbolHTML(h, n.id, nivel + 1, cuelloId);
+  }).join('');
+}
+
+/* ---------- Detalle de nodo ---------- */
+function vNodo(h, n) {
+  head('Nodo', `#h/${h.id}`);
+  const locks = bloqueos(h, n), c = cuello(h), esCuello = c && c.n.id === n.id;
+  const camino = ancestros(h, n).reverse();
+  const ses = [...n.sesiones].sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const ult = ses.length ? pctSes(ses[ses.length - 1]) : null;
+  const meta = pctCorazon(h);
+  const fb = n.feedback;
+
+  $app.innerHTML = `
+    <div class="faint small" style="margin-bottom:6px">${esc(frase(h.corazon))}${camino.map(a => ` › ${esc(a.nombre)}`).join('')}</div>
+    <div class="card ${esCuello ? 'hl' : ''}">
+      ${esCuello ? '<div class="kicker">🍾 cuello de botella actual</div>' : ''}
+      <h1>${TIPOS[n.tipo].ic} ${esc(n.nombre)}</h1>
+      <div class="meta"><span class="tag">${TIPOS[n.tipo].nm}</span>${n.dependeDe.length ? `<span>depende de: ${n.dependeDe.map(id => nodo(h, id)).filter(Boolean).map(d => esc(d.nombre)).join(', ')}</span>` : ''}</div>
+      <p class="muted small" style="margin:10px 0">${TIPOS[n.tipo].hint}</p>
+      ${locks.length ? `<div class="note warn">🔒 <b>Bloqueado.</b> Primero tiene que estar dominado: ${locks.map(d => `<a href="#n/${h.id}/${d.id}" style="color:inherit">${esc(d.nombre)}</a>`).join(', ')}.</div>` : ''}
+      <div class="seg" style="margin-top:10px">${Object.entries(ESTADOS).map(([k, v]) => `<button class="${n.estado === k ? 'on ' + v.cls : ''}" data-act="estado" data-v="${k}">${v.nm}</button>`).join('')}</div>
+      <div class="row-btns" style="margin-top:10px">
+        ${esCuello || n.estado === 'dominado' ? '' : `<button class="btn sm" data-act="marcar-cuello">🍾 Es mi cuello</button>`}
+        <button class="btn sm" data-act="nodo-editar">✏️ Editar</button>
+        <button class="btn sm" data-act="nodo-nuevo" data-pid="${n.id}">＋ Sub-nodo</button>
+      </div>
+    </div>
+
+    ${listoParaDominar(h, n) ? `<div class="card" style="border-color:var(--done)">
+      <div class="kicker" style="color:var(--done)">❤️ Llegaste al criterio</div>
+      <p style="margin:0 0 12px">Tus últimas ${CONSISTENTE} sesiones están en ${meta}% o más. ¿Lo marcás como dominado y pasás al siguiente cuello?</p>
+      <button class="btn ok block" data-act="dominar">✓ Dominado · siguiente cuello</button></div>` : ''}
+
+    <div class="sec-h" style="--c:#c297ff">Tipo de feedback</div>
+    <button class="opt ${fb.tipo === 'piano' ? 'on' : ''}" data-act="fb" data-v="piano"><b>🎹 Tipo piano</b><span>El feedback es inmediato y honesto: sabés al toque si salió. Solo hace falta poner repeticiones.</span></button>
+    <button class="opt ${fb.tipo === 'decidir' ? 'on' : ''}" data-act="fb" data-v="decidir"><b>🧭 Tipo decidir</b><span>El feedback llega tarde o es confuso. Hay que fabricar el sensor.</span></button>
+    ${fb.tipo === 'decidir' ? `<label class="f"><span class="f-lbl">¿Qué sensor usás?</span>
+      <textarea data-n="feedback.sensor" placeholder="Registro escrito, simulación con IA, un mentor…">${esc(fb.sensor)}</textarea>
+      <div class="chips">${['Registro escrito', 'Simulación con IA', 'Un mentor que me corrija', 'Grabarme y revisar'].map(s => `<button class="chip" data-act="sensor" data-v="${esc(s)}">+ ${esc(s)}</button>`).join('')}</div></label>` : ''}
+
+    <div class="sec-h" style="--c:var(--teal)">Ejercicio <small>entorno seguro</small></div>
+    <label class="f"><span class="f-lbl">Descripción <em>· que comprima repeticiones y equivocarse no cueste</em></span>
+      <textarea data-n="ejercicio.descripcion" placeholder="Ej. texturizar agua con detergente en vez de leche">${esc(n.ejercicio.descripcion)}</textarea></label>
+    <label class="f"><span class="f-lbl">Repeticiones por sesión <em>· objetivo: ~10 en 20 minutos</em></span>
+      <input type="number" inputmode="numeric" min="0" data-n="ejercicio.repsPorSesion" value="${n.ejercicio.repsPorSesion}"></label>
+    <div id="reps-warn"></div>
+    <label class="f"><span class="f-lbl">Criterio de corrección <em>· cómo sabés en el momento si salió</em></span>
+      <textarea data-n="ejercicio.criterio" placeholder="Ej. superficie brillante, sin burbujas">${esc(n.ejercicio.criterio)}</textarea></label>
+
+    <div class="sec-h" style="--c:var(--done)">Sesiones <small>borde ≈ ${BORDE.ideal}%</small></div>
+    ${ses.length ? `
+      <div class="big-stats">
+        <div><b>${ses.length}</b><span>sesiones</span></div>
+        <div><b style="color:${ult > BORDE.alto ? 'var(--doing)' : ult < BORDE.bajo ? 'var(--paused)' : 'var(--done)'}">${ult}%</b><span>última</span></div>
+        <div><b>${meta}%</b><span>meta corazón</span></div>
+      </div>
+      <div class="note ${borde(ult).cls}">${borde(ult).txt}</div>
+      ${ses.length > 1 ? `<div class="card" style="padding:10px">${grafico(ses, meta)}</div>` : ''}
+      <div class="card" style="padding:4px 14px">${[...ses].reverse().map(s => `<div class="sess">
+        <div class="pct" style="color:${pctSes(s) > BORDE.alto ? 'var(--doing)' : pctSes(s) < BORDE.bajo ? 'var(--paused)' : 'var(--done)'}">${pctSes(s)}%</div>
+        <div class="main"><div>${fmtFecha(s.fecha)} · ${s.correctas}/${s.reps} bien</div>${s.ajuste ? `<div class="aj">↻ ${esc(s.ajuste)}</div>` : ''}</div>
+        <button class="icon" data-act="ses-editar" data-id="${s.id}" aria-label="Editar sesión">✏️</button></div>`).join('')}</div>`
+      : `<div class="empty">Sin sesiones todavía. Hacé una tanda de repeticiones y registrala.</div>`}
+    <button class="btn primary block" data-act="ses-nueva" style="margin-top:4px">+ Registrar sesión</button>`;
+  repsWarn(h, n);
+}
+function repsWarn(h, n) {
+  const el = document.getElementById('reps-warn'); if (!el) return;
+  const r = +n.ejercicio.repsPorSesion || 0;
+  el.innerHTML = r > 0 && r < 10
+    ? `<div class="note warn" style="margin-top:-6px">Con ${r} repeticiones por sesión el bucle es lento. <b>Partí el nodo en hijos más chicos</b> que entren ~10 veces en 20 minutos.
+       <button class="btn sm block" style="margin-top:8px" data-act="nodo-nuevo" data-pid="${n.id}">＋ Partir en sub-nodos</button></div>` : '';
+}
+function grafico(ses, meta) {
+  const W = 320, H = 170, L = 30, R = 10, T = 10, B = 22, w = W - L - R, hh = H - T - B;
+  const y = p => T + hh * (1 - p / 100);
+  const x = i => L + (ses.length === 1 ? w / 2 : w * i / (ses.length - 1));
+  const pts = ses.map((s, i) => [x(i), y(pctSes(s))]);
+  const col = p => p > BORDE.alto ? 'var(--doing)' : p < BORDE.bajo ? 'var(--paused)' : 'var(--done)';
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolución del porcentaje de acierto">
+    <rect x="${L}" y="${y(BORDE.alto)}" width="${w}" height="${y(BORDE.bajo) - y(BORDE.alto)}" style="fill:var(--done);opacity:.08"/>
+    ${[0, 50, 100].map(p => `<line x1="${L}" x2="${W - R}" y1="${y(p)}" y2="${y(p)}" style="stroke:var(--line)"/><text x="${L - 6}" y="${y(p) + 4}" text-anchor="end" style="fill:var(--faint);font-size:10px">${p}</text>`).join('')}
+    <line x1="${L}" x2="${W - R}" y1="${y(BORDE.ideal)}" y2="${y(BORDE.ideal)}" style="stroke:var(--done);stroke-dasharray:4 4;opacity:.7"/>
+    <text x="${W - R}" y="${y(BORDE.ideal) - 4}" text-anchor="end" style="fill:var(--done);font-size:9px">borde 70</text>
+    <line x1="${L}" x2="${W - R}" y1="${y(meta)}" y2="${y(meta)}" style="stroke:var(--danger);stroke-dasharray:2 3;opacity:.8"/>
+    <text x="${L + 4}" y="${y(meta) - 4}" style="fill:var(--danger);font-size:9px">❤ ${meta}</text>
+    <polyline points="${pts.map(p => p.join(',')).join(' ')}" style="fill:none;stroke:var(--text);stroke-width:1.5;opacity:.6"/>
+    ${pts.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="4.5" style="fill:${col(pctSes(ses[i]))}"/>`).join('')}
+    ${ses.map((s, i) => (ses.length <= 8 || i % Math.ceil(ses.length / 8) === 0) ? `<text x="${x(i)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === ses.length - 1 ? 'end' : 'middle'}" style="fill:var(--faint);font-size:9px">${fmtFecha(s.fecha)}</text>` : '').join('')}
+  </svg>`;
+}
+
+/* ---------- Ajustes ---------- */
+function vAjustes() {
+  head('Ajustes', '#');
+  const nS = db.habilidades.reduce((a, h) => a + h.nodos.reduce((b, n) => b + n.sesiones.length, 0), 0);
+  $app.innerHTML = `
+    <div class="card"><div class="kicker">Tus datos</div>
+      <p class="muted small" style="margin:0 0 12px">Se guardan solo en este navegador (${db.habilidades.length} habilidades, ${nS} sesiones). Exportá un JSON seguido para no perder nada.</p>
+      <div class="row-btns"><button class="btn primary" data-act="exportar">⬇ Exportar JSON</button><button class="btn" data-act="importar">⬆ Importar JSON</button></div></div>
+    <div class="card"><div class="kicker">Demo</div>
+      <div class="row-btns"><button class="btn" data-act="ejemplos">Sumar los ejemplos</button><button class="btn danger" data-act="borrar-todo">Borrar todo</button></div></div>
+    <div class="card"><div class="kicker">El método</div>
+      <ol class="muted small" style="margin:0;padding-left:20px;line-height:1.7">
+        <li><b>Quiero hacer</b>: algo concreto que te traba.</li>
+        <li><b>Corazón</b>: verbo + qué + estándar, cuánto y plazo. Desempeño, no resultado.</li>
+        <li><b>Fractal</b>: partí en nodos (concepto / habilidad / desconocido), con dependencias.</li>
+        <li><b>Cuello</b>: el nodo libre más cercano. ¿Es causa o síntoma?</li>
+        <li><b>Feedback</b>: piano (inmediato) o decidir (fabricá el sensor).</li>
+        <li><b>Ejercicio</b>: ~10 repeticiones en 20 min con criterio visible.</li>
+        <li><b>Sesiones</b>: entrená cerca del 70%. Al llegar al corazón, siguiente cuello.</li>
+      </ol></div>`;
+}
+
+/* =========================================================
+   Acciones
+   ========================================================= */
+function setPath(obj, path, val) { const ks = path.split('.'); const last = ks.pop(); ks.reduce((o, k) => o[k], obj)[last] = val; }
+function actual() { const p = location.hash.replace(/^#/, '').split('/'); const h = hab(p[1]); return { h, n: h && p[0] === 'n' ? nodo(h, p[2]) : null }; }
+
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.d && draft) {
+    const v = t.type === 'number' ? Math.max(0, parseInt(t.value, 10) || 0) : t.value;
+    setPath(draft, t.dataset.d, v);
+    if (draft.paso === 1) { const b = $app.querySelector('[data-act="w-next"]'); if (b) b.disabled = !(draft.quieroHacer.trim() && draft.meTraba.trim()); }
+    else wizardLive();
+  }
+  if (t.dataset.n) {
+    const { h, n } = actual(); if (!n) return;
+    setPath(n, t.dataset.n, t.type === 'number' ? Math.max(0, parseInt(t.value, 10) || 0) : t.value);
+    guardar();
+    if (t.dataset.n === 'ejercicio.repsPorSesion') repsWarn(h, n);
+  }
+});
+
+document.addEventListener('click', async e => {
+  const go = e.target.closest('[data-go]');
+  if (go && !$sheet.contains(go)) { e.preventDefault(); return ir(go.dataset.go); }
+  const a = e.target.closest('[data-act]'); if (!a || $sheet.contains(a)) return;
+  const act = a.dataset.act, { h, n } = actual();
+
+  switch (act) {
+    /* wizard */
+    case 'w-next': draft.paso = 2; return render();
+    case 'w-back': draft.paso = 1; return render();
+    case 'w-fin': {
+      if (!revisarCorazon(draft.corazon).ok) return;
+      if (draft.key === 'nueva') {
+        const nh = { id: uid(), creada: hoy(), quieroHacer: draft.quieroHacer.trim(), meTraba: draft.meTraba.trim(), corazon: draft.corazon, cuelloId: null, nodos: [] };
+        db.habilidades.unshift(nh); guardar(); draft = null; toast('¡Tiene corazón! Ahora partila en nodos.'); return ir(`#h/${nh.id}`);
+      }
+      const eh = hab(draft.key); eh.corazon = draft.corazon; guardar(); draft = null; toast('Corazón guardado'); return ir(`#h/${eh.id}`);
+    }
+
+    /* habilidad */
+    case 'borrar-hab': {
+      if (await ask({ titulo: '¿Borrar esta habilidad?', texto: 'Se borran sus nodos y sesiones. No se puede deshacer.', botones: [{ txt: 'Borrar', cls: 'danger', val: true }, { txt: 'Cancelar', cls: 'ghost', val: false }] })) {
+        db.habilidades = db.habilidades.filter(x => x.id !== h.id); guardar(); ir('#');
+      }
+      return;
+    }
+    case 'cuello-auto': h.cuelloId = null; guardar(); return render();
+    case 'cambiar-cuello': {
+      const c = cuello(h);
+      const cand = h.nodos.filter(x => x.estado !== 'dominado' && (!c || x.id !== c.n.id));
+      if (!cand.length) return toast('No hay otros nodos sin dominar');
+      const id = await elegirNodo(h, '¿Cuál es el cuello?', 'Elegí el nodo que hoy más te frena.', cand);
+      if (id) await confirmarCuello(h, nodo(h, id));
+      return render();
+    }
+    case 'marcar-cuello': await confirmarCuello(h, n); return render();
+
+    /* nodo */
+    case 'nodo-nuevo': return editarNodo(h, null, a.dataset.pid || null);
+    case 'nodo-editar': return editarNodo(h, n, n.parentId);
+    case 'estado': {
+      const v = a.dataset.v;
+      if (v === 'dominado' && n.estado !== 'dominado') return dominar(h, n);
+      if (v === 'en_curso' && bloqueado(h, n)) toast('Ojo: este nodo está bloqueado');
+      n.estado = v; guardar(); return render();
+    }
+    case 'dominar': return dominar(h, n);
+    case 'fb': n.feedback.tipo = n.feedback.tipo === a.dataset.v ? null : a.dataset.v; guardar(); return render();
+    case 'sensor': n.feedback.sensor = n.feedback.sensor.trim() ? `${n.feedback.sensor.trim()}; ${a.dataset.v}` : a.dataset.v; guardar(); return render();
+    case 'ses-nueva': return editarSesion(h, n, null);
+    case 'ses-editar': return editarSesion(h, n, n.sesiones.find(s => s.id === a.dataset.id));
+
+    /* ajustes */
+    case 'exportar': {
+      const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob), link = document.createElement('a');
+      link.href = url; link.download = `aprender-${hoy()}.json`; document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000); return toast('JSON exportado');
+    }
+    case 'importar': return document.getElementById('fileIn').click();
+    case 'ejemplos': db.habilidades.push(...ejemplos().habilidades); guardar(); toast('Ejemplos sumados'); return ir('#');
+    case 'borrar-todo': {
+      if (await ask({ titulo: '¿Borrar todo?', texto: 'Se borran todas las habilidades de este navegador. Si no exportaste, se pierden.', botones: [{ txt: 'Borrar todo', cls: 'danger', val: true }, { txt: 'Cancelar', cls: 'ghost', val: false }] })) {
+        db = { version: 1, habilidades: [] }; guardar(); ir('#');
+      }
+    }
+  }
+});
+
+document.getElementById('fileIn').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  let data;
+  try { data = JSON.parse(await f.text()); if (!data || !Array.isArray(data.habilidades)) throw 0; }
+  catch (err) { return toast('Ese archivo no es un JSON de Aprender'); }
+  const modo = await ask({ titulo: 'Importar', texto: `El archivo trae ${data.habilidades.length} habilidades.`, botones: [
+    { txt: 'Sumar a las que tengo', cls: 'primary', val: 'sumar' }, { txt: 'Reemplazar todo', cls: 'danger', val: 'reemplazar' }, { txt: 'Cancelar', cls: 'ghost', val: null }] });
+  if (!modo) return;
+  const limpias = data.habilidades.filter(x => x && x.corazon && Array.isArray(x.nodos)).map(x => {
+    x.nodos.forEach(nd => Object.assign(nd, Object.assign(nuevoNodo(), nd), { feedback: Object.assign({ tipo: null, sensor: '' }, nd.feedback), ejercicio: Object.assign({ descripcion: '', repsPorSesion: 10, criterio: '' }, nd.ejercicio), sesiones: nd.sesiones || [], dependeDe: nd.dependeDe || [] }));
+    return x;
+  });
+  if (modo === 'reemplazar') db = { version: 1, habilidades: limpias };
+  else { const ids = new Set(db.habilidades.map(x => x.id)); limpias.forEach(x => { if (ids.has(x.id)) db.habilidades = db.habilidades.filter(y => y.id !== x.id); db.habilidades.push(x); }); }
+  guardar(); toast(`Importadas ${limpias.length} habilidades`); ir('#');
+});
+
+/* ---------- Diálogos del método ---------- */
+function opcionesNodos(h, lista, tipo, sel = []) {
+  return lista.map(x => `<label class="pick ${sel.includes(x.id) ? 'on' : ''}"><input type="${tipo}" name="pk" value="${x.id}" ${sel.includes(x.id) ? 'checked' : ''}>
+    <span>${TIPOS[x.tipo].ic} ${esc(x.nombre)} <span class="tag ${ESTADOS[x.estado].cls}">${ESTADOS[x.estado].nm}</span></span></label>`).join('');
+}
+async function elegirNodo(h, titulo, texto, lista) {
+  return ask({ titulo, texto, html: opcionesNodos(h, lista, 'radio'), botones: [
+    { txt: 'Elegir', cls: 'primary', leer: s => (s.querySelector('input[name=pk]:checked') || {}).value || null }, { txt: 'Cancelar', cls: 'ghost', val: null }] });
+}
+async function confirmarCuello(h, n) {
+  while (n) {
+    const r = await ask({ titulo: `🍾 ${n.nombre}`, texto: '¿Esto es <b>la causa</b> de lo que te traba, o es un <b>síntoma</b> de algo más atrás?', botones: [
+      { txt: 'Sí, es la causa', cls: 'primary', val: 'causa' }, { txt: 'No, es un síntoma', val: 'sintoma' }, { txt: 'Cancelar', cls: 'ghost', val: null }] });
+    if (!r) return;
+    if (r === 'causa') { h.cuelloId = n.id; if (n.estado === 'pendiente') n.estado = 'en_curso'; guardar(); toast('Cuello marcado'); return; }
+    /* síntoma: proponer lo que está "más atrás": prerrequisitos, hijos, y el resto */
+    const atras = [...new Set([...n.dependeDe, ...hijos(h, n.id).map(x => x.id)])].map(id => nodo(h, id)).filter(x => x && x.estado !== 'dominado');
+    const resto = h.nodos.filter(x => x.id !== n.id && x.estado !== 'dominado' && !atras.includes(x));
+    const html = (atras.length ? `<div class="kicker">Más atrás (prerrequisitos y partes)</div>${opcionesNodos(h, atras, 'radio')}` : '') +
+      (resto.length ? `<div class="kicker" style="margin-top:10px">Otros nodos</div>${opcionesNodos(h, resto, 'radio')}` : '');
+    const id = await ask({ titulo: '¿Qué hay más atrás?', texto: 'Elegí el nodo anterior. Si no existe todavía, crealo.', html, botones: [
+      { txt: 'Elegir este', cls: 'primary', leer: s => (s.querySelector('input[name=pk]:checked') || {}).value || null },
+      { txt: '＋ Crear un sub-nodo de este', val: 'crear' }, { txt: 'Cancelar', cls: 'ghost', val: null }] });
+    if (id === 'crear') { await editarNodo(h, null, n.id, true); return; }
+    n = id ? nodo(h, id) : null;
+  }
+}
+async function dominar(h, n) {
+  n.estado = 'dominado'; if (h.cuelloId === n.id) h.cuelloId = null; guardar();
+  const c = cuello(h);
+  if (c) { toast(`✓ Dominado. Siguiente cuello: ${c.n.nombre}`); ir(`#n/${h.id}/${c.n.id}`); }
+  else { toast('✓ Dominado'); ir(`#h/${h.id}`); }
+}
+async function editarNodo(h, n, pid, comoCuello = false) {
+  const nuevo = !n;
+  const excl = n ? new Set([n.id, ...descendientes(h, n).map(x => x.id), ...ancestros(h, n).map(x => x.id)]) : new Set(pid ? [pid, ...ancestros(h, nodo(h, pid)).map(x => x.id)] : []);
+  const posibles = h.nodos.filter(x => !excl.has(x.id));
+  const cur = n || nuevoNodo({ parentId: pid });
+  const padre = pid && nodo(h, pid);
+  const html = `${padre ? `<p class="small">Dentro de: <b>${esc(padre.nombre)}</b></p>` : ''}
+    <label class="f"><span class="f-lbl">Nombre</span><input type="text" id="nn" value="${esc(cur.nombre)}" placeholder="Ej. Textura de la leche"></label>
+    <div class="f"><span class="f-lbl">Tipo</span><div class="seg" id="nt">${Object.entries(TIPOS).map(([k, v]) => `<button type="button" data-t="${k}" class="${cur.tipo === k ? 'on' : ''}">${v.ic} ${v.nm}</button>`).join('')}</div>
+      <div class="hint">concepto: se memoriza · habilidad: se entrena con repeticiones · desconocido: hay que investigar antes</div></div>
+    ${posibles.length ? `<div class="f"><span class="f-lbl">Depende de <em>· tiene que estar dominado antes</em></span>${opcionesNodos(h, posibles, 'checkbox', cur.dependeDe)}</div>` : ''}`;
+  const botones = [{ txt: nuevo ? 'Agregar' : 'Guardar', cls: 'primary', leer: s => ({
+    nombre: s.querySelector('#nn').value.trim(), tipo: s.querySelector('#nt .on').dataset.t,
+    dependeDe: [...s.querySelectorAll('input[name=pk]:checked')].map(i => i.value) }) }];
+  if (!nuevo) botones.push({ txt: 'Borrar nodo', cls: 'danger', val: 'borrar' });
+  botones.push({ txt: 'Cancelar', cls: 'ghost', val: null });
+  const p = ask({ titulo: nuevo ? (padre ? 'Nuevo sub-nodo' : 'Nuevo nodo') : 'Editar nodo', html, botones });
+  $sheet.querySelector('#nt').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (!b) return; $sheet.querySelectorAll('#nt button').forEach(x => x.classList.toggle('on', x === b)); });
+  $sheet.querySelectorAll('.pick input').forEach(i => i.addEventListener('change', () => i.closest('.pick').classList.toggle('on', i.checked)));
+  const r = await p;
+  if (!r) return;
+  if (r === 'borrar') {
+    const des = descendientes(h, n);
+    if (!await ask({ titulo: '¿Borrar nodo?', texto: des.length ? `También se borran sus ${des.length} sub-nodos y todas las sesiones.` : 'Se borran sus sesiones.', botones: [{ txt: 'Borrar', cls: 'danger', val: true }, { txt: 'Cancelar', cls: 'ghost', val: false }] })) return;
+    const fuera = new Set([n.id, ...des.map(x => x.id)]);
+    h.nodos = h.nodos.filter(x => !fuera.has(x.id));
+    h.nodos.forEach(x => x.dependeDe = x.dependeDe.filter(id => !fuera.has(id)));
+    if (fuera.has(h.cuelloId)) h.cuelloId = null;
+    guardar(); return ir(`#h/${h.id}`);
+  }
+  if (!r.nombre) return toast('Ponele un nombre al nodo');
+  Object.assign(cur, r);
+  if (nuevo) {
+    /* heredar el tipo de feedback del padre si lo tiene */
+    if (padre && padre.feedback.tipo) cur.feedback = { ...padre.feedback };
+    h.nodos.push(cur);
+    if (comoCuello) { h.cuelloId = cur.id; cur.estado = 'en_curso'; }
+  }
+  guardar();
+  toast(nuevo ? (comoCuello ? 'Nodo creado y marcado como cuello' : 'Nodo agregado') : 'Guardado');
+  if (comoCuello) return ir(`#n/${h.id}/${cur.id}`);
+  render();
+}
+async function editarSesion(h, n, s) {
+  const nueva = !s;
+  const cur = s || { id: uid(), fecha: hoy(), reps: n.ejercicio.repsPorSesion || 10, correctas: '', ajuste: '' };
+  const html = `<label class="f"><span class="f-lbl">Fecha</span><input type="date" id="sf" value="${cur.fecha}"></label>
+    <div class="grid2"><label class="f"><span class="f-lbl">Repeticiones</span><input type="number" inputmode="numeric" min="1" id="sr" value="${cur.reps}"></label>
+      <label class="f"><span class="f-lbl">Salieron bien</span><input type="number" inputmode="numeric" min="0" id="sc" value="${cur.correctas}" placeholder="¿cuántas?"></label></div>
+    ${n.ejercicio.criterio ? `<div class="hint" style="margin:-6px 0 12px">Criterio: ${esc(n.ejercicio.criterio)}</div>` : ''}
+    <div id="spct"></div>
+    <label class="f"><span class="f-lbl">¿Qué ajusto para la próxima?</span><textarea id="sa" placeholder="Un solo cambio concreto">${esc(cur.ajuste)}</textarea></label>`;
+  const botones = [{ txt: nueva ? 'Guardar sesión' : 'Guardar', cls: 'primary', leer: x => ({
+    fecha: x.querySelector('#sf').value || hoy(), reps: parseInt(x.querySelector('#sr').value, 10) || 0,
+    correctas: parseInt(x.querySelector('#sc').value, 10) || 0, ajuste: x.querySelector('#sa').value.trim() }) }];
+  if (!nueva) botones.push({ txt: 'Borrar sesión', cls: 'danger', val: 'borrar' });
+  botones.push({ txt: 'Cancelar', cls: 'ghost', val: null });
+  const p = ask({ titulo: nueva ? 'Registrar sesión' : 'Editar sesión', html, botones });
+  const live = () => {
+    const r = parseInt($sheet.querySelector('#sr').value, 10) || 0, c = parseInt($sheet.querySelector('#sc').value, 10);
+    const el = $sheet.querySelector('#spct');
+    if (!r || isNaN(c)) { el.innerHTML = ''; return; }
+    if (c > r) { el.innerHTML = '<div class="note bad">No pueden salir bien más de las que hiciste.</div>'; return; }
+    const b = borde(Math.round(100 * c / r)); el.innerHTML = `<div class="note ${b.cls}" style="margin-top:0">${b.txt}</div>`;
+  };
+  $sheet.querySelectorAll('#sr,#sc').forEach(i => i.addEventListener('input', live)); live();
+  const r = await p;
+  if (!r) return;
+  if (r === 'borrar') { n.sesiones = n.sesiones.filter(x => x.id !== s.id); guardar(); return render(); }
+  if (r.reps < 1) return toast('Poné cuántas repeticiones hiciste');
+  if (r.correctas > r.reps) return toast('No pueden salir bien más de las que hiciste');
+  Object.assign(cur, r);
+  if (nueva) { n.sesiones.push(cur); if (n.estado === 'pendiente') n.estado = 'en_curso'; }
+  guardar(); render();
+  if (nueva) toast(`Sesión guardada: ${pctSes(cur)}%`);
+}
+
+window.addEventListener('hashchange', render);
+render();
+</script>
+</body>
+</html>
