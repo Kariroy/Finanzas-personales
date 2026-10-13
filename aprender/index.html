@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0d1117">
-<meta name="description" content="Planificá y seguí el aprendizaje de habilidades: corazón, fractal, cuello de botella y sesiones">
+<meta name="description" content="Organizador de diagramas de habilidades">
 <title>Aprender</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,1147 +17,928 @@
 :root {
   --bg: #0d1117; --panel: #10151c; --panel-2: #161c24; --card: #151a21; --input: #0b0f14;
   --line: #262e39; --line-2: #323c49; --text: #d6dde6; --muted: #7d8896; --faint: #4b5563;
-  --doing: #58a6ff; --paused: #f0883e; --done: #3fb950; --ready: #e3c341; --danger: #f47067; --teal: #56d4c4;
+  --accent: #58a6ff; --teal: #56d4c4; --danger: #f47067;
+  --card-w: 230px; --card-h: 56px;
   color-scheme: dark;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; }
-body { background: var(--bg); color: var(--text); font: 14px/1.5 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--text); font: 12px/1.4 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; overflow: hidden; }
 button, select, input, textarea { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 
-.head { position: sticky; top: 0; z-index: 6; background: rgba(13,17,23,.94); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); padding-top: env(safe-area-inset-top, 0px); }
-.head-in { max-width: 560px; margin: 0 auto; padding: 8px 12px; display: flex; align-items: center; gap: 8px; min-height: 56px; }
-.brand { font-weight: 700; font-size: 16px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wrap { max-width: 560px; margin: 0 auto; padding: 14px 16px 110px; }
+.layout { display: flex; height: 100vh; height: 100dvh; }
 
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; cursor: pointer; text-align: center; }
-.btn:active { background: #1f2a36; }
+/* ---------- panel lateral ---------- */
+.side { width: 300px; flex: none; background: var(--panel); border-right: 1px solid var(--line); padding: 12px;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.layout.side-collapsed .side { display: none; }
+.side-head { display: flex; align-items: center; gap: 8px; }
+.brand { font-weight: 700; font-size: 14px; flex: 1; letter-spacing: .02em; }
+.row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+.row2 .btn { width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.btn { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; cursor: pointer; text-align: center; white-space: nowrap; }
+.btn:hover { border-color: var(--line-2); background: #1b222c; }
 .btn:disabled { opacity: .4; cursor: default; }
-.btn.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; font-weight: 700; }
-.btn.ok { background: #1f6f35; border-color: #2a8a45; color: #fff; font-weight: 700; }
-.btn.ghost { background: none; }
-.btn.danger { color: var(--danger); background: none; border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
-.btn.block { width: 100%; }
-.btn.sm { min-height: 38px; padding: 6px 10px; font-size: 13px; }
-.icon { background: none; border: 0; color: var(--muted); cursor: pointer; min-width: 44px; min-height: 44px; border-radius: 10px; font-size: 18px; display: inline-flex; align-items: center; justify-content: center; }
-.icon:active { background: var(--panel-2); color: var(--text); }
-.row-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-.row-btns > .btn { flex: 1; }
+.btn.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.btn.primary.danger { background: #b62324; border-color: #b62324; }
+.btn.sq { width: 34px; padding: 7px 0; }
+.icon-btn { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; width: 32px; height: 32px; cursor: pointer; font-size: 16px; flex: none; }
+.sec { color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-top: 4px; }
 
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
-.card.hl { border-color: color-mix(in srgb, var(--ready) 60%, var(--line)); background: color-mix(in srgb, var(--ready) 6%, var(--card)); }
-.card.heart { border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); background: color-mix(in srgb, var(--danger) 5%, var(--card)); }
-.card.tap { cursor: pointer; }
-.card.tap:active { border-color: var(--line-2); }
-.sec-h { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; }
-.sec-h::before { content: ""; width: 4px; height: 14px; border-radius: 1px; background: var(--c, var(--doing)); flex: none; }
-.sec-h::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-.sec-h small { letter-spacing: 0; text-transform: none; font-weight: 400; color: var(--faint); order: 3; }
-.muted { color: var(--muted); } .faint { color: var(--faint); }
-.small { font-size: 12px; }
-.empty { color: var(--muted); text-align: center; padding: 22px 10px; line-height: 1.6; }
-.tag { --c: var(--doing); display: inline-block; border-radius: 5px; padding: 1px 7px; font-size: 11px; font-weight: 700; color: var(--c);
-  background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 32%, transparent); white-space: nowrap; vertical-align: middle; }
-.tag.pend { --c: var(--muted); } .tag.curso { --c: var(--doing); } .tag.dom { --c: var(--done); } .tag.lock { --c: var(--paused); } .tag.neck { --c: var(--ready); }
-.tag.piano { --c: var(--teal); } .tag.decidir { --c: #c297ff; }
-.note { font-size: 13px; border-radius: 10px; padding: 10px 12px; margin: 10px 0; line-height: 1.5;
-  --c: var(--ready); color: var(--c); background: color-mix(in srgb, var(--c) 8%, transparent); border: 1px solid color-mix(in srgb, var(--c) 30%, transparent); }
-.note.bad { --c: var(--danger); } .note.good { --c: var(--done); } .note.info { --c: var(--doing); } .note.warn { --c: var(--paused); }
-.note b { color: var(--text); }
-.kicker { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
-h1 { font-size: 18px; margin: 0 0 6px; line-height: 1.35; }
-h2 { font-size: 16px; margin: 0 0 6px; line-height: 1.35; }
-.heart-line { font-size: 16px; font-weight: 700; line-height: 1.45; }
-.heart-line em { font-style: normal; color: var(--danger); }
-.meta { display: flex; flex-wrap: wrap; gap: 6px 12px; color: var(--muted); font-size: 12px; margin-top: 8px; }
-.bar { height: 6px; background: var(--panel-2); border-radius: 99px; overflow: hidden; margin-top: 10px; }
-.bar i { display: block; height: 100%; background: var(--done); }
+.skills { display: flex; flex-direction: column; gap: 4px; min-height: 80px; flex: 1; overflow-y: auto; }
+.skill { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
+.skill:hover { background: var(--panel-2); }
+.skill.active { background: #132a2e; border-color: #2c6b6b; }
+.skill .ic { width: 18px; height: 18px; flex: none; border-radius: 5px; display: grid; place-items: center; font-size: 10px; font-weight: 700; background: var(--line-2); color: var(--muted); }
+.skill.active .ic { background: #2c6b6b; color: #dff; }
+.skill .txt { min-width: 0; flex: 1; }
+.skill .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skill .sub { color: var(--muted); font-size: 10px; }
+.skill .x { opacity: .55; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; flex: none; }
+.skill:hover .x { opacity: 1; }
+.skill .x:hover { color: var(--text); }
+.skill .del:hover { color: var(--danger); }
+.no-skills { color: var(--muted); padding: 8px 2px; line-height: 1.6; }
 
-/* formularios */
-label.f { display: block; margin-bottom: 14px; }
-.f-lbl { color: var(--muted); font-size: 12px; margin-bottom: 6px; display: block; }
-.f-lbl em { color: var(--faint); font-style: normal; }
-input[type=text], input[type=number], input[type=date], textarea, select { width: 100%; background: var(--input); border: 1px solid var(--line-2); border-radius: 10px; padding: 12px; font-size: 16px; color: var(--text); min-height: 48px; }
-textarea { min-height: 88px; resize: vertical; line-height: 1.5; }
-input:focus, textarea:focus, select:focus { outline: none; border-color: var(--doing); }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.of { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
-.of span { color: var(--muted); }
-.hint { color: var(--faint); font-size: 12px; margin-top: 6px; line-height: 1.5; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.chip { border: 1px solid var(--line); background: none; border-radius: 999px; padding: 8px 14px; cursor: pointer; color: var(--muted); font-size: 13px; min-height: 40px; }
-.chip:active { border-color: var(--doing); color: var(--text); }
-
-.seg { display: flex; background: #141a22; border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
-.seg button { flex: 1; background: none; border: 0; border-radius: 8px; padding: 10px 4px; min-height: 44px; cursor: pointer; color: var(--muted); font-size: 13px; }
-.seg button.on { background: #1f2a36; color: var(--text); font-weight: 700; }
-.seg button.on.dom { background: #173022; color: var(--done); }
-.seg button.on.curso { background: #172741; color: var(--doing); }
-
-.opt { display: block; width: 100%; text-align: left; border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 14px; margin-bottom: 8px; cursor: pointer; }
-.opt b { display: block; margin-bottom: 4px; }
-.opt span { color: var(--muted); font-size: 13px; }
-.opt.on { border-color: var(--doing); background: #142033; }
-
-/* wizard */
-.steps { display: flex; gap: 6px; margin-bottom: 16px; }
-.steps i { flex: 1; height: 4px; border-radius: 4px; background: var(--line); }
-.steps i.on { background: var(--doing); }
-.preview { background: var(--input); border: 1px dashed var(--line-2); border-radius: 10px; padding: 12px; margin: 4px 0 12px; }
-.checks { list-style: none; padding: 0; margin: 0 0 12px; font-size: 13px; }
-.checks li { padding: 3px 0; color: var(--muted); }
-.checks li.ok { color: var(--done); }
-.checks li.no { color: var(--paused); }
-
-/* árbol */
-.tree { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.node { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); padding: 4px 4px 4px 0; min-height: 56px; }
-.node:first-child { border-top: 0; }
-.node .main { flex: 1; min-width: 0; cursor: pointer; padding: 8px 0; display: flex; gap: 8px; align-items: flex-start; }
-.node .ic { flex: none; width: 22px; text-align: center; }
-.node .nm { overflow-wrap: anywhere; }
-.node .sub { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.node.dom .nm { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
-.node.lock .nm { color: var(--muted); }
-.node.neck { background: color-mix(in srgb, var(--ready) 8%, transparent); }
-.node .br { color: var(--faint); flex: none; margin-right: -2px; }
-.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--faint); font-size: 12px; margin-top: 8px; }
-
-/* sesiones */
-.chart { width: 100%; height: auto; display: block; }
-.sess { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding: 10px 0; }
-.sess:first-child { border-top: 0; }
-.sess .pct { width: 56px; flex: none; font-weight: 700; font-size: 16px; text-align: right; }
-.sess .main { flex: 1; min-width: 0; }
-.sess .aj { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-.big-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-bottom: 10px; }
-.big-stats div { background: var(--panel-2); border-radius: 10px; padding: 10px 6px; text-align: center; }
-.big-stats b { display: block; font-size: 18px; }
-.big-stats span { color: var(--muted); font-size: 11px; }
-
-.fab { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 5;
-  background: #1f6feb; color: #fff; border: 0; border-radius: 999px; padding: 15px 26px; font-weight: 700; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,.45); font-size: 15px; }
-
-/* hojas */
-.sheet { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center; }
-.box { width: min(560px, 100%); background: var(--panel); border: 1px solid var(--line-2); border-radius: 16px 16px 0 0;
-  padding: 18px 16px calc(20px + env(safe-area-inset-bottom, 0px)); max-height: 92vh; overflow-y: auto; }
-.box h3 { margin: 0 0 12px; font-size: 16px; }
-.box p { margin: 0 0 14px; color: var(--muted); line-height: 1.55; }
-.box .btns { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
-@media (min-width: 640px) { .sheet { align-items: center; } .box { border-radius: 16px; } }
-.pick { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 12px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 6px; cursor: pointer; background: var(--card); min-height: 52px; }
-.pick.on { border-color: var(--doing); background: #142033; }
-.pick input { width: 20px; height: 20px; flex: none; accent-color: #1f6feb; }
-
-/* mapa (como el de Planes) */
-.mini { position: relative; height: 300px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; cursor: pointer; }
-.mini .canvas { pointer-events: none; }
-.mini-open { position: absolute; right: 10px; bottom: 10px; z-index: 3; pointer-events: none; }
-.stage { position: fixed; left: 0; right: 0; bottom: 0; top: 57px; overflow: hidden; }
+/* ---------- lienzo ---------- */
+.stage { position: relative; flex: 1; overflow: hidden; }
 .canvas { position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: grab;
   background-color: var(--bg); background-image: radial-gradient(circle, #1c232c 1px, transparent 1.2px); }
 .canvas.panning { cursor: grabbing; }
 .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.cards { position: absolute; left: 0; top: 0; }
 .wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
-.wire .line { fill: none; stroke: #3a4452; stroke-width: 1.6; }
-.wire.parte .line { stroke-dasharray: 5 4; stroke: #33505a; }
-.wire.done .line { stroke: #2f6f45; }
-.wire .hit { fill: none; stroke: transparent; stroke-width: 18; pointer-events: stroke; cursor: pointer; }
-.wire.selected .line { stroke: var(--doing); stroke-width: 2.6; }
-.temp { fill: none; stroke: var(--doing); stroke-width: 1.8; stroke-dasharray: 5 4; }
-.mcard { position: absolute; width: var(--mw); min-height: 58px; background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--line-2);
-  border-radius: 6px; padding: 8px 12px 6px; user-select: none; -webkit-user-select: none; font-size: 12.5px; cursor: pointer; }
-.mcard.s-en_curso { border-left-color: var(--doing); }
-.mcard.s-dominado { border-left-color: var(--done); opacity: .55; }
-.mcard.s-dominado .mtitle { text-decoration: line-through; color: var(--muted); }
-.mcard.blocked { opacity: .5; }
-.mcard.blocked .mtitle { color: var(--muted); }
-.mcard.libre { border-color: rgba(227,195,65,.55); border-left-color: var(--ready); box-shadow: 0 0 14px rgba(227,195,65,.10); }
-.mcard.libre .st { color: var(--ready); }
-.mcard.neck { border-color: var(--ready); border-left-color: var(--ready); box-shadow: 0 0 0 2px rgba(227,195,65,.45), 0 0 22px rgba(227,195,65,.25); opacity: 1; }
-.mcard.drop { border-color: var(--doing) !important; box-shadow: 0 0 0 2px var(--doing) !important; }
-.mcard.heartc { border-color: color-mix(in srgb, var(--danger) 55%, var(--line)); border-left: 3px solid var(--danger); background: color-mix(in srgb, var(--danger) 7%, var(--card)); }
-.mcard.heartc .mtitle { font-weight: 700; }
-.mhead { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
-.mtitle { font-weight: 600; line-height: 1.4; min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.st { width: 22px; height: 22px; margin: -2px 0 0 -4px; flex: none; display: grid; place-items: center; border: 0; background: none; padding: 0; cursor: pointer; font-size: 12px; line-height: 1; color: var(--muted); }
-.s-en_curso .st { color: var(--doing); } .s-dominado .st { color: var(--done); }
-.mmeta { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 11px; color: var(--faint); min-height: 18px; }
-.mmeta .l { margin-right: auto; }
-.mmeta .neckb { color: var(--ready); font-weight: 700; }
-.mmeta button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 15px; min-width: 26px; }
-.port { position: absolute; top: 50%; width: 13px; height: 13px; margin-top: -6.5px; right: -7.5px; border-radius: 50%; background: var(--bg); border: 1.5px solid #4b5563; cursor: crosshair; }
-.port::after { content: ""; position: absolute; inset: -12px; border-radius: 50%; }
-.toolbar { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 6px; z-index: 3; max-width: calc(100% - 20px); }
-.toolbar .btn { background: #141a22; white-space: nowrap; }
-.toolbar .btn.sq { width: 46px; padding: 0; }
-.map-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); text-align: center; padding: 20px; pointer-events: none; }
-.help-l { list-style: none; padding: 0; margin: 0 0 12px; font-size: 13px; line-height: 1.8; color: var(--muted); }
-.help-l b { color: var(--text); }
 
-.toast { position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 30; background: #1f2a36; border: 1px solid var(--line-2);
-  padding: 10px 16px; border-radius: 10px; max-width: calc(100% - 32px); box-shadow: 0 8px 24px rgba(0,0,0,.45); font-size: 13px; }
+.topbar { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: 10px; right: 10px; display: flex; align-items: center; gap: 8px; z-index: 6; pointer-events: none; }
+.topbar > * { pointer-events: auto; }
+.cur-name { background: rgba(16,21,28,.92); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.topbar .help-btn { margin-left: auto; font-weight: 700; font-size: 14px; }
+
+.wire .line { fill: none; stroke: #3a4452; stroke-width: 1.6; }
+.wire .hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
+.wire:hover .line { stroke: #6b7788; }
+.wire.selected .line { stroke: var(--accent); stroke-width: 2.4; }
+.temp { fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-dasharray: 5 4; }
+
+.card { position: absolute; width: var(--card-w); min-height: var(--card-h); background: var(--card); border: 1px solid var(--line);
+  border-left: 3px solid var(--teal); border-radius: 6px; padding: 8px 12px 6px 12px; cursor: default; user-select: none; -webkit-user-select: none; }
+.card:hover { border-color: var(--line-2); border-left-color: var(--teal); }
+.card.root { border-left-color: var(--accent); background: #131c27; }
+.card.selected { border-color: var(--accent) !important; box-shadow: 0 0 0 2px rgba(88,166,255,.45) !important; }
+.card.drop { border-color: var(--accent) !important; box-shadow: 0 0 0 2px var(--accent) !important; }
+.card.dragging { cursor: grabbing; z-index: 5; }
+.title { display: block; font-weight: 600; font-size: 12px; line-height: 1.4; min-width: 0; outline: none; overflow-wrap: anywhere; }
+.title[contenteditable="true"] { background: var(--input); border-radius: 3px; padding: 0 3px; margin: 0 -3px; box-shadow: 0 0 0 1px var(--accent); cursor: text; user-select: text; -webkit-user-select: text; }
+.meta { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 5px; font-size: 10.5px; color: var(--muted); height: 16px; }
+.meta .kids { margin-right: auto; color: var(--faint); }
+.tools { display: flex; gap: 2px; opacity: 0; transition: opacity .1s; }
+.card:hover .tools, .card.selected .tools { opacity: 1; }
+.tools button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 3px; font-size: 12px; }
+.tools button:hover { color: var(--text); }
+.tools button[data-act="del"]:hover { color: var(--danger); }
+.port { position: absolute; top: 50%; width: 11px; height: 11px; margin-top: -5.5px; border-radius: 50%; background: var(--bg); border: 1.5px solid #4b5563; cursor: crosshair; }
+.port::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; }
+.port.out { right: -6.5px; }
+.port.in { left: -8px; }
+.port:hover { border-color: var(--accent); background: var(--accent); }
+
+.empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); pointer-events: none; text-align: center; padding: 16px; line-height: 1.7; }
+.toolbar { position: absolute; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 3; }
+.toolbar .btn { background: #141a22; }
+.toolbar .btn.primary { background: #b62324; }
+.toast { position: absolute; top: calc(56px + env(safe-area-inset-top, 0px)); left: 50%; transform: translate(-50%, -8px); background: #1f2630; border: 1px solid var(--line-2); border-radius: 6px;
+  padding: 7px 12px; opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; z-index: 7; max-width: calc(100% - 32px); }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- ventanas ---------- */
+.ask { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.55); display: flex; align-items: flex-start; justify-content: center; padding: 18vh 16px 16px; }
+.ask-box { width: min(400px, 100%); max-height: 76vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.ask-title { font-weight: 600; line-height: 1.5; }
+.ask-text { color: var(--muted); line-height: 1.6; }
+.ask input, .ask textarea { background: var(--input); border: 1px solid var(--line-2); border-radius: 6px; padding: 10px; font-size: 16px; width: 100%; }
+.ask textarea { min-height: 200px; font-size: 11px; resize: vertical; }
+.ask input:focus, .ask textarea:focus { outline: none; border-color: var(--accent); }
+.ask-btns { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.help { margin: 0; padding-left: 0; list-style: none; color: var(--muted); line-height: 1.6; font-size: 11.5px; display: grid; gap: 4px; }
+.help b { color: var(--text); }
+
+.only-mobile { display: none; }
+@media (max-width: 800px) {
+  .only-mobile { display: inline-block; }
+  .side { position: fixed; inset: 0; z-index: 10; width: 100%; padding: 14px 16px; padding-top: calc(14px + env(safe-area-inset-top, 0px));
+    transform: translateX(-100%); transition: transform .2s; box-shadow: 0 0 40px rgba(0,0,0,.5); }
+  .layout.side-collapsed .side { display: flex; }
+  .side.open { transform: none; }
+  .tools { opacity: 1; }
+  .skill .x { opacity: 1; font-size: 15px; padding: 4px 6px; }
+  .skill { padding: 11px 10px; }
+  .btn { padding: 10px 12px; }
+  .btn.sq { width: 42px; }
+  .icon-btn { width: 40px; height: 40px; }
+  .cur-name { padding: 10px 12px; }
+  .tools button { font-size: 15px; padding: 0 6px; }
+}
 </style>
 </head>
 <body>
-<header class="head"><div class="head-in" id="head"></div></header>
-<main class="wrap" id="app"></main>
-<div id="sheet" class="sheet" hidden></div>
-<div id="toast" class="toast" hidden></div>
+<div class="layout" id="layoutEl">
+  <aside class="side" id="side">
+    <div class="side-head">
+      <span class="brand">🎯 Aprender</span>
+      <button class="icon-btn" data-help aria-label="Ayuda" title="Ayuda">?</button>
+      <button class="icon-btn only-mobile" id="closeSide" aria-label="Cerrar panel">×</button>
+    </div>
+    <div class="row2">
+      <button class="btn" id="newSkill">+ habilidad</button>
+      <button class="btn" id="newNode">+ nodo</button>
+    </div>
+    <div class="sec">Habilidades</div>
+    <div class="skills" id="skills"></div>
+    <div class="row2">
+      <button class="btn" id="undo" title="Ctrl+Z">↶ deshacer</button>
+      <button class="btn" id="redo" title="Ctrl+Y">↷ rehacer</button>
+    </div>
+    <div class="row2">
+      <button class="btn" id="exportBtn">⇩ exportar</button>
+      <button class="btn" id="importBtn">⇧ importar</button>
+    </div>
+  </aside>
+  <div class="stage">
+    <div class="topbar">
+      <button class="icon-btn" id="openSide" aria-label="Mostrar u ocultar el panel" title="Mostrar / ocultar panel">☰</button>
+      <span class="cur-name" id="curName" title="Renombrar"></span>
+      <button class="icon-btn help-btn only-mobile" data-help aria-label="Ayuda">?</button>
+    </div>
+    <main class="canvas" id="canvas">
+      <div class="world" id="world">
+        <svg class="wires" id="wires" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="cards" id="cards"></div>
+      </div>
+      <div class="empty" id="empty" hidden><p></p></div>
+      <div class="toolbar" id="toolbar">
+        <button class="btn" id="layout" title="Acomoda los nodos en columnas según sus conexiones">⇶ reordenar</button>
+        <button class="btn" id="fit" title="Ver todo">⤢ centrar</button>
+        <button class="btn sq" id="zoomOut" aria-label="Alejar">−</button>
+        <button class="btn sq" id="zoomIn" aria-label="Acercar">+</button>
+      </div>
+      <div class="toolbar" id="wireBar" hidden>
+        <button class="btn primary" id="wireDel">× quitar conexión</button>
+        <button class="btn" id="wireCancel">cancelar</button>
+      </div>
+    </main>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<div class="ask" id="ask" hidden>
+  <div class="ask-box" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+    <div class="ask-title" id="askTitle"></div>
+    <div class="ask-text" id="askText" hidden></div>
+    <input type="text" id="askInput" maxlength="120">
+    <textarea id="askArea" readonly hidden></textarea>
+    <div class="ask-btns">
+      <button type="button" class="btn" id="askCancel">cancelar</button>
+      <button type="button" class="btn" id="askAlt" hidden></button>
+      <button type="button" class="btn primary" id="askOk">aceptar</button>
+    </div>
+  </div>
+</div>
+
+<div class="ask" id="helpDlg" hidden>
+  <div class="ask-box">
+    <div class="ask-title">Cómo se usa</div>
+    <ul class="help">
+      <li>Cada <b>habilidad</b> del panel izquierdo es un diagrama. Tocala para verla.</li>
+      <li><b>Nodos</b> = cards. Una línea A → B conecta A con B.</li>
+      <li>Arrastrá el <b>puerto ●</b> del borde derecho a otra card = conectarlas · a un lugar vacío = nuevo nodo conectado.</li>
+      <li>Arrastrá el <b>puerto de entrada</b> (borde izquierdo) = reconectar a otra card · a vacío = quitar la conexión.</li>
+      <li>Tocá una <b>línea</b> = seleccionarla para quitarla.</li>
+      <li>Arrastrá la <b>card</b> = moverla · <b>Shift + arrastrar</b> = mover con todo lo que sale de ella.</li>
+      <li><b>Doble clic</b> = crear nodo / renombrar · <b>✎</b> renombrar · <b>+</b> nodo conectado · <b>×</b> borrar.</li>
+      <li>Arrastrá el fondo = mover · rueda o dos dedos = zoom · <b>⇶ reordenar</b> acomoda todo en columnas.</li>
+      <li>Teclado: <b>Tab</b> nuevo nodo conectado · <b>Supr</b> borrar · <b>Enter</b> renombrar · <b>Ctrl+Z / Ctrl+Y</b>.</li>
+      <li>Los datos quedan en este navegador. Usá <b>exportar</b> para guardar una copia en JSON.</li>
+    </ul>
+    <div class="ask-btns"><button type="button" class="btn primary" id="helpClose">entendido</button></div>
+  </div>
+</div>
 <input type="file" id="fileIn" accept="application/json,.json" hidden>
 
 <script>
-'use strict';
-/* =========================================================
-   Datos
-   ========================================================= */
-const KEY = 'aprender.v1';
-const TIPOS = {
-  concepto:    { ic: '📘', nm: 'concepto',    hint: 'Se memoriza. El ejercicio es recuperar de memoria (tarjetas, explicarlo sin mirar).' },
-  habilidad:   { ic: '🔁', nm: 'habilidad',   hint: 'Se entrena con repeticiones.' },
-  desconocido: { ic: '❓', nm: 'desconocido', hint: 'Todavía no sabés qué es. Primero investigá; cuando sepas, cambiale el tipo o partilo en hijos.' },
-};
-const ESTADOS = { pendiente: { nm: 'pendiente', cls: 'pend' }, en_curso: { nm: 'en curso', cls: 'curso' }, dominado: { nm: 'dominado', cls: 'dom' } };
-const BORDE = { alto: 85, bajo: 50, ideal: 70 };
-const CONSISTENTE = 3; // sesiones seguidas en el criterio del corazón
+// Aprender: organizador de diagramas de habilidades (basado en el mapa de Planes).
+// Cada habilidad es un lienzo con cards (nodos) y conexiones A→B.
+// Los datos quedan en este navegador (localStorage); exportar/importar en JSON.
+(function(){
+"use strict";
 
-const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
-const hoy = () => fechaISO(new Date());
-function fechaISO(d) { const z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; }
-function enDias(n) { const d = new Date(); d.setDate(d.getDate() + n); return fechaISO(d); }
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+var KEY = "aprender-v2";
+var W = 230, H = 56;      // tamaño de la card (igual que --card-w / --card-h)
+var GX = 60, GY = 18;     // separación entre columnas / filas al reordenar
+var GRID = 10;
 
-function nuevoNodo(o = {}) {
-  return Object.assign({
-    id: uid(), parentId: null, nombre: '', tipo: 'habilidad', estado: 'pendiente', dependeDe: [],
-    feedback: { tipo: null, sensor: '' }, ejercicio: { descripcion: '', repsPorSesion: 10, criterio: '' }, sesiones: [],
-  }, o);
-}
-function ses(diasAtras, reps, correctas, ajuste) { return { id: uid(), fecha: enDias(-diasAtras), reps, correctas, ajuste }; }
+var $ = function(id){ return document.getElementById(id); };
+var canvas = $("canvas"), world = $("world"), wiresEl = $("wires"), cardsEl = $("cards");
 
-function ejemplos() {
-  const textura = nuevoNodo({
-    nombre: 'Textura de la leche (microespuma)', tipo: 'habilidad', estado: 'en_curso',
-    feedback: { tipo: 'piano', sensor: '' },
-    ejercicio: {
-      descripcion: 'Texturizar 150 ml de agua con una gota de detergente en la jarra (se comporta como la leche y no la gastás). Purgar, airear 3 s, girar hasta que esté brillante.',
-      repsPorSesion: 10, criterio: 'Superficie lisa y brillante como pintura, sin burbujas visibles al golpear la jarra.',
-    },
-    sesiones: [
-      ses(6, 10, 3, 'Meto mucho aire de golpe. Probar bajar la jarra más despacio.'),
-      ses(4, 10, 5, 'Mejor. El remolino se corta: inclinar más la jarra.'),
-      ses(2, 10, 7, 'En el borde. Sigo igual, cuidar no pasarme de aire.'),
-      ses(1, 10, 7, 'Probar con leche real 2 de las 10.'),
-    ],
-  });
-  const temp = nuevoNodo({
-    nombre: 'Temperatura de la leche (55–65 °C)', tipo: 'concepto',
-    ejercicio: { descripcion: 'Decir sin mirar el termómetro a qué temperatura está la jarra tocándola; después comparar.', repsPorSesion: 10, criterio: 'Le pego con ±5 °C.' },
-  });
-  const vertido = nuevoNodo({
-    nombre: 'Altura y velocidad del vertido', tipo: 'habilidad', feedback: { tipo: 'piano', sensor: '' },
-    ejercicio: { descripcion: 'Verter en una taza con espresso (o agua con café soluble): arrancar alto y fino, bajar y engrosar cuando se llena la mitad.', repsPorSesion: 10, criterio: 'Aparece una mancha blanca redonda y centrada.' },
-  });
-  const corte = nuevoNodo({
-    nombre: 'Corte final', tipo: 'habilidad', dependeDe: [vertido.id], feedback: { tipo: 'piano', sensor: '' },
-    ejercicio: { descripcion: 'Con la mancha formada, levantar la jarra y cortar en línea recta atravesando el centro.', repsPorSesion: 10, criterio: 'Las dos mitades del corazón quedan iguales.' },
-  });
-  const latte = {
-    id: uid(), creada: enDias(-7),
-    quieroHacer: 'Servir cafés con latte art en casa',
-    meTraba: 'La leche me queda con burbujas y el dibujo sale deforme',
-    corazon: { verbo: 'Hacer', que: 'el corazón simétrico', estandar: 'en la taza, con las dos mitades iguales', cuanto: { n: 8, de: 10 }, plazo: enDias(14) },
-    cuelloId: null, nodos: [textura, temp, vertido, corte],
-  };
+var state = load();
+var hist = [], fut = [];
+var sel = null;          // {node: id} | {dep: {from, to}}
+var els = {};            // id de nodo → elemento de la card
+var drag = null, pinch = null, pointers = {}, tempWire = null, editing = null;
 
-  const detectar = nuevoNodo({
-    nombre: 'Detectar que estoy por tomar una decisión importante', tipo: 'habilidad', estado: 'en_curso',
-    feedback: { tipo: 'decidir', sensor: 'Registro escrito y revisión mensual' },
-    ejercicio: {
-      descripcion: 'A la noche repaso el día y anoto qué decisiones importantes tomé. Marco cuáles tenían predicción escrita antes.',
-      repsPorSesion: 10, criterio: 'La decisión figura en el registro con fecha anterior a decidir.',
-    },
-    sesiones: [ses(5, 6, 2, 'Me acuerdo tarde. Poner aviso en el celular a las 12 y a las 18.'), ses(2, 8, 5, 'Mejoró con el aviso. Sumar: decisiones de plata > $50.000 siempre cuentan.')],
-  });
-  const formato = nuevoNodo({
-    nombre: 'Formato de la predicción: qué espero + % de confianza', tipo: 'concepto', estado: 'dominado',
-    feedback: { tipo: 'decidir', sensor: 'Registro escrito' },
-    ejercicio: { descripcion: 'Escribir 10 predicciones de práctica con el formato.', repsPorSesion: 10, criterio: 'Cada una tiene resultado observable y un %.' },
-  });
-  const revision = nuevoNodo({
-    nombre: 'Revisión mensual: comparar predicción vs resultado', tipo: 'habilidad', dependeDe: [detectar.id],
-    feedback: { tipo: 'decidir', sensor: 'Revisión mensual del registro; opcional, simulación con IA para practicar' },
-    ejercicio: { descripcion: 'Simulación: 10 escenarios cortos (generados con IA) donde escribo la predicción y después veo el desenlace.', repsPorSesion: 10, criterio: 'Mis % de confianza se parecen a cuántas acerté.' },
-  });
-  const decidir = {
-    id: uid(), creada: enDias(-5),
-    quieroHacer: 'Tomar mejores decisiones en el trabajo y la plata',
-    meTraba: 'No sé si decido bien o si tuve suerte: no me acuerdo qué pensaba antes',
-    corazon: { verbo: 'Escribir', que: 'la predicción antes de cada decisión importante', estandar: 'con qué espero que pase y % de confianza', cuanto: { n: 9, de: 10 }, plazo: enDias(30) },
-    cuelloId: null, nodos: [detectar, formato, revision],
-  };
-  return { version: 1, habilidades: [latte, decidir] };
-}
+// ---------- datos ----------
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
-function cargar() {
-  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && Array.isArray(d.habilidades)) return d; } catch (e) {}
-  return ejemplos();
-}
-let db = cargar();
-function guardar() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('No se pudo guardar en este navegador. Exportá un JSON.'); } }
-guardar();
+function newSkillObj(name){ return { id: uid(), name: name, updated: Date.now(), nodes: [], deps: [], view: { x: 60, y: 120, z: 1 } }; }
 
-/* =========================================================
-   Lógica del método
-   ========================================================= */
-const hab = id => db.habilidades.find(h => h.id === id);
-const nodo = (h, id) => h.nodos.find(n => n.id === id);
-const hijos = (h, pid) => h.nodos.filter(n => (n.parentId || null) === (pid || null));
-function ancestros(h, n) { const out = []; let p = n.parentId && nodo(h, n.parentId); while (p) { out.push(p); p = p.parentId && nodo(h, p.parentId); } return out; }
-function descendientes(h, n) { const out = []; (function rec(id) { hijos(h, id).forEach(c => { out.push(c); rec(c.id); }); })(n.id); return out; }
-
-/* prerrequisitos sin dominar (propios y de los ancestros) */
-function bloqueos(h, n) {
-  const ids = new Set();
-  [n, ...ancestros(h, n)].forEach(x => (x.dependeDe || []).forEach(id => { const d = nodo(h, id); if (d && d.estado !== 'dominado') ids.add(id); }));
-  return [...ids].map(id => nodo(h, id));
-}
-const bloqueado = (h, n) => bloqueos(h, n).length > 0;
-
-/* cuello sugerido: el más cercano (en curso antes que pendiente), bajando por el fractal hasta la hoja accionable */
-function sugerirCuello(h, pid = null) {
-  const libres = hijos(h, pid).filter(n => n.estado !== 'dominado' && !bloqueado(h, n));
-  const orden = [...libres.filter(n => n.estado === 'en_curso'), ...libres.filter(n => n.estado === 'pendiente')];
-  if (!orden.length) return null;
-  return sugerirCuello(h, orden[0].id) || orden[0];
-}
-function cuello(h) {
-  if (h.cuelloId) {
-    const n = nodo(h, h.cuelloId);
-    if (n && n.estado !== 'dominado') return { n, manual: true };
-    h.cuelloId = null;
+function demo(){
+  function sk(name, list, links){
+    var s = newSkillObj(name), by = {};
+    list.forEach(function(x){ var n = { id: uid(), title: x[1], x: x[2], y: x[3] }; s.nodes.push(n); by[x[0]] = n; });
+    links.forEach(function(l){ s.deps.push({ from: by[l[0]].id, to: by[l[1]].id }); });
+    return s;
   }
-  const n = sugerirCuello(h);
-  return n ? { n, manual: false } : null;
+  var latte = sk("Latte art", [
+    ["la", "Latte art: corazón simétrico", 0, 140],
+    ["le", "Leche", 290, 40], ["ve", "Vertido", 290, 240],
+    ["te", "Textura (microespuma)", 580, 0], ["tp", "Temperatura 55–65 °C", 580, 80],
+    ["al", "Altura y velocidad", 580, 240], ["co", "Corte final", 870, 240]
+  ], [["la","le"],["la","ve"],["le","te"],["le","tp"],["ve","al"],["al","co"]]);
+  var dec = sk("Decidir con registro", [
+    ["d", "Decidir con registro", 0, 60],
+    ["de", "Detectar decisiones importantes", 290, 0], ["fo", "Formato de la predicción", 290, 100],
+    ["re", "Revisión mensual", 580, 50]
+  ], [["d","de"],["d","fo"],["de","re"],["fo","re"]]);
+  return [latte, dec];
 }
 
-const pctCorazon = h => Math.round(100 * h.corazon.cuanto.n / h.corazon.cuanto.de);
-const pctSes = s => s.reps > 0 ? Math.round(100 * s.correctas / s.reps) : 0;
-function frase(c) { return [c.verbo, c.que, c.estandar].map(s => (s || '').trim()).filter(Boolean).join(' '); }
-function fraseHTML(c) {
-  return `${esc(frase(c))}, <em>${c.cuanto.n} de ${c.cuanto.de}</em>${c.plazo ? ` · ${esc(plazoTxt(c.plazo))}` : ''}`;
+function load(){
+  try {
+    var s = JSON.parse(localStorage.getItem(KEY));
+    if(s && Array.isArray(s.skills)) return s;
+  } catch(e){}
+  var skills = demo();
+  return { skills: skills, current: skills[0].id };
 }
-function plazoTxt(p) {
-  const d = Math.round((new Date(p + 'T00:00') - new Date(hoy() + 'T00:00')) / 864e5);
-  if (d < 0) return `venció hace ${-d} d`;
-  if (d === 0) return 'vence hoy';
-  return `en ${d} d (${fmtFecha(p)})`;
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){} }
+
+function cur(){
+  for(var i = 0; i < state.skills.length; i++) if(state.skills[i].id === state.current) return state.skills[i];
+  return null;
 }
-function fmtFecha(iso) { const [y, m, d] = iso.split('-'); return `${+d}/${+m}${y !== String(new Date().getFullYear()) ? '/' + y.slice(2) : ''}`; }
-
-function borde(p) {
-  if (p > BORDE.alto) return { cls: 'info', txt: `<b>${p}%: muy fácil.</b> Subí la dificultad (más velocidad, menos ayudas, condiciones más reales) para volver al ~70%.` };
-  if (p < BORDE.bajo) return { cls: 'warn', txt: `<b>${p}%: muy difícil.</b> Bajá la dificultad o bajá un nivel del fractal: partí este nodo en algo más chico.` };
-  return { cls: 'good', txt: `<b>${p}%: estás en el borde.</b> Es la zona donde más se aprende. Seguí así, ajustando de a poco.` };
+function byId(p, id){
+  for(var i = 0; i < p.nodes.length; i++) if(p.nodes[i].id === id) return p.nodes[i];
+  return null;
 }
-function listoParaDominar(h, n) {
-  if (n.estado === 'dominado' || n.sesiones.length < CONSISTENTE) return false;
-  const ult = [...n.sesiones].sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(-CONSISTENTE);
-  return ult.every(s => pctSes(s) >= pctCorazon(h));
-}
+function prereqs(p, id){ return p.deps.filter(function(d){ return d.to === id; }).map(function(d){ return d.from; }); }
+function dependents(p, id){ return p.deps.filter(function(d){ return d.from === id; }).map(function(d){ return d.to; }); }
 
-/* validación del corazón */
-const VERBOS_VAGOS = ['aprender', 'saber', 'entender', 'comprender', 'mejorar', 'conocer', 'dominar', 'pensar', 'ser', 'estar', 'tener', 'manejar', 'practicar', 'estudiar'];
-const QUE_VAGO = /^(mejor|bien|mas|el aprendizaje|aprendizaje|la habilidad|todo|cosas|algo|bueno|buena|ingles|programacion|cocina|musica)$/;
-const RESULTADO = /\b(vend\w*|venta\w*|gan(ar|e|o|en|ado)\w*|elogi\w*|felicit\w*|likes?|seguidores|clientes?|aprob\w*|ascen\w*|premi\w*|cobr\w*|plata|dinero|facturar|reconoc\w*|viral|que me (digan|elijan|contraten|llamen))\b/;
-function revisarCorazon(c) {
-  const v = norm(c.verbo), q = norm(c.que), e = norm(c.estandar);
-  const checks = [
-    { ok: !!v && !VERBOS_VAGOS.includes(v.split(' ')[0]), txt: v ? (VERBOS_VAGOS.includes(v.split(' ')[0]) ? `"${c.verbo}" no se ve desde afuera. ¿Qué hacés cuando ya lo sabés?` : 'Verbo activo') : 'Falta el verbo activo' },
-    { ok: !!q && !QUE_VAGO.test(q) && q.split(/\s+/).length >= 2, txt: !q ? 'Falta qué se hace' : (QUE_VAGO.test(q) || q.split(/\s+/).length < 2) ? 'El "qué" es vago: nombrá algo concreto que se pueda ver' : 'Qué se hace' },
-    { ok: e.length >= 4, txt: e.length >= 4 ? 'Estándar de ejecución' : 'Falta el estándar: ¿cómo tiene que salir?' },
-    { ok: c.cuanto.n > 0 && c.cuanto.de > 0 && c.cuanto.n <= c.cuanto.de, txt: 'M · cuánto (ej. 8 de 10 intentos)' },
-    { ok: !!c.plazo, txt: 'T · plazo' },
-  ];
-  const resultado = RESULTADO.test(norm(frase(c)));
-  return { checks, ok: checks.every(x => x.ok), resultado };
-}
-
-/* =========================================================
-   UI general
-   ========================================================= */
-const $app = document.getElementById('app');
-const $head = document.getElementById('head');
-const $sheet = document.getElementById('sheet');
-let toastT;
-function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2600); }
-
-function head(titulo, back) {
-  $head.innerHTML = (back ? `<button class="icon" data-go="${esc(back)}" aria-label="Volver">←</button>` : '') +
-    `<span class="brand">${titulo}</span>` +
-    (back ? '' : `<button class="icon" data-go="#ajustes" aria-label="Ajustes">⚙️</button>`);
-}
-function ir(hash) { if (location.hash === hash) render(); else location.hash = hash; }
-
-/* hojas: ask({titulo, texto, html, botones:[{txt, cls, val}]}) -> Promise(val) */
-function ask({ titulo, texto = '', html = '', botones }) {
-  return new Promise(res => {
-    $sheet.innerHTML = `<div class="box" role="dialog" aria-modal="true"><h3>${esc(titulo)}</h3>${texto ? `<p>${texto}</p>` : ''}${html}
-      <div class="btns">${botones.map((b, i) => `<button class="btn ${b.cls || ''}" data-i="${i}">${esc(b.txt)}</button>`).join('')}</div></div>`;
-    $sheet.hidden = false;
-    const fin = v => { $sheet.hidden = true; $sheet.innerHTML = ''; $sheet.onclick = null; res(v); };
-    $sheet.onclick = e => {
-      if (e.target === $sheet) return fin(null);
-      const b = e.target.closest('[data-i]');
-      if (b) { const bt = botones[+b.dataset.i]; fin(bt.leer ? bt.leer($sheet) : bt.val); }
-    };
-    const first = $sheet.querySelector('input,textarea,select'); if (first) setTimeout(() => first.focus(), 50);
-  });
-}
-
-/* =========================================================
-   Pantallas
-   ========================================================= */
-function render() {
-  mapaSel = null;
-  const p = location.hash.replace(/^#/, '').split('/');
-  window.scrollTo && (render.last !== location.hash) && window.scrollTo(0, 0);
-  render.last = location.hash;
-  if (p[0] === 'h' && hab(p[1])) return vHabilidad(hab(p[1]));
-  if (p[0] === 'n' && hab(p[1]) && nodo(hab(p[1]), p[2])) return vNodo(hab(p[1]), nodo(hab(p[1]), p[2]));
-  if (p[0] === 'nueva') return vWizard(null);
-  if (p[0] === 'editar' && hab(p[1])) return vWizard(hab(p[1]));
-  if (p[0] === 'ajustes') return vAjustes();
-  if (p[0] === 'm' && hab(p[1])) return vMapa(hab(p[1]));
-  return vInicio();
-}
-
-/* ---------- Inicio ---------- */
-function vInicio() {
-  head('🎯 Aprender');
-  const hs = db.habilidades;
-  $app.innerHTML = (hs.length ? hs.map(h => {
-    const c = cuello(h), dom = h.nodos.filter(n => n.estado === 'dominado').length, tot = h.nodos.length;
-    const ultima = c && c.n.sesiones.length ? pctSes(c.n.sesiones[c.n.sesiones.length - 1]) : null;
-    return `<div class="card tap" data-go="#h/${h.id}">
-      <div class="kicker">❤️ corazón</div>
-      <div class="heart-line">${fraseHTML(h.corazon)}</div>
-      <div class="bar"><i style="width:${tot ? Math.round(100 * dom / tot) : 0}%"></i></div>
-      <div class="meta"><span>${dom}/${tot} nodos dominados</span>${tot && dom === tot ? '<span class="tag dom">todo dominado</span>' : ''}</div>
-      ${c ? `<div class="note" style="margin-bottom:0">🍾 <b>Cuello:</b> ${esc(c.n.nombre)}${ultima !== null ? ` · última sesión ${ultima}%` : ''}</div>`
-          : tot ? '' : '<div class="note info" style="margin-bottom:0">Falta armar el fractal</div>'}
-    </div>`;
-  }).join('') : `<div class="empty">Todavía no hay habilidades.<br>Arrancá por algo que <b>quieras hacer</b> y que algo te trabe.</div>`)
-  + `<button class="fab" data-go="#nueva">+ Nueva habilidad</button>`;
-}
-
-/* ---------- Wizard: Quiero hacer → Corazón ---------- */
-let draft = null;
-function vWizard(h) {
-  const key = h ? h.id : 'nueva';
-  if (!draft || draft.key !== key) {
-    draft = { key, paso: h ? 2 : 1, quieroHacer: h ? h.quieroHacer : '', meTraba: h ? h.meTraba : '',
-      corazon: h ? JSON.parse(JSON.stringify(h.corazon)) : { verbo: '', que: '', estandar: '', cuanto: { n: 8, de: 10 }, plazo: enDias(14) } };
-  }
-  head(h ? 'Editar corazón' : 'Nueva habilidad', h ? `#h/${h.id}` : '#');
-  const d = draft;
-  if (d.paso === 1) {
-    $app.innerHTML = `<div class="steps"><i class="on"></i><i></i></div>
-      <div class="kicker">Paso 1 · Quiero hacer</div>
-      <p class="muted small">No arranques por “quiero aprender X”. Arrancá por algo que querés <b>hacer</b> y lo que hoy te frena.</p>
-      <label class="f"><span class="f-lbl">¿Qué querés hacer?</span>
-        <textarea data-d="quieroHacer" placeholder="Ej. Servir cafés con latte art en casa">${esc(d.quieroHacer)}</textarea></label>
-      <label class="f"><span class="f-lbl">¿Qué te traba?</span>
-        <textarea data-d="meTraba" placeholder="Ej. La leche me queda con burbujas y el dibujo sale deforme">${esc(d.meTraba)}</textarea></label>
-      <div class="row-btns"><button class="btn primary block" data-act="w-next" ${d.quieroHacer.trim() && d.meTraba.trim() ? '' : 'disabled'}>Siguiente: el corazón →</button></div>`;
-    return;
-  }
-  const c = d.corazon;
-  $app.innerHTML = `<div class="steps"><i class="on"></i><i class="on"></i></div>
-    <div class="kicker">Paso 2 · Corazón</div>
-    ${d.quieroHacer ? `<p class="muted small">Querés <b>${esc(d.quieroHacer)}</b> y te traba: ${esc(d.meTraba)}.</p>` : ''}
-    <p class="muted small">¿Qué es lo que, cuando sale, se <b>ve</b> desde afuera? Como “que me salga el corazón” en latte art. Formato: <b>verbo activo + qué + estándar</b>.</p>
-    <label class="f"><span class="f-lbl">Verbo activo</span><input type="text" data-d="corazon.verbo" value="${esc(c.verbo)}" placeholder="Hacer, escribir, tocar, resolver…"></label>
-    <label class="f"><span class="f-lbl">Qué se hace</span><input type="text" data-d="corazon.que" value="${esc(c.que)}" placeholder="el corazón simétrico"></label>
-    <label class="f"><span class="f-lbl">Estándar de ejecución <em>· cómo tiene que salir</em></span><input type="text" data-d="corazon.estandar" value="${esc(c.estandar)}" placeholder="en la taza, con las dos mitades iguales"></label>
-    <div class="f"><span class="f-lbl">M · cuánto <em>· intentos que tienen que salir</em></span>
-      <div class="of"><input type="number" inputmode="numeric" min="1" data-d="corazon.cuanto.n" value="${c.cuanto.n}"><span>de</span><input type="number" inputmode="numeric" min="1" data-d="corazon.cuanto.de" value="${c.cuanto.de}"></div></div>
-    <label class="f" style="margin-top:14px"><span class="f-lbl">T · plazo</span><input type="date" data-d="corazon.plazo" value="${esc(c.plazo)}"></label>
-    <div id="w-live"></div>
-    <div class="row-btns">${h ? '' : '<button class="btn ghost" data-act="w-back">← Atrás</button>'}<button class="btn primary" data-act="w-fin" id="w-fin">${h ? 'Guardar' : 'Crear y armar el fractal →'}</button></div>`;
-  wizardLive();
-}
-function wizardLive() {
-  const el = document.getElementById('w-live'); if (!el) return;
-  const r = revisarCorazon(draft.corazon);
-  el.innerHTML = `<div class="kicker">Así queda</div><div class="preview heart-line">${frase(draft.corazon) ? fraseHTML(draft.corazon) : '<span class="faint">…</span>'}</div>
-    <ul class="checks">${r.checks.map(x => `<li class="${x.ok ? 'ok' : 'no'}">${x.ok ? '✓' : '✗'} ${esc(x.txt)}</li>`).join('')}</ul>
-    ${r.resultado ? `<div class="note warn">⚠️ <b>Esto suena a resultado externo</b> (vender, ganar, que te elogien…). Eso no depende solo de vos. Medí el <b>desempeño</b> de la habilidad: ¿qué hacés vos, y cómo tiene que salir?</div>` : ''}
-    ${r.ok ? '' : `<div class="note bad">Todavía no tiene corazón: completá lo que está en ✗ para seguir.</div>`}`;
-  const b = document.getElementById('w-fin'); if (b) b.disabled = !r.ok;
-}
-
-/* ---------- Detalle de habilidad ---------- */
-function vHabilidad(h) {
-  head('Habilidad', '#');
-  const c = cuello(h);
-  const verArbol = (db.ui || {}).fractal === 'arbol';
-  const tot = h.nodos.length, dom = h.nodos.filter(n => n.estado === 'dominado').length;
-  let cuelloHTML;
-  if (c) {
-    const n = c.n, s = n.sesiones, ult = s.length ? pctSes(s[s.length - 1]) : null;
-    cuelloHTML = `<div class="card hl">
-      <div class="kicker">🍾 Cuello de botella · ${c.manual ? 'elegido por vos' : 'sugerido'}</div>
-      <h2>${TIPOS[n.tipo].ic} ${esc(n.nombre)}</h2>
-      <div class="meta">${n.feedback.tipo ? `<span class="tag ${n.feedback.tipo}">${n.feedback.tipo === 'piano' ? '🎹 piano' : '🧭 decidir'}</span>` : '<span class="tag pend">feedback sin definir</span>'}
-        <span>${s.length} sesiones${ult !== null ? ` · última ${ult}%` : ''}</span></div>
-      <div class="row-btns" style="margin-top:12px"><button class="btn primary" data-go="#n/${h.id}/${n.id}">Entrenar →</button>
-        <button class="btn" data-act="cambiar-cuello">Cambiar</button></div>
-      ${c.manual ? `<button class="btn ghost sm block" style="margin-top:8px" data-act="cuello-auto">Volver al sugerido</button>` : ''}
-    </div>`;
-  } else if (tot) {
-    cuelloHTML = dom === tot
-      ? `<div class="note good">🎉 <b>Dominaste todos los nodos.</b> ¿Ya te sale el corazón ${h.corazon.cuanto.n} de ${h.corazon.cuanto.de}? Si no, falta algún nodo: agregalo.</div>`
-      : `<div class="note warn">Todos los nodos que faltan están bloqueados. Revisá las dependencias.</div>`;
-  } else cuelloHTML = '';
-
-  $app.innerHTML = `
-    <div class="card heart">
-      <div class="kicker">❤️ Corazón</div>
-      <div class="heart-line">${fraseHTML(h.corazon)}</div>
-      <div class="meta"><span>Quiero: ${esc(h.quieroHacer)}</span><span>Me traba: ${esc(h.meTraba)}</span></div>
-      <div class="bar"><i style="width:${tot ? Math.round(100 * dom / tot) : 0}%"></i></div>
-      <div class="meta"><span>${dom}/${tot} nodos dominados</span><span>criterio de dominio: ${pctCorazon(h)}%</span></div>
-      <div class="row-btns" style="margin-top:10px"><button class="btn sm" data-go="#editar/${h.id}">✏️ Editar</button><button class="btn sm danger" data-act="borrar-hab">Borrar</button></div>
-    </div>
-    ${cuelloHTML}
-    <div class="sec-h" style="--c:var(--teal)">Fractal <small>${tot} nodos</small></div>
-    ${tot ? `<div class="seg" style="margin-bottom:10px"><button class="${verArbol ? '' : 'on'}" data-act="ver-fractal" data-v="mapa">🗺 Mapa</button><button class="${verArbol ? 'on' : ''}" data-act="ver-fractal" data-v="arbol">☰ Árbol</button></div>
-      ${verArbol ? `<div class="tree">${arbolHTML(h, null, 0, c && c.n.id)}</div>
-      <div class="legend"><span>📘 concepto</span><span>🔁 habilidad</span><span>❓ desconocido</span><span>🔒 bloqueado</span><span>＋ agregar hijo</span></div>`
-      : `<div class="mini" id="mini" data-go="#m/${h.id}"><span class="btn sm mini-open">⤢ Abrir mapa</span></div>
-      <div class="legend"><span>— depende de</span><span>┄ es parte de</span><span>▏amarillo: libre</span><span>🍾 cuello</span></div>`}`
-      : `<div class="empty">Partí la habilidad en sub-habilidades.<br>¿Qué partes tiene que salirte bien para que salga el corazón?</div>`}
-    <button class="btn block" style="margin-top:12px" data-act="nodo-nuevo" data-pid="">+ Agregar nodo</button>`;
-  const mini = document.getElementById('mini');
-  if (mini) montarMapa(mini, h, false);
-}
-function arbolHTML(h, pid, nivel, cuelloId) {
-  return hijos(h, pid).map(n => {
-    const lock = bloqueado(h, n), neck = n.id === cuelloId;
-    return `<div class="node ${n.estado === 'dominado' ? 'dom' : ''} ${lock ? 'lock' : ''} ${neck ? 'neck' : ''}" style="padding-left:${8 + nivel * 22}px">
-      ${nivel ? '<span class="br">└</span>' : ''}
-      <div class="main" data-go="#n/${h.id}/${n.id}"><span class="ic">${TIPOS[n.tipo].ic}</span>
-        <div><div class="nm">${esc(n.nombre)}</div><div class="sub">
-          <span class="tag ${ESTADOS[n.estado].cls}">${ESTADOS[n.estado].nm}</span>
-          ${lock ? `<span class="tag lock">🔒 bloqueado</span>` : ''}${neck ? `<span class="tag neck">🍾 cuello</span>` : ''}
-        </div></div></div>
-      <button class="icon" data-act="nodo-nuevo" data-pid="${n.id}" aria-label="Agregar hijo">＋</button>
-    </div>` + arbolHTML(h, n.id, nivel + 1, cuelloId);
-  }).join('');
-}
-
-/* ---------- Detalle de nodo ---------- */
-function vNodo(h, n) {
-  head('Nodo', `#h/${h.id}`);
-  const locks = bloqueos(h, n), c = cuello(h), esCuello = c && c.n.id === n.id;
-  const camino = ancestros(h, n).reverse();
-  const ses = [...n.sesiones].sort((a, b) => a.fecha.localeCompare(b.fecha));
-  const ult = ses.length ? pctSes(ses[ses.length - 1]) : null;
-  const meta = pctCorazon(h);
-  const fb = n.feedback;
-
-  $app.innerHTML = `
-    <div class="faint small" style="margin-bottom:6px">${esc(frase(h.corazon))}${camino.map(a => ` › ${esc(a.nombre)}`).join('')}</div>
-    <div class="card ${esCuello ? 'hl' : ''}">
-      ${esCuello ? '<div class="kicker">🍾 cuello de botella actual</div>' : ''}
-      <h1>${TIPOS[n.tipo].ic} ${esc(n.nombre)}</h1>
-      <div class="meta"><span class="tag">${TIPOS[n.tipo].nm}</span>${n.dependeDe.length ? `<span>depende de: ${n.dependeDe.map(id => nodo(h, id)).filter(Boolean).map(d => esc(d.nombre)).join(', ')}</span>` : ''}</div>
-      <p class="muted small" style="margin:10px 0">${TIPOS[n.tipo].hint}</p>
-      ${locks.length ? `<div class="note warn">🔒 <b>Bloqueado.</b> Primero tiene que estar dominado: ${locks.map(d => `<a href="#n/${h.id}/${d.id}" style="color:inherit">${esc(d.nombre)}</a>`).join(', ')}.</div>` : ''}
-      <div class="seg" style="margin-top:10px">${Object.entries(ESTADOS).map(([k, v]) => `<button class="${n.estado === k ? 'on ' + v.cls : ''}" data-act="estado" data-v="${k}">${v.nm}</button>`).join('')}</div>
-      <div class="row-btns" style="margin-top:10px">
-        ${esCuello || n.estado === 'dominado' ? '' : `<button class="btn sm" data-act="marcar-cuello">🍾 Es mi cuello</button>`}
-        <button class="btn sm" data-act="nodo-editar">✏️ Editar</button>
-        <button class="btn sm" data-act="nodo-nuevo" data-pid="${n.id}">＋ Sub-nodo</button>
-      </div>
-    </div>
-
-    ${listoParaDominar(h, n) ? `<div class="card" style="border-color:var(--done)">
-      <div class="kicker" style="color:var(--done)">❤️ Llegaste al criterio</div>
-      <p style="margin:0 0 12px">Tus últimas ${CONSISTENTE} sesiones están en ${meta}% o más. ¿Lo marcás como dominado y pasás al siguiente cuello?</p>
-      <button class="btn ok block" data-act="dominar">✓ Dominado · siguiente cuello</button></div>` : ''}
-
-    <div class="sec-h" style="--c:#c297ff">Tipo de feedback</div>
-    <button class="opt ${fb.tipo === 'piano' ? 'on' : ''}" data-act="fb" data-v="piano"><b>🎹 Tipo piano</b><span>El feedback es inmediato y honesto: sabés al toque si salió. Solo hace falta poner repeticiones.</span></button>
-    <button class="opt ${fb.tipo === 'decidir' ? 'on' : ''}" data-act="fb" data-v="decidir"><b>🧭 Tipo decidir</b><span>El feedback llega tarde o es confuso. Hay que fabricar el sensor.</span></button>
-    ${fb.tipo === 'decidir' ? `<label class="f"><span class="f-lbl">¿Qué sensor usás?</span>
-      <textarea data-n="feedback.sensor" placeholder="Registro escrito, simulación con IA, un mentor…">${esc(fb.sensor)}</textarea>
-      <div class="chips">${['Registro escrito', 'Simulación con IA', 'Un mentor que me corrija', 'Grabarme y revisar'].map(s => `<button class="chip" data-act="sensor" data-v="${esc(s)}">+ ${esc(s)}</button>`).join('')}</div></label>` : ''}
-
-    <div class="sec-h" style="--c:var(--teal)">Ejercicio <small>entorno seguro</small></div>
-    <label class="f"><span class="f-lbl">Descripción <em>· que comprima repeticiones y equivocarse no cueste</em></span>
-      <textarea data-n="ejercicio.descripcion" placeholder="Ej. texturizar agua con detergente en vez de leche">${esc(n.ejercicio.descripcion)}</textarea></label>
-    <label class="f"><span class="f-lbl">Repeticiones por sesión <em>· objetivo: ~10 en 20 minutos</em></span>
-      <input type="number" inputmode="numeric" min="0" data-n="ejercicio.repsPorSesion" value="${n.ejercicio.repsPorSesion}"></label>
-    <div id="reps-warn"></div>
-    <label class="f"><span class="f-lbl">Criterio de corrección <em>· cómo sabés en el momento si salió</em></span>
-      <textarea data-n="ejercicio.criterio" placeholder="Ej. superficie brillante, sin burbujas">${esc(n.ejercicio.criterio)}</textarea></label>
-
-    <div class="sec-h" style="--c:var(--done)">Sesiones <small>borde ≈ ${BORDE.ideal}%</small></div>
-    ${ses.length ? `
-      <div class="big-stats">
-        <div><b>${ses.length}</b><span>sesiones</span></div>
-        <div><b style="color:${ult > BORDE.alto ? 'var(--doing)' : ult < BORDE.bajo ? 'var(--paused)' : 'var(--done)'}">${ult}%</b><span>última</span></div>
-        <div><b>${meta}%</b><span>meta corazón</span></div>
-      </div>
-      <div class="note ${borde(ult).cls}">${borde(ult).txt}</div>
-      ${ses.length > 1 ? `<div class="card" style="padding:10px">${grafico(ses, meta)}</div>` : ''}
-      <div class="card" style="padding:4px 14px">${[...ses].reverse().map(s => `<div class="sess">
-        <div class="pct" style="color:${pctSes(s) > BORDE.alto ? 'var(--doing)' : pctSes(s) < BORDE.bajo ? 'var(--paused)' : 'var(--done)'}">${pctSes(s)}%</div>
-        <div class="main"><div>${fmtFecha(s.fecha)} · ${s.correctas}/${s.reps} bien</div>${s.ajuste ? `<div class="aj">↻ ${esc(s.ajuste)}</div>` : ''}</div>
-        <button class="icon" data-act="ses-editar" data-id="${s.id}" aria-label="Editar sesión">✏️</button></div>`).join('')}</div>`
-      : `<div class="empty">Sin sesiones todavía. Hacé una tanda de repeticiones y registrala.</div>`}
-    <button class="btn primary block" data-act="ses-nueva" style="margin-top:4px">+ Registrar sesión</button>`;
-  repsWarn(h, n);
-}
-function repsWarn(h, n) {
-  const el = document.getElementById('reps-warn'); if (!el) return;
-  const r = +n.ejercicio.repsPorSesion || 0;
-  el.innerHTML = r > 0 && r < 10
-    ? `<div class="note warn" style="margin-top:-6px">Con ${r} repeticiones por sesión el bucle es lento. <b>Partí el nodo en hijos más chicos</b> que entren ~10 veces en 20 minutos.
-       <button class="btn sm block" style="margin-top:8px" data-act="nodo-nuevo" data-pid="${n.id}">＋ Partir en sub-nodos</button></div>` : '';
-}
-function grafico(ses, meta) {
-  const W = 320, H = 170, L = 30, R = 10, T = 10, B = 22, w = W - L - R, hh = H - T - B;
-  const y = p => T + hh * (1 - p / 100);
-  const x = i => L + (ses.length === 1 ? w / 2 : w * i / (ses.length - 1));
-  const pts = ses.map((s, i) => [x(i), y(pctSes(s))]);
-  const col = p => p > BORDE.alto ? 'var(--doing)' : p < BORDE.bajo ? 'var(--paused)' : 'var(--done)';
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolución del porcentaje de acierto">
-    <rect x="${L}" y="${y(BORDE.alto)}" width="${w}" height="${y(BORDE.bajo) - y(BORDE.alto)}" style="fill:var(--done);opacity:.08"/>
-    ${[0, 50, 100].map(p => `<line x1="${L}" x2="${W - R}" y1="${y(p)}" y2="${y(p)}" style="stroke:var(--line)"/><text x="${L - 6}" y="${y(p) + 4}" text-anchor="end" style="fill:var(--faint);font-size:10px">${p}</text>`).join('')}
-    <line x1="${L}" x2="${W - R}" y1="${y(BORDE.ideal)}" y2="${y(BORDE.ideal)}" style="stroke:var(--done);stroke-dasharray:4 4;opacity:.7"/>
-    <text x="${W - R}" y="${y(BORDE.ideal) - 4}" text-anchor="end" style="fill:var(--done);font-size:9px">borde 70</text>
-    <line x1="${L}" x2="${W - R}" y1="${y(meta)}" y2="${y(meta)}" style="stroke:var(--danger);stroke-dasharray:2 3;opacity:.8"/>
-    <text x="${L + 4}" y="${y(meta) - 4}" style="fill:var(--danger);font-size:9px">❤ ${meta}</text>
-    <polyline points="${pts.map(p => p.join(',')).join(' ')}" style="fill:none;stroke:var(--text);stroke-width:1.5;opacity:.6"/>
-    ${pts.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="4.5" style="fill:${col(pctSes(ses[i]))}"/>`).join('')}
-    ${ses.map((s, i) => (ses.length <= 8 || i % Math.ceil(ses.length / 8) === 0) ? `<text x="${x(i)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === ses.length - 1 ? 'end' : 'middle'}" style="fill:var(--faint);font-size:9px">${fmtFecha(s.fecha)}</text>` : '').join('')}
-  </svg>`;
-}
-
-/* ---------- Mapa (estilo Planes) ----------
-   Fluye de izquierda a derecha: cada sub-nodo alimenta a su padre (línea punteada,
-   "es parte de"), los nodos de arriba alimentan al ❤️ corazón, y una línea continua
-   A→B significa "B depende de A". Las hojas de la izquierda son por donde se empieza. */
-const MW = 210, MGX = 56, MGY = 16, RAIZ = 'CORAZON';
-const ICON = { pendiente: '○', en_curso: '▶', dominado: '✓' };
-const NEXT = { pendiente: 'en_curso', en_curso: 'dominado', dominado: 'pendiente' };
-let mapaSel = null; // dependencia seleccionada {from, to}
-
-function aristas(h) {
-  const E = [];
-  h.nodos.forEach(n => {
-    E.push({ from: n.id, to: n.parentId && nodo(h, n.parentId) ? n.parentId : RAIZ, tipo: 'parte' });
-    n.dependeDe.forEach(d => { if (nodo(h, d)) E.push({ from: d, to: n.id, tipo: 'dep' }); });
-  });
-  return E;
-}
-// ¿Hay un camino a → … → b? (para no crear ciclos)
-function alcanza(h, a, b) {
-  const E = aristas(h), seen = new Set(), stack = [a];
-  while (stack.length) {
-    const x = stack.pop(); if (x === b) return true; if (seen.has(x)) continue; seen.add(x);
-    E.forEach(e => { if (e.from === x) stack.push(e.to); });
+function reaches(p, a, b){
+  var seen = {}, stack = [a];
+  while(stack.length){
+    var n = stack.pop();
+    if(n === b) return true;
+    if(seen[n]) continue;
+    seen[n] = 1;
+    dependents(p, n).forEach(function(x){ stack.push(x); });
   }
   return false;
 }
-// Columna = camino más largo hasta el corazón; fila = orden del árbol (padre centrado en sus hijos).
-function layoutMapa(h, alto) {
-  const E = aristas(h), dist = {}, enCurso = new Set();
-  const d = id => {
-    if (id === RAIZ) return 0;
-    if (dist[id] !== undefined) return dist[id];
-    if (enCurso.has(id)) return 0;
-    enCurso.add(id);
-    dist[id] = 1 + Math.max(0, ...E.filter(e => e.from === id).map(e => d(e.to)));
-    enCurso.delete(id);
-    return dist[id];
-  };
-  h.nodos.forEach(n => d(n.id));
-  const maxD = Math.max(0, ...Object.values(dist));
-  const fila = {}; let sig = 0;
-  (function ubicar(id) {
-    const ks = hijos(h, id === RAIZ ? null : id);
-    if (!ks.length) { fila[id] = sig++; return; }
-    ks.forEach(k => ubicar(k.id));
-    fila[id] = (fila[ks[0].id] + fila[ks[ks.length - 1].id]) / 2;
-  })(RAIZ);
-  const paso = Math.max(58, ...[RAIZ, ...h.nodos.map(n => n.id)].map(alto)) + MGY;
-  const pos = {};
-  [RAIZ, ...h.nodos.map(n => n.id)].forEach(id => {
-    pos[id] = { x: (maxD - (id === RAIZ ? 0 : dist[id])) * (MW + MGX), y: fila[id] * paso, h: alto(id) };
-  });
-  return pos;
-}
-function wirePath(x1, y1, x2, y2) {
-  const dx = Math.max(30, Math.abs(x2 - x1) / 2);
-  return `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
-}
-function cardMapa(h, n, cuelloId) {
-  if (!n) {
-    const tot = h.nodos.length, dom = h.nodos.filter(x => x.estado === 'dominado').length;
-    return `<div class="mcard heartc" data-id="${RAIZ}"><div class="kicker">❤️ corazón</div>
-      <div class="mtitle">${esc(frase(h.corazon))}</div>
-      <div class="mmeta"><span class="l">${h.corazon.cuanto.n} de ${h.corazon.cuanto.de} · ${dom}/${tot} dominados</span></div></div>`;
+function descendants(p, id){
+  var out = {}, stack = [id];
+  while(stack.length){
+    var n = stack.pop();
+    if(out[n]) continue;
+    out[n] = 1;
+    dependents(p, n).forEach(function(x){ stack.push(x); });
   }
-  const locks = bloqueos(h, n), neck = n.id === cuelloId;
-  const libre = !locks.length && n.estado === 'pendiente';
-  const ult = n.sesiones.length ? pctSes([...n.sesiones].sort((a, b) => a.fecha.localeCompare(b.fecha)).pop()) : null;
-  const izq = locks.length ? `<span class="l">🔒 ${locks.length}</span>` : neck ? '<span class="l neckb">🍾 cuello</span>' : `<span class="l">${TIPOS[n.tipo].nm}</span>`;
-  return `<div class="mcard s-${n.estado}${locks.length && n.estado !== 'dominado' ? ' blocked' : ''}${libre ? ' libre' : ''}${neck ? ' neck' : ''}" data-id="${n.id}">
-    <div class="mhead"><button class="st" data-m="st" aria-label="Cambiar estado">${ICON[n.estado]}</button><span class="mtitle">${TIPOS[n.tipo].ic} ${esc(n.nombre)}</span></div>
-    <div class="mmeta">${izq}${ult !== null ? `<span>${ult}%</span>` : ''}<button data-m="sub" aria-label="Agregar sub-nodo">＋</button></div>
-    <span class="port" data-port="out"></span></div>`;
+  return Object.keys(out);
+}
+function addDep(p, from, to){
+  if(from === to) return false;
+  if(p.deps.some(function(d){ return d.from === from && d.to === to; })){ toast("Esa conexión ya existe"); return false; }
+  if(reaches(p, to, from)){ toast("Eso crearía un ciclo"); return false; }
+  p.deps.push({ from: from, to: to });
+  return true;
+}
+function removeDep(p, from, to){ p.deps = p.deps.filter(function(d){ return !(d.from === from && d.to === to); }); }
+
+function overlaps(p, x, y, skip){ return p.nodes.some(function(t){ return t.id !== skip && Math.abs(t.x - x) < W && Math.abs(t.y - y) < H + 4; }); }
+function freeSpot(p, x, y){ var i = 0; while(overlaps(p, x, y) && i++ < 200) y += H + GY; return { x: x, y: y }; }
+function snap(v){ return Math.round(v / GRID) * GRID; }
+function makeNode(p, x, y, title){
+  var s = freeSpot(p, snap(x), snap(y));
+  var t = { id: uid(), title: title || "Nuevo nodo", x: s.x, y: s.y };
+  p.nodes.push(t);
+  return t;
+}
+function cardH(id){ var el = els[id]; return (el && el.offsetHeight) || H; }
+
+// ---------- historial ----------
+function snapshot(){ return JSON.stringify({ skills: state.skills, current: state.current }); }
+function pushHist(s){ hist.push(s || snapshot()); if(hist.length > 200) hist.shift(); fut = []; }
+function restore(s){ var o = JSON.parse(s); state.skills = o.skills; state.current = o.current; sel = null; save(); renderAll(); }
+function undo(){ if(!hist.length) return; fut.push(snapshot()); restore(hist.pop()); }
+function redo(){ if(!fut.length) return; hist.push(snapshot()); restore(fut.pop()); }
+function change(fn){
+  var before = snapshot(), p = cur();
+  if(fn(p) === false) return;
+  pushHist(before);
+  p = cur();
+  if(p) p.updated = Date.now();
+  save();
+  renderAll();
 }
 
-function montarMapa(stage, h, interactivo) {
-  const c = cuello(h), cuelloId = c && c.n.id;
-  stage.insertAdjacentHTML('afterbegin', `<div class="canvas"><div class="world" style="--mw:${MW}px"><svg class="wires"></svg><div class="cards">
-    ${cardMapa(h, null)}${h.nodos.map(n => cardMapa(h, n, cuelloId)).join('')}</div></div></div>`);
-  const canvas = stage.querySelector('.canvas'), world = stage.querySelector('.world'), wiresEl = stage.querySelector('.wires');
-  const els = {}; stage.querySelectorAll('.mcard').forEach(e => els[e.dataset.id] = e);
-  const pos = layoutMapa(h, id => els[id] ? els[id].offsetHeight : 58);
-  Object.entries(pos).forEach(([id, p]) => { els[id].style.left = p.x + 'px'; els[id].style.top = p.y + 'px'; });
-  const E = aristas(h);
-  let temp = null;
-  const dibujar = () => {
-    wiresEl.innerHTML = E.map(e => {
-      const a = pos[e.from], b = pos[e.to]; if (!a || !b) return '';
-      const d = wirePath(a.x + MW, a.y + a.h / 2, b.x, b.y + b.h / 2);
-      const src = nodo(h, e.from), sel = mapaSel && e.tipo === 'dep' && mapaSel.from === e.from && mapaSel.to === e.to;
-      return `<g class="wire ${e.tipo}${src && src.estado === 'dominado' ? ' done' : ''}${sel ? ' selected' : ''}" data-from="${e.from}" data-to="${e.to}">
-        ${e.tipo === 'dep' && interactivo ? `<path class="hit" d="${d}"/>` : ''}<path class="line" d="${d}"/></g>`;
-    }).join('') + (temp ? `<path class="temp" d="${temp}"/>` : '');
-  };
-  dibujar();
-
-  const rect = () => canvas.getBoundingClientRect();
-  const ajustar = () => {
-    const r = rect(), pad = interactivo ? 40 : 18, abajo = interactivo ? 70 : 0;
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    Object.values(pos).forEach(p => { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x + MW); y1 = Math.max(y1, p.y + p.h); });
-    let z = Math.min(1.1, (r.width - pad * 2) / (x1 - x0), (r.height - pad * 2 - abajo) / (y1 - y0));
-    z = Math.max(interactivo ? (r.width < 600 ? 0.8 : 0.5) : 0.2, z);   // en el celular, mejor legible que completo
-    const v = { z, x: (r.width - (x1 - x0) * z) / 2 - x0 * z, y: (r.height - abajo - (y1 - y0) * z) / 2 - y0 * z };
-    // si no entra a lo ancho, centrar en el cuello (o en el corazón)
-    if ((x1 - x0) * z > r.width - pad * 2) { const f = pos[cuelloId || RAIZ]; v.x = r.width / 2 - (f.x + MW / 2) * z; }
-    if ((y1 - y0) * z > r.height - pad * 2 - abajo) { const f = pos[cuelloId || RAIZ]; v.y = (r.height - abajo) / 2 - (f.y + f.h / 2) * z; }
-    return v;
-  };
-  let v = interactivo && h.vista ? h.vista : ajustar();
-  const aplicar = () => {
-    world.style.transform = `translate(${v.x}px,${v.y}px) scale(${v.z})`;
-    const g = 22 * v.z; canvas.style.backgroundSize = `${g}px ${g}px`; canvas.style.backgroundPosition = `${v.x}px ${v.y}px`;
-  };
-  aplicar();
-  if (!interactivo) return;
-
-  let tGuardar;
-  const guardarVista = () => { h.vista = v; clearTimeout(tGuardar); tGuardar = setTimeout(guardar, 300); };
-  const aMundo = (cx, cy) => { const r = rect(); return { x: (cx - r.left - v.x) / v.z, y: (cy - r.top - v.y) / v.z }; };
-  const zoomEn = (cx, cy, f) => {
-    const r = rect(), nz = Math.min(2.5, Math.max(0.2, v.z * f)), sx = cx - r.left, sy = cy - r.top;
-    v = { x: sx - (sx - v.x) * nz / v.z, y: sy - (sy - v.y) * nz / v.z, z: nz }; aplicar(); guardarVista();
-  };
-  const bajo = (e, excl) => { const el = document.elementFromPoint(e.clientX, e.clientY), cd = el && el.closest('.mcard'); return cd && cd.dataset.id !== excl && cd.dataset.id !== RAIZ ? cd.dataset.id : null; };
-  const ptrs = {}; let drag = null, pinch = null;
-
-  canvas.addEventListener('pointerdown', e => {
-    if (e.button !== 0 && e.pointerType === 'mouse') return;
-    ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
-    const ids = Object.keys(ptrs);
-    if (ids.length === 2) { const a = ptrs[ids[0]], b = ptrs[ids[1]]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) }; drag = null; temp = null; dibujar(); return; }
-    if (e.target.closest('[data-m]')) return;
-    const card = e.target.closest('.mcard'), port = e.target.closest('.port'), wire = e.target.closest('.wire');
-    const base = { sx: e.clientX, sy: e.clientY, moved: false };
-    if (port && card) drag = Object.assign(base, { kind: 'wire', from: card.dataset.id });
-    else if (wire) { mapaSel = { from: wire.dataset.from, to: wire.dataset.to }; dibujar(); barra(); return; }
-    else drag = Object.assign(base, { kind: 'pan', vx: v.x, vy: v.y, card: card && card.dataset.id });
-    canvas.setPointerCapture(e.pointerId);
+// ---------- vista ----------
+function view(){ var p = cur(); return p ? p.view : { x: 0, y: 0, z: 1 }; }
+function applyView(){
+  var v = view();
+  world.style.transform = "translate(" + v.x + "px," + v.y + "px) scale(" + v.z + ")";
+  var g = 22 * v.z;
+  canvas.style.backgroundSize = g + "px " + g + "px";
+  canvas.style.backgroundPosition = v.x + "px " + v.y + "px";
+}
+function toWorld(cx, cy){ var r = canvas.getBoundingClientRect(), v = view(); return { x: (cx - r.left - v.x) / v.z, y: (cy - r.top - v.y) / v.z }; }
+function zoomAt(cx, cy, factor){
+  var p = cur(); if(!p) return;
+  var v = p.view, r = canvas.getBoundingClientRect();
+  var nz = Math.min(2.5, Math.max(0.2, v.z * factor));
+  var sx = cx - r.left, sy = cy - r.top;
+  v.x = sx - (sx - v.x) * nz / v.z;
+  v.y = sy - (sy - v.y) * nz / v.z;
+  v.z = nz;
+  applyView();
+  saveSoon();
+}
+var saveTimer;
+function saveSoon(){ clearTimeout(saveTimer); saveTimer = setTimeout(save, 300); }
+function fit(){
+  var p = cur(); if(!p || !p.nodes.length) return;
+  var r = canvas.getBoundingClientRect();
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  p.nodes.forEach(function(t){
+    minX = Math.min(minX, t.x); minY = Math.min(minY, t.y);
+    maxX = Math.max(maxX, t.x + W); maxY = Math.max(maxY, t.y + cardH(t.id));
   });
-  canvas.addEventListener('pointermove', e => {
-    if (ptrs[e.pointerId]) ptrs[e.pointerId] = { x: e.clientX, y: e.clientY };
-    if (pinch) {
-      const ids = Object.keys(ptrs); if (ids.length < 2) return;
-      const a = ptrs[ids[0]], b = ptrs[ids[1]], d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinch.d) zoomEn((a.x + b.x) / 2, (a.y + b.y) / 2, d / pinch.d); pinch.d = d; return;
-    }
-    if (!drag) return;
-    const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
-    if (!drag.moved) { if (Math.hypot(dx, dy) < 6) return; drag.moved = true; if (drag.kind === 'pan') canvas.classList.add('panning'); }
-    if (drag.kind === 'pan') { v = { x: drag.vx + dx, y: drag.vy + dy, z: v.z }; aplicar(); }
-    else {
-      const a = pos[drag.from], t = bajo(e, drag.from);
-      let w = aMundo(e.clientX, e.clientY);
-      if (t) w = { x: pos[t].x, y: pos[t].y + pos[t].h / 2 };
-      temp = wirePath(a.x + MW, a.y + a.h / 2, w.x, w.y);
-      Object.keys(els).forEach(k => els[k].classList.toggle('drop', k === t));
-      dibujar();
-    }
-  });
-  const fin = e => {
-    delete ptrs[e.pointerId];
-    if (pinch) { if (Object.keys(ptrs).length < 2) pinch = null; return; }
-    if (!drag) return;
-    const d = drag; drag = null; canvas.classList.remove('panning');
-    if (e.type === 'pointercancel') { temp = null; dibujar(); return; }
-    if (d.kind === 'pan') {
-      if (d.moved) return guardarVista();
-      if (d.card && d.card !== RAIZ) return ir(`#n/${h.id}/${d.card}`);
-      if (mapaSel) { mapaSel = null; dibujar(); barra(); }
+  var pad = 40;
+  var z = Math.min(1.2, (r.width - pad * 2) / (maxX - minX), (r.height - pad * 2 - 110) / (maxY - minY));
+  z = Math.max(0.45, z);   // en pantallas chicas mejor legible que completo
+  p.view.z = z;
+  // si no entra a lo ancho, arranca desde la izquierda (donde empieza el diagrama)
+  p.view.x = Math.max(pad - minX * z, (r.width - (maxX - minX) * z) / 2 - minX * z);
+  p.view.y = (r.height - (maxY - minY) * z) / 2 - minY * z;
+  applyView();
+  save();
+}
+
+// ---------- reordenar (auto-layout) ----------
+function layout(p){
+  var level = {}, order = [], indeg = {};
+  p.nodes.forEach(function(t){ indeg[t.id] = 0; level[t.id] = 0; });
+  p.deps.forEach(function(d){ if(indeg[d.to] !== undefined) indeg[d.to]++; });
+  var queue = p.nodes.filter(function(t){ return !indeg[t.id]; })
+    .sort(function(a, b){ return a.y - b.y || a.x - b.x; }).map(function(t){ return t.id; });
+  while(queue.length){
+    var n = queue.shift();
+    order.push(n);
+    dependents(p, n).forEach(function(k){
+      level[k] = Math.max(level[k], level[n] + 1);
+      if(--indeg[k] === 0) queue.push(k);
+    });
+  }
+  var cols = [];
+  order.forEach(function(id){ (cols[level[id]] = cols[level[id]] || []).push(id); });
+  // Cada columna se ordena por la fila promedio de lo que la conecta (baricentro), así se cruzan poco.
+  var row = {}, rootRow = 0;
+  cols.forEach(function(col, li){
+    var items = col.map(function(id){
+      var pre = prereqs(p, id).filter(function(x){ return row[x] !== undefined; });
+      var want = pre.length ? pre.reduce(function(s, x){ return s + row[x]; }, 0) / pre.length : null;
+      return { id: id, want: want, y: byId(p, id).y };
+    });
+    if(li === 0){
+      items.forEach(function(it){ row[it.id] = rootRow; rootRow += Math.max(1, branchWidth(p, it.id)); });
       return;
     }
-    temp = null; Object.values(els).forEach(x => x.classList.remove('drop')); dibujar();
-    if (!d.moved) return;
-    const t = bajo(e, d.from);
-    if (t) return conectar(h, d.from, t);
-    editarNodo(h, null, null, false, { dependeDe: [d.from] });   // a vacío: nuevo nodo que depende de este
-  };
-  canvas.addEventListener('pointerup', fin);
-  canvas.addEventListener('pointercancel', fin);
-  canvas.addEventListener('wheel', e => { e.preventDefault(); zoomEn(e.clientX, e.clientY, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015))); }, { passive: false });
-  canvas.addEventListener('click', e => {
-    const b = e.target.closest('[data-m]'); if (!b) return;
-    const n = nodo(h, b.closest('.mcard').dataset.id); if (!n) return;
-    if (b.dataset.m === 'st') cambiarEstadoMapa(h, n);
-    else if (b.dataset.m === 'sub') editarNodo(h, null, n.id);
+    items.sort(function(a, b){ return a.want - b.want || a.y - b.y; });
+    var last = -Infinity;
+    items.forEach(function(it){ var r = Math.max(Math.round(it.want * 2) / 2, last + 1); row[it.id] = r; last = r; });
   });
+  var pitch = Math.max.apply(null, [H].concat(p.nodes.map(function(t){ return cardH(t.id); }))) + GY;
+  var x0 = Infinity, y0 = Infinity;
+  p.nodes.forEach(function(t){ x0 = Math.min(x0, t.x); y0 = Math.min(y0, t.y); });
+  p.nodes.forEach(function(t){ t.x = snap(x0 + level[t.id] * (W + GX)); t.y = snap(y0 + row[t.id] * pitch); });
+}
+function branchWidth(p, id){
+  var depth = {}, count = {};
+  (function walk(n, d){
+    if(depth[n] !== undefined && depth[n] >= d) return;
+    depth[n] = d;
+    dependents(p, n).forEach(function(k){ walk(k, d + 1); });
+  })(id, 0);
+  Object.keys(depth).forEach(function(k){ count[depth[k]] = (count[depth[k]] || 0) + 1; });
+  return Math.max.apply(null, Object.keys(count).map(function(k){ return count[k]; }));
+}
 
-  function barra() {
-    const tb = stage.querySelector('.toolbar');
-    tb.innerHTML = mapaSel
-      ? `<button class="btn danger" data-mt="quitar">✕ Quitar dependencia</button><button class="btn" data-mt="cancelar">Cancelar</button>`
-      : `<button class="btn sq" data-mt="ajustar" aria-label="Ajustar a la pantalla">⤢</button><button class="btn primary" data-mt="nuevo">＋ Nodo</button>
-         <button class="btn" data-mt="arbol">☰ Árbol</button><button class="btn sq" data-mt="ayuda" aria-label="Reglas">?</button>`;
-  }
-  stage.insertAdjacentHTML('beforeend', '<div class="toolbar"></div>');
-  barra();
-  stage.querySelector('.toolbar').addEventListener('click', async e => {
-    const b = e.target.closest('[data-mt]'); if (!b) return;
-    const m = b.dataset.mt;
-    if (m === 'ajustar') { v = ajustar(); aplicar(); guardarVista(); }
-    else if (m === 'nuevo') editarNodo(h, null, null);
-    else if (m === 'arbol') { db.ui = Object.assign(db.ui || {}, { fractal: 'arbol' }); guardar(); ir(`#h/${h.id}`); }
-    else if (m === 'cancelar') { mapaSel = null; dibujar(); barra(); }
-    else if (m === 'quitar') {
-      const n = nodo(h, mapaSel.to); if (n) n.dependeDe = n.dependeDe.filter(x => x !== mapaSel.from);
-      guardar(); toast('Dependencia quitada'); render();
-    }
-    else if (m === 'ayuda') ask({ titulo: 'Reglas del mapa', html: `<ul class="help-l">
-        <li><b>○</b> pendiente · <b style="color:var(--doing)">▶</b> en curso · <b style="color:var(--done)">✓</b> dominado</li>
-        <li><b style="color:var(--ready)">borde amarillo</b>: libre, se puede empezar ya</li>
-        <li><b style="color:var(--ready)">🍾 brillo</b>: el cuello de botella</li>
-        <li><b>🔒 n</b>: bloqueado, faltan n prerrequisitos</li>
-        <li><b>línea continua</b>: depende de (A → B = B depende de A)</li>
-        <li><b>línea punteada</b>: es parte de (sub-nodo → nodo → ❤️)</li>
-      </ul><ul class="help-l">
-        <li>tocar el <b>círculo</b> = cambiar estado</li>
-        <li>tocar la <b>card</b> = abrir el nodo · <b>＋</b> = sub-nodo</li>
-        <li>arrastrar el <b>puerto ●</b> (borde derecho) a otra card = dependencia · a vacío = nuevo nodo que depende de ese</li>
-        <li>tocar una <b>línea continua</b> = quitar la dependencia</li>
-        <li>arrastrar el fondo = mover · dos dedos o rueda = zoom · <b>⤢</b> = ajustar</li>
-      </ul>`, botones: [{ txt: 'Entendido', cls: 'primary', val: true }] });
+// ---------- dibujo ----------
+function isSelNode(id){ return sel && sel.node === id; }
+function isSelDep(d){ return sel && sel.dep && sel.dep.from === d.from && sel.dep.to === d.to; }
+
+function renderAll(){
+  renderSkills();
+  renderCards();
+  renderWires();
+  applyView();
+  var p = cur();
+  $("undo").disabled = !hist.length;
+  $("redo").disabled = !fut.length;
+  $("newNode").disabled = !p;
+  $("layout").disabled = $("fit").disabled = !p || !p.nodes.length;
+  $("curName").textContent = p ? p.name : "";
+  $("curName").hidden = !p;
+  renderWireBar();
+}
+
+function renderCards(){
+  var p = cur();
+  cardsEl.innerHTML = "";
+  els = {};
+  $("empty").hidden = !!(p && p.nodes.length);
+  $("empty").firstElementChild.textContent = p
+    ? "Doble clic (o «+ nodo») para crear el primer nodo."
+    : "Creá una habilidad con «+ habilidad».";
+  if(!p) return;
+  p.nodes.forEach(function(t){
+    var kids = dependents(p, t.id).length;
+    var c = document.createElement("div");
+    c.className = "card" + (!prereqs(p, t.id).length && kids ? " root" : "") + (isSelNode(t.id) ? " selected" : "");
+    c.dataset.id = t.id;
+    c.style.left = t.x + "px";
+    c.style.top = t.y + "px";
+    c.innerHTML =
+      '<span class="port in" data-port="in" title="Arrastrá para reconectar o quitar la conexión"></span>' +
+      '<span class="title"></span>' +
+      '<div class="meta">' + (kids ? '<span class="kids" title="Nodos conectados">→ ' + kids + '</span>' : '') +
+        '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nuevo nodo conectado (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
+      '</div>' +
+      '<span class="port out" data-port="out" title="Arrastrá para conectar"></span>';
+    c.querySelector(".title").textContent = t.title;
+    c.title = t.title;
+    cardsEl.appendChild(c);
+    els[t.id] = c;
   });
 }
-function conectar(h, from, to) {
-  const b = nodo(h, to);
-  if (b.dependeDe.includes(from)) return toast('Esa dependencia ya existe');
-  if (alcanza(h, to, from)) return toast('Eso crearía un ciclo');
-  b.dependeDe.push(from); guardar();
-  toast(`${b.nombre} ahora depende de ${nodo(h, from).nombre}`); render();
-}
-function cambiarEstadoMapa(h, n) {
-  const libresAntes = new Set(h.nodos.filter(x => x.estado !== 'dominado' && !bloqueado(h, x)).map(x => x.id));
-  n.estado = NEXT[n.estado];
-  if (n.estado === 'dominado' && h.cuelloId === n.id) h.cuelloId = null;
-  const liberados = h.nodos.filter(x => x.id !== n.id && x.estado !== 'dominado' && !bloqueado(h, x) && !libresAntes.has(x.id));
-  guardar();
-  if (liberados.length) toast('Desbloqueado: ' + liberados.map(x => x.nombre).join(', '));
-  else if (n.estado === 'en_curso' && bloqueado(h, n)) toast('Ojo: tiene prerrequisitos sin dominar');
-  else toast(`${n.nombre}: ${ESTADOS[n.estado].nm}`);
-  render();
-}
-function vMapa(h) {
-  head('🗺 ' + esc(frase(h.corazon)), `#h/${h.id}`);
-  $app.innerHTML = '<div class="stage" id="stage"></div>';
-  const st = document.getElementById('stage');
-  st.style.top = document.querySelector('.head').offsetHeight + 'px';
-  if (!h.nodos.length) st.innerHTML = '<div class="map-empty">Todavía no hay nodos.<br>Tocá ＋ Nodo para partir la habilidad.</div>';
-  montarMapa(st, h, true);
-}
-let tResize;
-window.addEventListener('resize', () => { clearTimeout(tResize); tResize = setTimeout(() => { if (/^#m\//.test(location.hash)) render(); }, 200); });
 
-/* ---------- Ajustes ---------- */
-function vAjustes() {
-  head('Ajustes', '#');
-  const nS = db.habilidades.reduce((a, h) => a + h.nodos.reduce((b, n) => b + n.sesiones.length, 0), 0);
-  $app.innerHTML = `
-    <div class="card"><div class="kicker">Tus datos</div>
-      <p class="muted small" style="margin:0 0 12px">Se guardan solo en este navegador (${db.habilidades.length} habilidades, ${nS} sesiones). Exportá un JSON seguido para no perder nada.</p>
-      <div class="row-btns"><button class="btn primary" data-act="exportar">⬇ Exportar JSON</button><button class="btn" data-act="importar">⬆ Importar JSON</button></div></div>
-    <div class="card"><div class="kicker">Demo</div>
-      <div class="row-btns"><button class="btn" data-act="ejemplos">Sumar los ejemplos</button><button class="btn danger" data-act="borrar-todo">Borrar todo</button></div></div>
-    <div class="card"><div class="kicker">El método</div>
-      <ol class="muted small" style="margin:0;padding-left:20px;line-height:1.7">
-        <li><b>Quiero hacer</b>: algo concreto que te traba.</li>
-        <li><b>Corazón</b>: verbo + qué + estándar, cuánto y plazo. Desempeño, no resultado.</li>
-        <li><b>Fractal</b>: partí en nodos (concepto / habilidad / desconocido), con dependencias.</li>
-        <li><b>Cuello</b>: el nodo libre más cercano. ¿Es causa o síntoma?</li>
-        <li><b>Feedback</b>: piano (inmediato) o decidir (fabricá el sensor).</li>
-        <li><b>Ejercicio</b>: ~10 repeticiones en 20 min con criterio visible.</li>
-        <li><b>Sesiones</b>: entrená cerca del 70%. Al llegar al corazón, siguiente cuello.</li>
-      </ol></div>`;
+function wirePath(x1, y1, x2, y2){
+  var dx = Math.max(30, Math.abs(x2 - x1) / 2);
+  return "M" + x1 + "," + y1 + " C" + (x1 + dx) + "," + y1 + " " + (x2 - dx) + "," + y2 + " " + x2 + "," + y2;
 }
-
-/* =========================================================
-   Acciones
-   ========================================================= */
-function setPath(obj, path, val) { const ks = path.split('.'); const last = ks.pop(); ks.reduce((o, k) => o[k], obj)[last] = val; }
-function actual() { const p = location.hash.replace(/^#/, '').split('/'); const h = hab(p[1]); return { h, n: h && p[0] === 'n' ? nodo(h, p[2]) : null }; }
-
-document.addEventListener('input', e => {
-  const t = e.target;
-  if (t.dataset.d && draft) {
-    const v = t.type === 'number' ? Math.max(0, parseInt(t.value, 10) || 0) : t.value;
-    setPath(draft, t.dataset.d, v);
-    if (draft.paso === 1) { const b = $app.querySelector('[data-act="w-next"]'); if (b) b.disabled = !(draft.quieroHacer.trim() && draft.meTraba.trim()); }
-    else wizardLive();
+function renderWires(){
+  var p = cur(), html = "";
+  if(p){
+    p.deps.forEach(function(d){
+      if(drag && drag.kind === "wire" && drag.hide && drag.hide.from === d.from && drag.hide.to === d.to) return;
+      var a = byId(p, d.from), b = byId(p, d.to);
+      if(!a || !b) return;
+      var path = wirePath(a.x + W, a.y + cardH(a.id) / 2, b.x, b.y + cardH(b.id) / 2);
+      html += '<g class="wire' + (isSelDep(d) ? " selected" : "") + '" data-from="' + d.from + '" data-to="' + d.to + '"><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"/></g>';
+    });
   }
-  if (t.dataset.n) {
-    const { h, n } = actual(); if (!n) return;
-    setPath(n, t.dataset.n, t.type === 'number' ? Math.max(0, parseInt(t.value, 10) || 0) : t.value);
-    guardar();
-    if (t.dataset.n === 'ejercicio.repsPorSesion') repsWarn(h, n);
-  }
-});
+  if(tempWire) html += '<path class="temp" d="' + tempWire + '"/>';
+  wiresEl.innerHTML = html;
+}
+function renderWireBar(){
+  var on = !!(sel && sel.dep);
+  $("wireBar").hidden = !on;
+  $("toolbar").hidden = on;
+}
 
-document.addEventListener('click', async e => {
-  const go = e.target.closest('[data-go]');
-  if (go && !$sheet.contains(go)) { e.preventDefault(); return ir(go.dataset.go); }
-  const a = e.target.closest('[data-act]'); if (!a || $sheet.contains(a)) return;
-  const act = a.dataset.act, { h, n } = actual();
-
-  switch (act) {
-    /* wizard */
-    case 'w-next': draft.paso = 2; return render();
-    case 'w-back': draft.paso = 1; return render();
-    case 'w-fin': {
-      if (!revisarCorazon(draft.corazon).ok) return;
-      if (draft.key === 'nueva') {
-        const nh = { id: uid(), creada: hoy(), quieroHacer: draft.quieroHacer.trim(), meTraba: draft.meTraba.trim(), corazon: draft.corazon, cuelloId: null, nodos: [] };
-        db.habilidades.unshift(nh); guardar(); draft = null; toast('¡Tiene corazón! Ahora partila en nodos.'); return ir(`#h/${nh.id}`);
-      }
-      const eh = hab(draft.key); eh.corazon = draft.corazon; guardar(); draft = null; toast('Corazón guardado'); return ir(`#h/${eh.id}`);
-    }
-
-    /* habilidad */
-    case 'borrar-hab': {
-      if (await ask({ titulo: '¿Borrar esta habilidad?', texto: 'Se borran sus nodos y sesiones. No se puede deshacer.', botones: [{ txt: 'Borrar', cls: 'danger', val: true }, { txt: 'Cancelar', cls: 'ghost', val: false }] })) {
-        db.habilidades = db.habilidades.filter(x => x.id !== h.id); guardar(); ir('#');
-      }
-      return;
-    }
-    case 'ver-fractal': db.ui = Object.assign(db.ui || {}, { fractal: a.dataset.v }); guardar(); return render();
-    case 'cuello-auto': h.cuelloId = null; guardar(); return render();
-    case 'cambiar-cuello': {
-      const c = cuello(h);
-      const cand = h.nodos.filter(x => x.estado !== 'dominado' && (!c || x.id !== c.n.id));
-      if (!cand.length) return toast('No hay otros nodos sin dominar');
-      const id = await elegirNodo(h, '¿Cuál es el cuello?', 'Elegí el nodo que hoy más te frena.', cand);
-      if (id) await confirmarCuello(h, nodo(h, id));
-      return render();
-    }
-    case 'marcar-cuello': await confirmarCuello(h, n); return render();
-
-    /* nodo */
-    case 'nodo-nuevo': return editarNodo(h, null, a.dataset.pid || null);
-    case 'nodo-editar': return editarNodo(h, n, n.parentId);
-    case 'estado': {
-      const v = a.dataset.v;
-      if (v === 'dominado' && n.estado !== 'dominado') return dominar(h, n);
-      if (v === 'en_curso' && bloqueado(h, n)) toast('Ojo: este nodo está bloqueado');
-      n.estado = v; guardar(); return render();
-    }
-    case 'dominar': return dominar(h, n);
-    case 'fb': n.feedback.tipo = n.feedback.tipo === a.dataset.v ? null : a.dataset.v; guardar(); return render();
-    case 'sensor': n.feedback.sensor = n.feedback.sensor.trim() ? `${n.feedback.sensor.trim()}; ${a.dataset.v}` : a.dataset.v; guardar(); return render();
-    case 'ses-nueva': return editarSesion(h, n, null);
-    case 'ses-editar': return editarSesion(h, n, n.sesiones.find(s => s.id === a.dataset.id));
-
-    /* ajustes */
-    case 'exportar': {
-      let enMarco = true; try { enMarco = window.self !== window.top; } catch (err) {}
-      if (enMarco) {   // dentro de otra página no se puede descargar: mostrar el JSON para copiar
-        const json = JSON.stringify(db, null, 2);
-        const copiar = await ask({ titulo: 'Exportar JSON', texto: 'Copiá este texto y guardalo en un archivo .json (por ejemplo en Notas o en Drive).',
-          html: `<textarea id="exp" readonly style="min-height:220px;font-size:12px">${esc(json)}</textarea>`,
-          botones: [{ txt: 'Copiar', cls: 'primary', val: true }, { txt: 'Cerrar', cls: 'ghost', val: false }] });
-        if (copiar) {
-          try { await navigator.clipboard.writeText(json); toast('JSON copiado'); }
-          catch (err) { toast('No se pudo copiar solo: mantené apretado el texto y copialo'); }
-        }
+// ---------- panel lateral: habilidades ----------
+function renderSkills(){
+  var list = $("skills");
+  list.innerHTML = "";
+  if(!state.skills.length){ list.innerHTML = '<div class="no-skills">Todavía no hay habilidades.<br>Creá una con «+ habilidad».</div>'; return; }
+  state.skills.slice().sort(function(a, b){ return b.updated - a.updated; }).forEach(function(p){
+    var el = document.createElement("div");
+    el.className = "skill" + (p.id === state.current ? " active" : "");
+    el.innerHTML = '<span class="ic"></span><div class="txt"><div class="name"></div>' +
+      '<div class="sub">' + p.nodes.length + " nodo" + (p.nodes.length === 1 ? "" : "s") + " · ed. " + new Date(p.updated).toISOString().slice(0, 10) + "</div></div>" +
+      '<button class="x ren" title="Renombrar">✎</button><button class="x del" title="Borrar">×</button>';
+    el.querySelector(".ic").textContent = (p.name.trim()[0] || "?").toUpperCase();
+    el.querySelector(".name").textContent = p.name;
+    el.addEventListener("click", function(e){
+      if(e.target.closest(".ren")){ renameSkill(p); return; }
+      if(e.target.closest(".del")){
+        ask({ title: "¿Borrar la habilidad «" + p.name + "» y todo su diagrama?", ok: "borrar", danger: true }, function(){
+          change(function(){
+            state.skills = state.skills.filter(function(x){ return x.id !== p.id; });
+            if(state.current === p.id) state.current = state.skills[0] ? state.skills[0].id : null;
+          });
+        });
         return;
       }
-      const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob), link = document.createElement('a');
-      link.href = url; link.download = `aprender-${hoy()}.json`; document.body.appendChild(link); link.click(); link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000); return toast('JSON exportado');
-    }
-    case 'importar': return document.getElementById('fileIn').click();
-    case 'ejemplos': db.habilidades.push(...ejemplos().habilidades); guardar(); toast('Ejemplos sumados'); return ir('#');
-    case 'borrar-todo': {
-      if (await ask({ titulo: '¿Borrar todo?', texto: 'Se borran todas las habilidades de este navegador. Si no exportaste, se pierden.', botones: [{ txt: 'Borrar todo', cls: 'danger', val: true }, { txt: 'Cancelar', cls: 'ghost', val: false }] })) {
-        db = { version: 1, habilidades: [] }; guardar(); ir('#');
-      }
-    }
-  }
-});
-
-document.getElementById('fileIn').addEventListener('change', async e => {
-  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-  let data;
-  try { data = JSON.parse(await f.text()); if (!data || !Array.isArray(data.habilidades)) throw 0; }
-  catch (err) { return toast('Ese archivo no es un JSON de Aprender'); }
-  const modo = await ask({ titulo: 'Importar', texto: `El archivo trae ${data.habilidades.length} habilidades.`, botones: [
-    { txt: 'Sumar a las que tengo', cls: 'primary', val: 'sumar' }, { txt: 'Reemplazar todo', cls: 'danger', val: 'reemplazar' }, { txt: 'Cancelar', cls: 'ghost', val: null }] });
-  if (!modo) return;
-  const limpias = data.habilidades.filter(x => x && x.corazon && Array.isArray(x.nodos)).map(x => {
-    x.nodos.forEach(nd => Object.assign(nd, Object.assign(nuevoNodo(), nd), { feedback: Object.assign({ tipo: null, sensor: '' }, nd.feedback), ejercicio: Object.assign({ descripcion: '', repsPorSesion: 10, criterio: '' }, nd.ejercicio), sesiones: nd.sesiones || [], dependeDe: nd.dependeDe || [] }));
-    return x;
+      closeSideMobile();
+      if(state.current !== p.id){ state.current = p.id; sel = null; save(); renderAll(); if(!p.fitted){ p.fitted = true; fit(); } }
+    });
+    el.addEventListener("dblclick", function(e){ if(!e.target.closest(".x")) renameSkill(p); });
+    list.appendChild(el);
   });
-  if (modo === 'reemplazar') db = { version: 1, habilidades: limpias };
-  else { const ids = new Set(db.habilidades.map(x => x.id)); limpias.forEach(x => { if (ids.has(x.id)) db.habilidades = db.habilidades.filter(y => y.id !== x.id); db.habilidades.push(x); }); }
-  guardar(); toast(`Importadas ${limpias.length} habilidades`); ir('#');
+}
+function newSkill(){
+  closeSideMobile();
+  ask({ title: "Nueva habilidad", input: "", placeholder: "Ej. Latte art, Inglés oral, Dibujo", ok: "crear" }, function(name){
+    change(function(){
+      var p = newSkillObj(name);
+      p.fitted = true;
+      state.skills.push(p);
+      state.current = p.id;
+      var r = canvas.getBoundingClientRect(), v = p.view;
+      var t = makeNode(p, (r.width / 2 - v.x) / v.z - W / 2, (r.height / 2 - v.y) / v.z - H / 2, name);
+      sel = { node: t.id };
+    });
+  });
+}
+function renameSkill(p){
+  ask({ title: "Renombrar habilidad", input: p.name, ok: "guardar" }, function(name){
+    if(name !== p.name) change(function(){ p.name = name; });
+  });
+}
+
+// ---------- edición del título ----------
+function startEdit(id){
+  var c = els[id], span = c && c.querySelector(".title");
+  if(!span) return;
+  var p = cur(), t = byId(p, id);
+  editing = id;
+  span.contentEditable = "true";
+  span.focus();
+  var r = document.createRange(); r.selectNodeContents(span);
+  var s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  var done = false;
+  function finish(ok){
+    if(done) return; done = true;
+    editing = null;
+    var v = span.textContent.replace(/\s+/g, " ").trim();
+    span.contentEditable = "false";
+    if(ok && v && v !== t.title) change(function(){ t.title = v; });
+    else { renderCards(); renderWires(); }
+  }
+  span.addEventListener("keydown", function(e){
+    e.stopPropagation();
+    if(e.key === "Enter"){ e.preventDefault(); finish(true); }
+    else if(e.key === "Escape"){ e.preventDefault(); finish(false); }
+  });
+  span.addEventListener("blur", function(){ finish(true); });
+}
+
+// ---------- acciones ----------
+function select(s){
+  sel = s;
+  Object.keys(els).forEach(function(k){ els[k].classList.toggle("selected", isSelNode(k)); });
+  renderWires();
+  renderWireBar();
+}
+function newChild(id){
+  var p = cur(), parent = byId(p, id); if(!parent) return;
+  var t;
+  change(function(){
+    var ys = dependents(p, id).map(function(k){ return byId(p, k).y; });
+    var y = ys.length ? Math.max.apply(null, ys) + H + GY : parent.y;
+    t = makeNode(p, parent.x + W + GX, y);
+    p.deps.push({ from: id, to: t.id });
+    sel = { node: t.id };
+  });
+  if(t){ ensureVisible(t); startEdit(t.id); }
+}
+function deleteSelected(){
+  if(!sel) return;
+  if(sel.node){
+    var id = sel.node;
+    change(function(p){
+      p.nodes = p.nodes.filter(function(t){ return t.id !== id; });
+      p.deps = p.deps.filter(function(d){ return d.from !== id && d.to !== id; });
+      sel = null;
+    });
+  } else if(sel.dep){
+    var d = sel.dep;
+    change(function(p){ removeDep(p, d.from, d.to); sel = null; });
+    toast("Conexión quitada");
+  }
+}
+function ensureVisible(t){
+  var r = canvas.getBoundingClientRect(), v = view();
+  var sx = t.x * v.z + v.x, sy = t.y * v.z + v.y, m = 40;
+  if(sx < m) v.x += m - sx;
+  if(sx + W * v.z > r.width - m) v.x -= sx + W * v.z - (r.width - m);
+  if(sy < m + 50) v.y += m + 50 - sy;
+  if(sy + H * v.z > r.height - 80) v.y -= sy + H * v.z - (r.height - 80);
+  applyView();
+}
+var toastTimer;
+function toast(msg){
+  var el = $("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ el.classList.remove("show"); }, 2200);
+}
+
+// ---------- puntero: mover, conectar, pan, pinch ----------
+var lastTap = null;   // doble toque en el celular (dblclick no siempre llega)
+canvas.addEventListener("pointerdown", function(e){
+  if(e.button !== 0 && e.pointerType === "mouse") return;
+  var p = cur(); if(!p) return;
+  if(editing){ if(!e.target.closest(".title[contenteditable=true]")) document.activeElement.blur(); else return; }
+  pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+  var ids = Object.keys(pointers);
+  if(ids.length === 2){
+    var a = pointers[ids[0]], b = pointers[ids[1]];
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) };
+    drag = null; tempWire = null; renderWires();
+    return;
+  }
+  var t = e.target;
+  if(t.closest("[data-act]") || t.closest(".toolbar")) return;
+  var card = t.closest(".card"), port = t.closest(".port"), wire = t.closest(".wire");
+  var base = { sx: e.clientX, sy: e.clientY, moved: false, before: snapshot() };
+  if(port && card){
+    var id = card.dataset.id;
+    if(port.dataset.port === "out") drag = Object.assign(base, { kind: "wire", from: id });
+    else {
+      var inc = prereqs(p, id);
+      if(!inc.length) drag = moveDrag(base, id, e.shiftKey);
+      else drag = Object.assign(base, { kind: "wire", from: inc[inc.length - 1], hide: { from: inc[inc.length - 1], to: id } });
+    }
+  } else if(card){
+    drag = moveDrag(base, card.dataset.id, e.shiftKey);
+    if(!isSelNode(card.dataset.id)) select({ node: card.dataset.id });
+  } else if(wire){
+    select({ dep: { from: wire.dataset.from, to: wire.dataset.to } });
+    return;
+  } else {
+    var v = view();
+    drag = Object.assign(base, { kind: "pan", vx: v.x, vy: v.y });
+  }
+  canvas.setPointerCapture(e.pointerId);
+});
+function moveDrag(base, id, subtree){
+  var p = cur();
+  var ids = subtree ? descendants(p, id) : [id];
+  return Object.assign(base, { kind: "move", id: id, items: ids.map(function(k){ var t = byId(p, k); return { t: t, x: t.x, y: t.y }; }) });
+}
+canvas.addEventListener("pointermove", function(e){
+  if(pointers[e.pointerId]) pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+  if(pinch){
+    var ids = Object.keys(pointers);
+    if(ids.length < 2) return;
+    var a = pointers[ids[0]], b = pointers[ids[1]];
+    var d = Math.hypot(a.x - b.x, a.y - b.y);
+    if(pinch.d) zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, d / pinch.d);
+    pinch.d = d;
+    return;
+  }
+  if(!drag) return;
+  var dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+  if(!drag.moved){
+    if(Math.hypot(dx, dy) < 5) return;
+    drag.moved = true;
+    if(drag.kind === "pan") canvas.classList.add("panning");
+    if(drag.kind === "move") drag.items.forEach(function(it){ var c = els[it.t.id]; if(c) c.classList.add("dragging"); });
+  }
+  var v = view();
+  if(drag.kind === "pan"){ v.x = drag.vx + dx; v.y = drag.vy + dy; applyView(); }
+  else if(drag.kind === "move"){
+    drag.items.forEach(function(it){
+      it.t.x = snap(it.x + dx / v.z); it.t.y = snap(it.y + dy / v.z);
+      var c = els[it.t.id]; if(c){ c.style.left = it.t.x + "px"; c.style.top = it.t.y + "px"; }
+    });
+    renderWires();
+  } else if(drag.kind === "wire"){
+    var a2 = byId(cur(), drag.from), w = toWorld(e.clientX, e.clientY);
+    var target = dropTarget(e, drag.from);
+    if(target){ var tt = byId(cur(), target); w = { x: tt.x, y: tt.y + cardH(tt.id) / 2 }; }
+    tempWire = wirePath(a2.x + W, a2.y + cardH(a2.id) / 2, w.x, w.y);
+    Object.keys(els).forEach(function(k){ els[k].classList.toggle("drop", k === target); });
+    renderWires();
+  }
+});
+function dropTarget(e, from){
+  var el = document.elementFromPoint(e.clientX, e.clientY);
+  var c = el && el.closest(".card");
+  return c && c.dataset.id !== from ? c.dataset.id : null;
+}
+function endPointer(e){
+  delete pointers[e.pointerId];
+  if(pinch){ if(Object.keys(pointers).length < 2){ pinch = null; save(); } return; }
+  if(!drag) return;
+  var d = drag, p = cur();
+  drag = null;
+  canvas.classList.remove("panning");
+  if(e.type === "pointercancel"){ tempWire = null; renderAll(); return; }
+  if(d.kind === "pan"){
+    if(d.moved) save(); else if(sel) select(null);
+  } else if(d.kind === "move"){
+    if(d.moved){ pushHist(d.before); p.updated = Date.now(); save(); renderAll(); }
+    else if(e.pointerType !== "mouse"){
+      // doble toque en una card = renombrar
+      var now = Date.now();
+      if(lastTap && lastTap.id === d.id && now - lastTap.t < 350){ lastTap = null; startEdit(d.id); }
+      else lastTap = { id: d.id, t: now };
+    }
+  } else if(d.kind === "wire"){
+    tempWire = null;
+    var target = d.moved ? dropTarget(e, d.from) : null;
+    if(d.hide){
+      if(!d.moved || target === d.hide.to){ renderAll(); return; }
+      pushHist(d.before);
+      removeDep(p, d.hide.from, d.hide.to);
+      if(target){ if(!addDep(p, d.from, target)) p.deps.push(d.hide); }
+      else toast("Conexión quitada");
+      p.updated = Date.now(); save(); renderAll();
+    } else if(target){
+      change(function(){ return addDep(p, d.from, target); });
+      renderAll();
+    } else if(d.moved){
+      var w = toWorld(e.clientX, e.clientY), t;
+      change(function(){
+        t = makeNode(p, w.x, w.y - H / 2);
+        p.deps.push({ from: d.from, to: t.id });
+        sel = { node: t.id };
+      });
+      startEdit(t.id);
+    } else renderAll();
+  }
+}
+canvas.addEventListener("pointerup", endPointer);
+canvas.addEventListener("pointercancel", endPointer);
+
+canvas.addEventListener("click", function(e){
+  var b = e.target.closest("[data-act]"); if(!b) return;
+  var id = b.closest(".card").dataset.id, act = b.dataset.act;
+  if(act === "edit"){ select({ node: id }); startEdit(id); }
+  else if(act === "child") newChild(id);
+  else if(act === "del"){
+    var p = cur(), t = byId(p, id), k = dependents(p, id).length;
+    sel = { node: id };
+    if(k) ask({ title: "¿Borrar «" + t.title + "»? Los " + k + " nodo(s) conectados quedan sueltos.", ok: "borrar", danger: true }, deleteSelected);
+    else deleteSelected();
+  }
+});
+canvas.addEventListener("dblclick", function(e){
+  var p = cur(); if(!p) return;
+  var el = document.elementFromPoint(e.clientX, e.clientY) || e.target;
+  if(el.closest("[data-act]") || el.closest(".toolbar") || el.closest(".port")) return;
+  var card = el.closest(".card");
+  if(card){ startEdit(card.dataset.id); return; }
+  if(el.closest(".wire")) return;
+  var w = toWorld(e.clientX, e.clientY), t;
+  change(function(){ t = makeNode(p, w.x - W / 2, w.y - H / 2); sel = { node: t.id }; });
+  startEdit(t.id);
+});
+canvas.addEventListener("wheel", function(e){
+  e.preventDefault();
+  if(!cur()) return;
+  zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
+}, { passive: false });
+
+// ---------- teclado ----------
+document.addEventListener("keydown", function(e){
+  var tg = e.target;
+  if(!$("ask").hidden || !$("helpDlg").hidden) return;
+  if(editing || tg.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName)) return;
+  var mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  if(mod && k === "z" && !e.shiftKey){ e.preventDefault(); undo(); }
+  else if(mod && (k === "y" || (k === "z" && e.shiftKey))){ e.preventDefault(); redo(); }
+  else if(mod) return;
+  else if(k === "delete" || k === "backspace"){ e.preventDefault(); deleteSelected(); }
+  else if((k === "enter" || k === "f2") && sel && sel.node){ e.preventDefault(); startEdit(sel.node); }
+  else if(k === "tab" && sel && sel.node){ e.preventDefault(); newChild(sel.node); }
+  else if(k === "escape") select(null);
 });
 
-/* ---------- Diálogos del método ---------- */
-function opcionesNodos(h, lista, tipo, sel = []) {
-  return lista.map(x => `<label class="pick ${sel.includes(x.id) ? 'on' : ''}"><input type="${tipo}" name="pk" value="${x.id}" ${sel.includes(x.id) ? 'checked' : ''}>
-    <span>${TIPOS[x.tipo].ic} ${esc(x.nombre)} <span class="tag ${ESTADOS[x.estado].cls}">${ESTADOS[x.estado].nm}</span></span></label>`).join('');
-}
-async function elegirNodo(h, titulo, texto, lista) {
-  return ask({ titulo, texto, html: opcionesNodos(h, lista, 'radio'), botones: [
-    { txt: 'Elegir', cls: 'primary', leer: s => (s.querySelector('input[name=pk]:checked') || {}).value || null }, { txt: 'Cancelar', cls: 'ghost', val: null }] });
-}
-async function confirmarCuello(h, n) {
-  while (n) {
-    const r = await ask({ titulo: `🍾 ${n.nombre}`, texto: '¿Esto es <b>la causa</b> de lo que te traba, o es un <b>síntoma</b> de algo más atrás?', botones: [
-      { txt: 'Sí, es la causa', cls: 'primary', val: 'causa' }, { txt: 'No, es un síntoma', val: 'sintoma' }, { txt: 'Cancelar', cls: 'ghost', val: null }] });
-    if (!r) return;
-    if (r === 'causa') { h.cuelloId = n.id; if (n.estado === 'pendiente') n.estado = 'en_curso'; guardar(); toast('Cuello marcado'); return; }
-    /* síntoma: proponer lo que está "más atrás": prerrequisitos, hijos, y el resto */
-    const atras = [...new Set([...n.dependeDe, ...hijos(h, n.id).map(x => x.id)])].map(id => nodo(h, id)).filter(x => x && x.estado !== 'dominado');
-    const resto = h.nodos.filter(x => x.id !== n.id && x.estado !== 'dominado' && !atras.includes(x));
-    const html = (atras.length ? `<div class="kicker">Más atrás (prerrequisitos y partes)</div>${opcionesNodos(h, atras, 'radio')}` : '') +
-      (resto.length ? `<div class="kicker" style="margin-top:10px">Otros nodos</div>${opcionesNodos(h, resto, 'radio')}` : '');
-    const id = await ask({ titulo: '¿Qué hay más atrás?', texto: 'Elegí el nodo anterior. Si no existe todavía, crealo.', html, botones: [
-      { txt: 'Elegir este', cls: 'primary', leer: s => (s.querySelector('input[name=pk]:checked') || {}).value || null },
-      { txt: '＋ Crear un sub-nodo de este', val: 'crear' }, { txt: 'Cancelar', cls: 'ghost', val: null }] });
-    if (id === 'crear') { await editarNodo(h, null, n.id, true); return; }
-    n = id ? nodo(h, id) : null;
+// ---------- ventana propia (reemplaza prompt/confirm, que muchos celulares bloquean) ----------
+function ask(o, onOk){
+  var box = $("ask"), input = $("askInput"), area = $("askArea");
+  $("askTitle").textContent = o.title;
+  $("askText").hidden = !o.text; $("askText").textContent = o.text || "";
+  input.hidden = o.input === undefined;
+  input.value = o.input || "";
+  input.placeholder = o.placeholder || "";
+  area.hidden = o.area === undefined; area.value = o.area || "";
+  $("askOk").textContent = o.ok || "aceptar";
+  $("askOk").classList.toggle("danger", !!o.danger);
+  $("askCancel").textContent = o.cancel || "cancelar";
+  $("askAlt").hidden = !o.alt; $("askAlt").textContent = o.alt ? o.alt.label : "";
+  box.hidden = false;
+  setTimeout(function(){ if(input.hidden) $("askOk").focus(); else { input.focus(); input.select(); } }, 30);
+  function close(){ box.hidden = true; $("askOk").onclick = $("askCancel").onclick = $("askAlt").onclick = box.onclick = box.onkeydown = null; }
+  function accept(){
+    var v = input.value.replace(/\s+/g, " ").trim();
+    if(!input.hidden && !v){ input.focus(); return; }
+    close();
+    onOk(v);
   }
-}
-async function dominar(h, n) {
-  n.estado = 'dominado'; if (h.cuelloId === n.id) h.cuelloId = null; guardar();
-  const c = cuello(h);
-  if (c) { toast(`✓ Dominado. Siguiente cuello: ${c.n.nombre}`); ir(`#n/${h.id}/${c.n.id}`); }
-  else { toast('✓ Dominado'); ir(`#h/${h.id}`); }
-}
-async function editarNodo(h, n, pid, comoCuello = false, pre = {}) {
-  const nuevo = !n;
-  const excl = n ? new Set([n.id, ...descendientes(h, n).map(x => x.id), ...ancestros(h, n).map(x => x.id)]) : new Set(pid ? [pid, ...ancestros(h, nodo(h, pid)).map(x => x.id)] : []);
-  const posibles = h.nodos.filter(x => !excl.has(x.id));
-  const cur = n || nuevoNodo(Object.assign({ parentId: pid }, pre));
-  const padre = pid && nodo(h, pid);
-  const html = `${padre ? `<p class="small">Dentro de: <b>${esc(padre.nombre)}</b></p>` : ''}
-    <label class="f"><span class="f-lbl">Nombre</span><input type="text" id="nn" value="${esc(cur.nombre)}" placeholder="Ej. Textura de la leche"></label>
-    <div class="f"><span class="f-lbl">Tipo</span><div class="seg" id="nt">${Object.entries(TIPOS).map(([k, v]) => `<button type="button" data-t="${k}" class="${cur.tipo === k ? 'on' : ''}">${v.ic} ${v.nm}</button>`).join('')}</div>
-      <div class="hint">concepto: se memoriza · habilidad: se entrena con repeticiones · desconocido: hay que investigar antes</div></div>
-    ${posibles.length ? `<div class="f"><span class="f-lbl">Depende de <em>· tiene que estar dominado antes</em></span>${opcionesNodos(h, posibles, 'checkbox', cur.dependeDe)}</div>` : ''}`;
-  const botones = [{ txt: nuevo ? 'Agregar' : 'Guardar', cls: 'primary', leer: s => ({
-    nombre: s.querySelector('#nn').value.trim(), tipo: s.querySelector('#nt .on').dataset.t,
-    dependeDe: [...s.querySelectorAll('input[name=pk]:checked')].map(i => i.value) }) }];
-  if (!nuevo) botones.push({ txt: 'Borrar nodo', cls: 'danger', val: 'borrar' });
-  botones.push({ txt: 'Cancelar', cls: 'ghost', val: null });
-  const p = ask({ titulo: nuevo ? (padre ? 'Nuevo sub-nodo' : 'Nuevo nodo') : 'Editar nodo', html, botones });
-  $sheet.querySelector('#nt').addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (!b) return; $sheet.querySelectorAll('#nt button').forEach(x => x.classList.toggle('on', x === b)); });
-  $sheet.querySelectorAll('.pick input').forEach(i => i.addEventListener('change', () => i.closest('.pick').classList.toggle('on', i.checked)));
-  const r = await p;
-  if (!r) return;
-  if (r === 'borrar') {
-    const des = descendientes(h, n);
-    if (!await ask({ titulo: '¿Borrar nodo?', texto: des.length ? `También se borran sus ${des.length} sub-nodos y todas las sesiones.` : 'Se borran sus sesiones.', botones: [{ txt: 'Borrar', cls: 'danger', val: true }, { txt: 'Cancelar', cls: 'ghost', val: false }] })) return;
-    const fuera = new Set([n.id, ...des.map(x => x.id)]);
-    h.nodos = h.nodos.filter(x => !fuera.has(x.id));
-    h.nodos.forEach(x => x.dependeDe = x.dependeDe.filter(id => !fuera.has(id)));
-    if (fuera.has(h.cuelloId)) h.cuelloId = null;
-    guardar(); return ir(`#h/${h.id}`);
-  }
-  if (!r.nombre) return toast('Ponele un nombre al nodo');
-  Object.assign(cur, r);
-  if (nuevo) {
-    /* heredar el tipo de feedback del padre si lo tiene */
-    if (padre && padre.feedback.tipo) cur.feedback = { ...padre.feedback };
-    h.nodos.push(cur);
-    if (comoCuello) { h.cuelloId = cur.id; cur.estado = 'en_curso'; }
-  }
-  guardar();
-  toast(nuevo ? (comoCuello ? 'Nodo creado y marcado como cuello' : 'Nodo agregado') : 'Guardado');
-  if (comoCuello) return ir(`#n/${h.id}/${cur.id}`);
-  render();
-}
-async function editarSesion(h, n, s) {
-  const nueva = !s;
-  const cur = s || { id: uid(), fecha: hoy(), reps: n.ejercicio.repsPorSesion || 10, correctas: '', ajuste: '' };
-  const html = `<label class="f"><span class="f-lbl">Fecha</span><input type="date" id="sf" value="${cur.fecha}"></label>
-    <div class="grid2"><label class="f"><span class="f-lbl">Repeticiones</span><input type="number" inputmode="numeric" min="1" id="sr" value="${cur.reps}"></label>
-      <label class="f"><span class="f-lbl">Salieron bien</span><input type="number" inputmode="numeric" min="0" id="sc" value="${cur.correctas}" placeholder="¿cuántas?"></label></div>
-    ${n.ejercicio.criterio ? `<div class="hint" style="margin:-6px 0 12px">Criterio: ${esc(n.ejercicio.criterio)}</div>` : ''}
-    <div id="spct"></div>
-    <label class="f"><span class="f-lbl">¿Qué ajusto para la próxima?</span><textarea id="sa" placeholder="Un solo cambio concreto">${esc(cur.ajuste)}</textarea></label>`;
-  const botones = [{ txt: nueva ? 'Guardar sesión' : 'Guardar', cls: 'primary', leer: x => ({
-    fecha: x.querySelector('#sf').value || hoy(), reps: parseInt(x.querySelector('#sr').value, 10) || 0,
-    correctas: parseInt(x.querySelector('#sc').value, 10) || 0, ajuste: x.querySelector('#sa').value.trim() }) }];
-  if (!nueva) botones.push({ txt: 'Borrar sesión', cls: 'danger', val: 'borrar' });
-  botones.push({ txt: 'Cancelar', cls: 'ghost', val: null });
-  const p = ask({ titulo: nueva ? 'Registrar sesión' : 'Editar sesión', html, botones });
-  const live = () => {
-    const r = parseInt($sheet.querySelector('#sr').value, 10) || 0, c = parseInt($sheet.querySelector('#sc').value, 10);
-    const el = $sheet.querySelector('#spct');
-    if (!r || isNaN(c)) { el.innerHTML = ''; return; }
-    if (c > r) { el.innerHTML = '<div class="note bad">No pueden salir bien más de las que hiciste.</div>'; return; }
-    const b = borde(Math.round(100 * c / r)); el.innerHTML = `<div class="note ${b.cls}" style="margin-top:0">${b.txt}</div>`;
+  $("askOk").onclick = accept;
+  $("askCancel").onclick = close;
+  $("askAlt").onclick = function(){ close(); o.alt.fn(); };
+  box.onclick = function(e){ if(e.target === box) close(); };
+  box.onkeydown = function(e){
+    if(e.key === "Escape"){ e.preventDefault(); close(); }
+    else if(e.key === "Enter" && e.target === input){ e.preventDefault(); accept(); }
   };
-  $sheet.querySelectorAll('#sr,#sc').forEach(i => i.addEventListener('input', live)); live();
-  const r = await p;
-  if (!r) return;
-  if (r === 'borrar') { n.sesiones = n.sesiones.filter(x => x.id !== s.id); guardar(); return render(); }
-  if (r.reps < 1) return toast('Poné cuántas repeticiones hiciste');
-  if (r.correctas > r.reps) return toast('No pueden salir bien más de las que hiciste');
-  Object.assign(cur, r);
-  if (nueva) { n.sesiones.push(cur); if (n.estado === 'pendiente') n.estado = 'en_curso'; }
-  guardar(); render();
-  if (nueva) toast(`Sesión guardada: ${pctSes(cur)}%`);
 }
 
-window.addEventListener('hashchange', render);
-render();
+// ---------- exportar / importar ----------
+function exportJSON(){
+  var json = JSON.stringify({ app: "aprender", version: 2, skills: state.skills }, null, 2);
+  var inFrame = true; try { inFrame = window.self !== window.top; } catch(e){}
+  if(!inFrame){
+    var url = URL.createObjectURL(new Blob([json], { type: "application/json" })), a = document.createElement("a");
+    a.href = url; a.download = "aprender-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    toast("JSON exportado");
+    return;
+  }
+  // dentro de otra página no se puede descargar: mostrar el texto para copiar
+  ask({ title: "Exportar", text: "Copiá este texto y guardalo en un archivo .json.", area: json, ok: "copiar", cancel: "cerrar" }, function(){
+    if(navigator.clipboard) navigator.clipboard.writeText(json).then(function(){ toast("Copiado"); }, function(){ toast("Seleccioná el texto y copialo a mano"); });
+  });
+}
+$("fileIn").addEventListener("change", function(e){
+  var f = e.target.files[0]; e.target.value = "";
+  if(!f) return;
+  f.text().then(function(txt){
+    var data;
+    try { data = JSON.parse(txt); if(!data || !Array.isArray(data.skills)) throw 0; }
+    catch(err){ toast("Ese archivo no es un JSON de Aprender"); return; }
+    var ok = data.skills.filter(function(s){ return s && Array.isArray(s.nodes) && Array.isArray(s.deps); }).map(function(s){
+      s.id = s.id || uid(); s.name = s.name || "Sin nombre"; s.updated = s.updated || Date.now(); s.view = s.view || { x: 60, y: 120, z: 1 }; return s;
+    });
+    function apply(replace){
+      change(function(){
+        if(replace) state.skills = ok;
+        else {
+          var ids = {}; ok.forEach(function(s){ ids[s.id] = 1; });
+          state.skills = state.skills.filter(function(s){ return !ids[s.id]; }).concat(ok);
+        }
+        state.current = ok[0] ? ok[0].id : state.current;
+        sel = null;
+      });
+      toast("Importadas " + ok.length + " habilidades");
+    }
+    ask({ title: "Importar " + ok.length + " habilidad(es)", text: "¿Las sumás a las que tenés o reemplazás todo?", ok: "sumar",
+          alt: { label: "reemplazar todo", fn: function(){ apply(true); } } }, function(){ apply(false); });
+  });
+});
+
+// ---------- botones ----------
+$("newSkill").addEventListener("click", newSkill);
+$("newNode").addEventListener("click", function(){
+  var p = cur(); if(!p) return;
+  closeSideMobile();
+  var r = canvas.getBoundingClientRect();
+  var c = toWorld(r.left + r.width / 2, r.top + r.height / 2), t;
+  change(function(){ t = makeNode(p, c.x - W / 2, c.y - H / 2); sel = { node: t.id }; });
+  startEdit(t.id);
+});
+$("undo").addEventListener("click", undo);
+$("redo").addEventListener("click", redo);
+$("exportBtn").addEventListener("click", exportJSON);
+$("importBtn").addEventListener("click", function(){ $("fileIn").click(); });
+$("layout").addEventListener("click", function(){
+  change(function(p){ if(!p || !p.nodes.length) return false; layout(p); });
+  fit();
+});
+$("fit").addEventListener("click", fit);
+$("zoomIn").addEventListener("click", function(){ var r = canvas.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.2); });
+$("zoomOut").addEventListener("click", function(){ var r = canvas.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2); });
+$("wireDel").addEventListener("click", deleteSelected);
+$("wireCancel").addEventListener("click", function(){ select(null); });
+$("curName").addEventListener("click", function(){ var p = cur(); if(p) renameSkill(p); });
+Array.prototype.forEach.call(document.querySelectorAll("[data-help]"), function(b){
+  b.addEventListener("click", function(){ closeSideMobile(); $("helpDlg").hidden = false; });
+});
+$("helpClose").addEventListener("click", function(){ $("helpDlg").hidden = true; });
+$("helpDlg").addEventListener("click", function(e){ if(e.target === e.currentTarget) e.currentTarget.hidden = true; });
+
+function isMobile(){ return matchMedia("(max-width: 800px)").matches; }
+function closeSideMobile(){ $("side").classList.remove("open"); }
+// En el celular ☰ abre el panel en pantalla completa; en la compu lo pliega o despliega.
+function applySide(){ $("layoutEl").classList.toggle("side-collapsed", !!state.sideCollapsed); }
+$("openSide").addEventListener("click", function(){
+  if(isMobile()){ $("side").classList.add("open"); return; }
+  state.sideCollapsed = !state.sideCollapsed;
+  applySide(); save();
+});
+$("closeSide").addEventListener("click", closeSideMobile);
+
+applySide();
+renderAll();
+var first = cur();
+if(first && !first.fitted){ first.fitted = true; fit(); }
+})();
 </script>
 </body>
 </html>
