@@ -629,7 +629,6 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .gl-chip { --c: var(--doing); flex: none; border: 1px solid var(--line); background: none; border-radius: 999px; padding: 5px 11px; cursor: pointer; color: var(--muted); font-size: 11px; }
 .gl-chip:hover { color: var(--text); }
 .gl-chip.on { color: var(--text); font-weight: 700; border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
-.gl-sort { margin-left: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; color: var(--muted); font-size: 11px; }
 #glList { margin: 12px 0 24px; display: flex; flex-direction: column; gap: 8px; }
 .gl-goal { --sc: var(--doing); background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--sc); border-radius: 8px; padding: 12px; cursor: pointer; }
 .gl-goal:hover { border-color: var(--line-2); border-left-color: var(--sc); }
@@ -739,3 +738,4 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .arch-item .x:hover { opacity: 1; color: var(--text); }
 .arch-item .del:hover { color: var(--danger); }
 @media (max-width: 800px) { .arch-item .x { opacity: 1; font-size: 16px; padding: 4px 7px; } }
+.gl .nt-search { margin-top: 0; }

@@ -1967,7 +1967,6 @@ function renderGoals(){
     var da = glStatus(a) === "done", db = glStatus(b) === "done";
     return (glReviewDue(b) - glReviewDue(a)) || (da - db) || a.due.localeCompare(b.due);
   });
-  $("glCount").textContent = state.goals.length ? (list.length !== state.goals.length ? list.length + " de " : "") + state.goals.length + (state.goals.length === 1 ? " objetivo" : " objetivos") : "";
 
   $("glList").innerHTML = !state.goals.length
     ? '<div class="rt-empty">Todavía no tenés objetivos.<br>Tocá «+ objetivo» y completá las 5 letras SMART.<br>Se pueden medir con un número o con una de tus rutinas.</div>'
@@ -2074,7 +2073,6 @@ function glAddCheckin(v){
 }
 
 $("glSearch").addEventListener("input", function(e){ glUi.q = e.target.value; renderGoals(); });
-$("glSort").addEventListener("change", function(e){ glUi.sort = e.target.value; renderGoals(); });
 $("glListView").addEventListener("click", function(e){
   var b;
   if((b = e.target.closest("[data-gp]"))){ glUi.proj = b.dataset.gp; return renderGoals(); }
