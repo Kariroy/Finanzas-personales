@@ -223,8 +223,10 @@ function change(fn){
   if(fn(p) === false) return;
   pushHist(before);
   if(p) p.updated = Date.now();
+  var fin = autoArchive();
   save();
   renderAll();
+  if(fin.length) celebrate(fin);
 }
 
 // ---------- vista ----------
@@ -431,19 +433,19 @@ function renderProjects(){
   var sortFn = function(a, b){ return b.updated - a.updated; };  // últimos editados primero
   var tab = activeTab();
   renderTabs(tab);
-  var groups = state.programs.filter(function(g){ return tab === "all" || portOf(g) === tab; })
+  var inTab = function(g){ return tab === "all" || portOf(g) === tab; };
+  var groups = state.programs.filter(function(g){ return !g.archived && inTab(g); })
     .sort(function(a, b){ return a.name.localeCompare(b.name, "es"); });
-  var loose = state.projects.filter(function(p){ return !progOf(p); });
+  var loose = state.projects.filter(function(p){ return !progOf(p) && !p.archived; });
   if(loose.length && tab === "all") groups.push({ id: null, name: "Sin programa", open: state.looseOpen !== false });
 
   list.innerHTML = "";
   if(!groups.length){
     list.innerHTML = '<div class="no-projects">' + (tab === "all" ? "Creá un programa y adentro tus proyectos." :
       "Este portafolio no tiene programas. Creá uno con «+ programa» o pasá uno existente con ✎.") + "</div>";
-    return;
   }
   groups.forEach(function(g){
-    var all = state.projects.filter(function(p){ return progOf(p) === g.id; });
+    var all = state.projects.filter(function(p){ return progOf(p) === g.id && !p.archived; });
     var shown = all.slice().sort(sortFn);
     var tot = all.reduce(function(acc, p){ var st = projStats(p); acc.n += st.n; acc.done += st.done; return acc; }, { n: 0, done: 0 });
     var pct = tot.n ? Math.round(tot.done * 100 / tot.n) : 0;
@@ -480,6 +482,136 @@ function renderProjects(){
     }
     list.appendChild(box);
   });
+  renderArchive(inTab);
+}
+
+// ---------- terminados (archivo) ----------
+// Los proyectos terminados (y los programas con todo terminado) salen solos del panel
+// y quedan juntos al final, plegados. Restaurar un programa trae sus proyectos.
+// Restaurar a mano: queda activo aunque esté completo (no se vuelve a archivar solo).
+// Restaurar un proyecto trae también su programa; restaurar un programa trae sus proyectos.
+function unarchive(item){
+  var back = function(x){ delete x.archived; delete x.autoArchived; x.keepActive = true; };
+  change(function(){
+    back(item);
+    if(item.tasks){
+      var g = programById(progOf(item));
+      if(g && g.archived) back(g);
+    } else state.projects.forEach(function(p){ if(progOf(p) === item.id && p.archived) back(p); });
+  });
+  toast("«" + item.name + "» volvió a tus " + (item.tasks ? "proyectos" : "programas"));
+}
+
+// Archivo automático. Un proyecto con tareas y todas hechas pasa solo a Terminados
+// (sin tareas, nunca); si vuelve a tener algo pendiente, vuelve solo. Un programa se
+// archiva cuando todos sus proyectos están archivados. Devuelve lo recién archivado.
+function autoArchive(){
+  var now = Date.now(), fin = [];
+  state.projects.forEach(function(p){
+    var st = projStats(p), complete = st.n > 0 && st.pending === 0;
+    if(!complete){
+      delete p.keepActive;
+      if(p.archived && p.autoArchived){ delete p.archived; delete p.autoArchived; }
+      return;
+    }
+    if(!p.archived && !p.keepActive){ p.archived = now; p.autoArchived = true; fin.push(p); }
+  });
+  state.programs.forEach(function(g){
+    var ps = state.projects.filter(function(p){ return progOf(p) === g.id; });
+    var allDone = ps.length > 0 && ps.every(function(p){ return p.archived; });
+    if(!allDone){
+      delete g.keepActive;
+      if(g.archived && g.autoArchived){ delete g.archived; delete g.autoArchived; }
+      return;
+    }
+    if(!g.archived && !g.keepActive){ g.archived = now; g.autoArchived = true; fin.push(g); }
+  });
+  return fin;
+}
+function celebrate(fin){
+  var prog = fin.filter(function(x){ return !x.tasks; })[0];
+  var msg = prog ? "🎉 Programa «" + prog.name + "» terminado → 📦 Terminados"
+    : fin.length === 1 ? "🎉 «" + fin[0].name + "» terminado → 📦 Terminados"
+    : "🎉 " + fin.length + " proyectos terminados → 📦 Terminados";
+  toast(msg, { label: "deshacer", fn: undo });
+}
+function fmtDate(ms){ var d = new Date(ms); return d.getDate() + "/" + (d.getMonth() + 1) + "/" + d.getFullYear(); }
+
+function renderArchive(inTab){
+  var progs = state.programs.filter(function(g){ return g.archived && inTab(g); })
+    .sort(function(a, b){ return b.archived - a.archived; });
+  var projs = state.projects.filter(function(p){
+    if(!p.archived) return false;
+    var g = programById(progOf(p));
+    if(g && g.archived) return false;                       // va dentro de su programa archivado
+    return g ? inTab(g) : activeTab() === "all";
+  }).sort(function(a, b){ return b.archived - a.archived; });
+  var n = progs.length + projs.length;
+  if(!n) return;
+  var open = !!state.archOpen;
+  var box = document.createElement("div");
+  box.className = "arch-box";
+  var h = document.createElement("button");
+  h.type = "button";
+  h.className = "arch-h";
+  h.innerHTML = '<span class="caret">' + (open ? "▾" : "▸") + "</span>📦 Terminados <span class=\"n\">" + n + "</span>";
+  h.addEventListener("click", function(){ state.archOpen = !open; save(); renderProjects(); });
+  box.appendChild(h);
+  if(open){
+    var body = document.createElement("div");
+    body.className = "arch-body";
+    progs.forEach(function(g){
+      var ps = state.projects.filter(function(p){ return progOf(p) === g.id; });
+      var el = document.createElement("div");
+      el.className = "arch-item prog-a";
+      el.innerHTML = '<div class="txt"><div class="name"></div><div class="sub">programa · ' + ps.length + " proyecto" +
+        (ps.length === 1 ? "" : "s") + " · archivado " + fmtDate(g.archived) + "</div></div>" +
+        '<button class="x rest" title="Restaurar">↺</button><button class="x del" title="Borrar definitivamente">×</button>';
+      el.querySelector(".name").textContent = g.name;
+      el.addEventListener("click", function(e){
+        if(e.target.closest(".rest")) unarchive(g);
+        else if(e.target.closest(".del")) ask({ title: "¿Borrar definitivamente el programa «" + g.name + "»" +
+          (ps.length ? " y sus " + ps.length + " proyecto(s) con todas sus tareas?" : "?"), ok: "borrar", danger: true }, function(){
+          change(function(){
+            state.programs = state.programs.filter(function(x){ return x.id !== g.id; });
+            state.projects = state.projects.filter(function(p){ return p.program !== g.id; });
+            if(!proj()) state.current = state.projects[0] ? state.projects[0].id : null;
+          });
+        });
+      });
+      body.appendChild(el);
+      ps.forEach(function(p){ body.appendChild(archivedProject(p, true)); });
+    });
+    projs.forEach(function(p){ body.appendChild(archivedProject(p, false)); });
+    box.appendChild(body);
+  }
+  $("projects").appendChild(box);
+}
+
+function archivedProject(p, inProgram){
+  var g = programById(progOf(p));
+  var el = document.createElement("div");
+  el.className = "arch-item" + (inProgram ? " sub-a" : "") + (p.id === state.current ? " active" : "");
+  el.innerHTML = '<div class="txt"><div class="name"></div><div class="sub">' +
+    (inProgram ? "proyecto" : (g ? "de " + esc(g.name) : "proyecto") + " · archivado " + fmtDate(p.archived)) + "</div></div>" +
+    (inProgram ? "" : '<button class="x rest" title="Restaurar">↺</button><button class="x del" title="Borrar definitivamente">×</button>');
+  el.querySelector(".name").textContent = p.name;
+  el.title = "Tocá para verlo";
+  el.addEventListener("click", function(e){
+    if(e.target.closest(".rest")){ unarchive(p); return; }
+    if(e.target.closest(".del")){
+      ask({ title: "¿Borrar definitivamente el proyecto «" + p.name + "» y todas sus tareas?", ok: "borrar", danger: true }, function(){
+        change(function(){
+          state.projects = state.projects.filter(function(x){ return x.id !== p.id; });
+          if(state.current === p.id) state.current = state.projects[0] ? state.projects[0].id : null;
+        });
+      });
+      return;
+    }
+    if(state.current !== p.id){ state.current = p.id; sel = null; save(); renderAll(); }
+    closeSideMobile();
+  });
+  return el;
 }
 
 function projectItem(p){
@@ -729,12 +861,21 @@ function ensureVisible(t){
 }
 
 var toastTimer;
-function toast(msg){
+// Aviso breve arriba. Con action ({ label, fn }) muestra un botón (por ejemplo «deshacer»).
+function toast(msg, action){
   var el = $("toast");
   el.textContent = msg;
+  el.classList.toggle("act", !!action);
+  if(action){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = action.label;
+    b.addEventListener("click", function(){ el.classList.remove("show"); clearTimeout(toastTimer); action.fn(); });
+    el.appendChild(b);
+  }
   el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(function(){ el.classList.remove("show"); }, 2200);
+  toastTimer = setTimeout(function(){ el.classList.remove("show"); }, action ? 6000 : 2200);
 }
 
 // ---------- puntero: mover, conectar, pan, pinch ----------

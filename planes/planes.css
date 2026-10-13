@@ -715,3 +715,27 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 @media (max-width: 440px) { .seg button { padding: 6px 8px; } }
 .gl .rt-inner[hidden] { display: none; }
 .gl-chart { max-height: 200px; }
+
+/* ---------- terminados (archivo) ---------- */
+.arch-box { margin-top: 14px; border-top: 1px dashed var(--line-2); padding-top: 10px; }
+.arch-h { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; color: var(--muted);
+  cursor: pointer; padding: 6px 4px; font-weight: 700; text-align: left; }
+.arch-h:hover { color: var(--text); }
+.arch-h .caret { width: 12px; }
+.arch-h .n { color: var(--faint); font-weight: 400; }
+.arch-body { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.arch-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; cursor: pointer; opacity: .75; }
+.arch-item:hover { background: var(--panel-2); opacity: 1; }
+.arch-item.active { opacity: 1; background: #132a2e; }
+.arch-item .txt { flex: 1; min-width: 0; }
+.arch-item .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: line-through;
+  text-decoration-color: var(--faint); }
+.arch-item .sub { color: var(--faint); font-size: 10px; }
+.arch-item.prog-a .name { font-weight: 700; }
+.arch-item.sub-a { margin-left: 16px; padding-top: 4px; padding-bottom: 4px; }
+.arch-item .x { opacity: .7; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 5px; }
+.arch-item .x:hover { opacity: 1; color: var(--text); }
+.arch-item .del:hover { color: var(--danger); }
+@media (max-width: 800px) { .arch-item .x { opacity: 1; font-size: 16px; padding: 4px 7px; } }
+.toast.act.show { pointer-events: auto; }
+.toast button { margin-left: 12px; background: none; border: 0; color: var(--doing); font-weight: 700; cursor: pointer; padding: 2px 4px; }
