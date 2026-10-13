@@ -743,3 +743,6 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .side-done:hover { color: var(--text); }
 .row3[hidden] { display: none; }
 .arch-box { margin-top: 0; border-top: 0; padding-top: 0; }
+/* Rutinas, Notas y Objetivos no usan el panel de proyectos: se oculta junto con el ☰. */
+.layout.no-side .side { display: none; }
+.layout.no-side #openSide { display: none; }

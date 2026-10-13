@@ -343,6 +343,10 @@ function isSelDep(d){ return sel && sel.dep && sel.dep.from === d.from && sel.de
 
 function renderAll(){
   canvas.hidden = state.mode !== "map";
+  // El panel de programas y proyectos (y el ☰) solo tienen sentido en Mapa y Lista.
+  var projView = state.mode === "map" || state.mode === "list";
+  document.querySelector(".layout").classList.toggle("no-side", !projView);
+  if(!projView) $("side").classList.remove("open");
   Array.prototype.forEach.call($("modeSeg").children, function(b){ b.classList.toggle("on", b.dataset.mode === state.mode); });
   renderProjects();
   renderList();
