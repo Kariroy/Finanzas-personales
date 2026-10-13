@@ -347,7 +347,14 @@ function renderAll(){
   var projView = state.mode === "map" || state.mode === "list";
   document.querySelector(".layout").classList.toggle("no-side", !projView);
   if(!projView) $("side").classList.remove("open");
-  Array.prototype.forEach.call($("modeSeg").children, function(b){ b.classList.toggle("on", b.dataset.mode === state.mode); });
+  var inProj = state.mode === "map" || state.mode === "list";
+  if(inProj) state.projMode = state.mode;
+  Array.prototype.forEach.call($("modeSeg").children, function(b){
+    b.classList.toggle("on", b.dataset.mode === "proj" ? inProj : b.dataset.mode === state.mode);
+  });
+  // Un solo botón para Mapa y Lista: muestra la vista actual (o la última usada).
+  var pm = state.projMode === "list" ? "list" : "map";
+  $("projToggle").innerHTML = (pm === "list" ? "☑" : "▦") + '<span class="lbl"> ' + (pm === "list" ? "Lista" : "Mapa") + "</span>";
   renderProjects();
   renderList();
   renderRoutines();
@@ -1249,8 +1256,12 @@ $("listAddBtn").addEventListener("click", listAddTask);
 $("listNew").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); listAddTask(); } });
 
 $("modeSeg").addEventListener("click", function(e){
-  var b = e.target.closest("[data-mode]"); if(!b || b.dataset.mode === state.mode) return;
-  state.mode = b.dataset.mode;
+  var b = e.target.closest("[data-mode]"); if(!b) return;
+  var m = b.dataset.mode;
+  // Mapa ⇄ Lista: si ya estás en una, el botón cambia a la otra; si no, vuelve a la última usada.
+  if(m === "proj") m = state.mode === "map" ? "list" : state.mode === "list" ? "map" : (state.projMode === "list" ? "list" : "map");
+  if(m === state.mode) return;
+  state.mode = m;
   save();
   renderAll();
 });
