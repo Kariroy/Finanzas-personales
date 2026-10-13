@@ -19,6 +19,7 @@
   --line: #262e39; --line-2: #323c49; --text: #d6dde6; --muted: #7d8896; --faint: #4b5563;
   --accent: #58a6ff; --teal: #56d4c4; --danger: #f47067;
   --concepto: #c297ff; --accion: #f0883e;
+  --bronce: #c98a5a; --plata: #c3ccd6; --oro: #e8c547; --diamante: #7fd8f5;
   --card-w: 230px; --card-h: 56px;
   color-scheme: dark;
 }
@@ -105,9 +106,16 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .port:hover { border-color: var(--accent); background: var(--accent); }
 
 /* tipos */
-.card.t-concepto, .card.t-concepto:hover { border-left-color: var(--concepto); }
+.card.t-concepto, .card.t-concepto:hover { border-left-color: var(--concepto); border-radius: 22px; padding-left: 16px; padding-right: 16px; }
 .card.t-accion, .card.t-accion:hover { border-left-color: var(--accion); }
 .meta .type { margin-right: auto; font-weight: 600; }
+/* estado: medalla arriba a la derecha de la card */
+.card.has-medal .title { padding-right: 20px; }
+.medal { position: absolute; top: 9px; right: 11px; width: 13px; height: 13px; border-radius: 50%; background: var(--m);
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,.28), inset 0 2px 0 rgba(255,255,255,.35), 0 0 0 2px color-mix(in srgb, var(--m) 30%, transparent); }
+.medal.m-diamante { border-radius: 2px; transform: rotate(45deg) scale(.85); }
+.t-concepto .medal { right: 15px; }
+.nm-item .dot.gem { border-radius: 2px; transform: rotate(45deg) scale(.85); }
 .meta .type + .kids { margin-right: 0; }
 .t-concepto .meta .type { color: var(--concepto); }
 .t-accion .meta .type { color: var(--accion); }
@@ -237,7 +245,8 @@ button, select, input, textarea { font: inherit; color: inherit; }
       <li><b>Nodos</b> = cards. Una línea A → B conecta A con B.</li>
       <li>Arrastrá el <b>puerto ●</b> del borde derecho a otra card = conectarlas · a un lugar vacío = nuevo nodo conectado.</li>
       <li>Arrastrá el <b>puerto de entrada</b> (borde izquierdo) = reconectar a otra card · a vacío = quitar la conexión.</li>
-      <li>Tocá una <b>card</b> = se abre su menú al costado. <b>Tipo</b>: <b style="color:var(--concepto)">concepto</b> (algo para entender o recordar) o <b style="color:var(--accion)">acción</b> (algo para poder hacer, se entrena repitiendo).</li>
+      <li>Tocá una <b>card</b> = se abre su menú debajo. <b>Tipo</b>: <b style="color:var(--concepto)">concepto</b> (algo para entender o recordar) o <b style="color:var(--accion)">acción</b> (algo para poder hacer, se entrena repitiendo).</li>
+      <li><b>Estado</b>: <b style="color:var(--bronce)">bronce</b> → <b style="color:var(--plata)">plata</b> → <b style="color:var(--oro)">oro</b> → <b style="color:var(--diamante)">diamante</b>, se ve como una medalla en la card.</li>
       <li>Tocá una <b>línea</b> = seleccionarla para quitarla.</li>
       <li>Arrastrá la <b>card</b> = moverla · <b>Shift + arrastrar</b> = mover con todo lo que sale de ella.</li>
       <li><b>Doble clic</b> = crear nodo / renombrar · <b>✎</b> renombrar · <b>+</b> nodo conectado · <b>×</b> borrar.</li>
@@ -261,6 +270,17 @@ var KEY = "aprender-v2";
 var W = 230, H = 56;      // tamaño de la card (igual que --card-w / --card-h)
 var GX = 60, GY = 18;     // separación entre columnas / filas al reordenar
 var GRID = 10;
+var LEVELS = {
+  bronce:   { label: "Bronce",   color: "var(--bronce)" },
+  plata:    { label: "Plata",    color: "var(--plata)" },
+  oro:      { label: "Oro",      color: "var(--oro)" },
+  diamante: { label: "Diamante", color: "var(--diamante)" }
+};
+// Opciones del menú del nodo: campo del nodo, valores posibles y texto para "ninguno".
+var FIELDS = {
+  tipo:   { key: "type",  label: "Tipo",   none: "Sin tipo",   opts: null },
+  estado: { key: "level", label: "Estado", none: "Sin estado", opts: null }
+};
 var TYPES = {
   concepto: { label: "Concepto", color: "var(--concepto)" },
   accion:   { label: "Acción",   color: "var(--accion)" }
@@ -274,6 +294,7 @@ var hist = [], fut = [];
 var sel = null;          // {node: id} | {dep: {from, to}}
 var els = {};            // id de nodo → elemento de la card
 var drag = null, pinch = null, pointers = {}, tempWire = null, editing = null;
+FIELDS.tipo.opts = TYPES; FIELDS.estado.opts = LEVELS;
 var menu = null;         // {id, view: "root" | "tipo"} menú abierto sobre un nodo
 
 // ---------- datos ----------
@@ -284,19 +305,19 @@ function newSkillObj(name){ return { id: uid(), name: name, updated: Date.now(),
 function demo(){
   function sk(name, list, links){
     var s = newSkillObj(name), by = {};
-    list.forEach(function(x){ var n = { id: uid(), title: x[1], x: x[2], y: x[3] }; if(x[4]) n.type = x[4]; s.nodes.push(n); by[x[0]] = n; });
+    list.forEach(function(x){ var n = { id: uid(), title: x[1], x: x[2], y: x[3] }; if(x[4]) n.type = x[4]; if(x[5]) n.level = x[5]; s.nodes.push(n); by[x[0]] = n; });
     links.forEach(function(l){ s.deps.push({ from: by[l[0]].id, to: by[l[1]].id }); });
     return s;
   }
   var latte = sk("Latte art", [
     ["la", "Latte art: corazón simétrico", 0, 140],
     ["le", "Leche", 290, 40], ["ve", "Vertido", 290, 240],
-    ["te", "Textura (microespuma)", 580, 0, "accion"], ["tp", "Temperatura 55–65 °C", 580, 80, "concepto"],
-    ["al", "Altura y velocidad", 580, 240, "accion"], ["co", "Corte final", 870, 240, "accion"]
+    ["te", "Textura (microespuma)", 580, 0, "accion", "plata"], ["tp", "Temperatura 55–65 °C", 580, 80, "concepto", "oro"],
+    ["al", "Altura y velocidad", 580, 240, "accion", "bronce"], ["co", "Corte final", 870, 240, "accion"]
   ], [["la","le"],["la","ve"],["le","te"],["le","tp"],["ve","al"],["al","co"]]);
   var dec = sk("Decidir con registro", [
     ["d", "Decidir con registro", 0, 60],
-    ["de", "Detectar decisiones importantes", 290, 0, "accion"], ["fo", "Formato de la predicción", 290, 100, "concepto"],
+    ["de", "Detectar decisiones importantes", 290, 0, "accion", "bronce"], ["fo", "Formato de la predicción", 290, 100, "concepto", "diamante"],
     ["re", "Revisión mensual", 580, 50, "accion"]
   ], [["d","de"],["d","fo"],["de","re"],["fo","re"]]);
   return [latte, dec];
@@ -505,12 +526,14 @@ function renderCards(){
     var kids = dependents(p, t.id).length;
     var c = document.createElement("div");
     var ty = TYPES[t.type];
-    c.className = "card" + (ty ? " t-" + t.type : !prereqs(p, t.id).length && kids ? " root" : "") + (isSelNode(t.id) ? " selected" : "");
+    var lv = LEVELS[t.level];
+    c.className = "card" + (ty ? " t-" + t.type : !prereqs(p, t.id).length && kids ? " root" : "") + (lv ? " has-medal" : "") + (isSelNode(t.id) ? " selected" : "");
     c.dataset.id = t.id;
     c.style.left = t.x + "px";
     c.style.top = t.y + "px";
     c.innerHTML =
       '<span class="port in" data-port="in" title="Arrastrá para reconectar o quitar la conexión"></span>' +
+      (lv ? '<span class="medal m-' + t.level + '" style="--m:' + lv.color + '" title="' + lv.label + '"></span>' : '') +
       '<span class="title"></span>' +
       '<div class="meta">' + (ty ? '<span class="type">' + ty.label.toLowerCase() + '</span>' : '') + (kids ? '<span class="kids" title="Nodos conectados">→ ' + kids + '</span>' : '') +
         '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nuevo nodo conectado (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
@@ -553,16 +576,20 @@ function closeMenu(){ if(!menu) return; menu = null; renderMenu(); }
 function renderMenu(){
   var box = $("nmenu"), p = cur(), t = menu && p && byId(p, menu.id);
   if(!t || !els[menu.id]){ menu = null; box.hidden = true; box.innerHTML = ""; return; }
-  var items;
-  if(menu.view === "root"){
-    var ty = TYPES[t.type];
-    items = [{ act: "tipo", html: '<span class="dot" style="--c:' + (ty ? ty.color : "var(--faint)") + '"></span>Tipo' + (ty ? ": " + ty.label : "") + ' ▸' }];
+  var items, f = FIELDS[menu.view];
+  if(!f){
+    // raíz: una entrada por campo, con su valor actual
+    items = Object.keys(FIELDS).map(function(name){
+      var fl = FIELDS[name], o = fl.opts[t[fl.key]];
+      return { act: "open", val: name, html: '<span class="dot' + (name === "estado" && t[fl.key] === "diamante" ? " gem" : "") + '" style="--c:' + (o ? o.color : "var(--faint)") + '"></span>' +
+        fl.label + (o ? ": " + o.label : "") + " ▸" };
+    });
   } else {
-    items = Object.keys(TYPES).map(function(k){
-      var x = TYPES[k];
-      return { act: "set", val: k, on: t.type === k, color: x.color, html: '<span class="dot"></span>' + x.label };
+    items = Object.keys(f.opts).map(function(k){
+      var x = f.opts[k];
+      return { act: "set", val: k, on: t[f.key] === k, color: x.color, html: '<span class="dot' + (k === "diamante" ? " gem" : "") + '"></span>' + x.label };
     }).concat([
-      { act: "set", val: "", on: !t.type, html: '<span class="dot"></span>Sin tipo' },
+      { act: "set", val: "", on: !t[f.key], html: '<span class="dot"></span>' + f.none },
       { act: "back", cls: "back", html: "‹ volver" }
     ]);
   }
@@ -593,13 +620,13 @@ $("nmenu").addEventListener("click", function(e){
   var b = e.target.closest("[data-menu]"); if(!b || !menu) return;
   var p = cur(), t = byId(p, menu.id); if(!t) return;
   var act = b.dataset.menu;
-  if(act === "tipo"){ menu.view = "tipo"; renderMenu(); }
+  if(act === "open"){ menu.view = b.dataset.val; renderMenu(); }
   else if(act === "back"){ menu.view = "root"; renderMenu(); }
   else if(act === "set"){
-    var v = b.dataset.val || null, id = menu.id;
-    if((t.type || null) !== v) change(function(){ if(v) t.type = v; else delete t.type; });
+    var f = FIELDS[menu.view], v = b.dataset.val || null, id = menu.id;
+    if((t[f.key] || null) !== v) change(function(){ if(v) t[f.key] = v; else delete t[f.key]; });
     menu = { id: id, view: "root" }; renderMenu();
-    toast(v ? "Tipo: " + TYPES[v].label : "Sin tipo");
+    toast(v ? f.label + ": " + f.opts[v].label : f.none);
   }
 });
 
