@@ -52,11 +52,9 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .skill { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
 .skill:hover { background: var(--panel-2); }
 .skill.active { background: #132a2e; border-color: #2c6b6b; }
-.skill .ic { width: 18px; height: 18px; flex: none; border-radius: 5px; display: grid; place-items: center; font-size: 10px; font-weight: 700; background: var(--line-2); color: var(--muted); }
-.skill.active .ic { background: #2c6b6b; color: #dff; }
 .skill .txt { min-width: 0; flex: 1; }
 .skill .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.skill .sub { color: var(--muted); font-size: 10px; }
+.skill .sub { color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .skill .x { opacity: .55; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; flex: none; }
 .skill:hover .x { opacity: 1; }
 .skill .x:hover { color: var(--text); }
@@ -109,12 +107,37 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .card.t-concepto, .card.t-concepto:hover { border-left-color: var(--concepto); border-radius: 22px; padding-left: 16px; padding-right: 16px; }
 .card.t-accion, .card.t-accion:hover { border-left-color: var(--accion); }
 .meta .type { margin-right: auto; font-weight: 600; }
-/* estado: medalla arriba a la derecha de la card */
-.card.has-medal .title { padding-right: 20px; }
-.medal { position: absolute; top: 9px; right: 11px; width: 13px; height: 13px; border-radius: 50%; background: var(--m);
+/* estado: botón al inicio de la card, como el círculo de estado de Planes (toque = siguiente estado) */
+.card .head { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.card .head .title { flex: 1; }
+.st { width: 16px; height: 16px; flex: none; display: grid; place-items: center; border: 0; background: none; padding: 0; margin-top: 1px;
+  cursor: pointer; font-size: 11px; line-height: 1; color: var(--faint); }
+.st:hover { transform: scale(1.2); }
+.medal { display: block; width: 11px; height: 11px; border-radius: 50%; background: var(--m);
   box-shadow: inset 0 -2px 0 rgba(0,0,0,.28), inset 0 2px 0 rgba(255,255,255,.35), 0 0 0 2px color-mix(in srgb, var(--m) 30%, transparent); }
 .medal.m-diamante { border-radius: 2px; transform: rotate(45deg) scale(.85); }
-.t-concepto .medal { right: 15px; }
+.card.lv-oro { box-shadow: 0 0 12px rgba(232,197,71,.10); }
+.card.lv-diamante { box-shadow: 0 0 14px rgba(127,216,245,.14); }
+
+/* notas (como en Planes): puntito en la card, lleno si tiene notas */
+.note-dot { flex: none; width: 10px; height: 10px; padding: 0; border-radius: 50%; background: none; border: 1.5px solid var(--line-2); cursor: pointer; position: relative; opacity: .7; }
+.note-dot::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; }
+.note-dot:hover { border-color: var(--text); opacity: 1; }
+.note-dot.has { background: var(--text); border-color: var(--text); opacity: 1; }
+.card .note-dot { margin-right: -4px; }
+.card .note-dot:not(.has) { opacity: 0; }
+.card:hover .note-dot, .card.selected .note-dot { opacity: .7; }
+.card .note-dot.has { opacity: 1; }
+.notes-box { width: min(520px, 100%); }
+.notes-head { display: flex; align-items: center; gap: 10px; }
+.notes-title { flex: 1; font-weight: 700; overflow-wrap: anywhere; }
+.notes-box textarea { min-height: 220px; max-height: 60vh; resize: vertical; line-height: 1.5; background: var(--input); border: 1px solid var(--line-2);
+  border-radius: 6px; padding: 10px; font-size: 14px; color: var(--text); width: 100%; }
+.notes-box textarea:focus { outline: none; border-color: var(--accent); }
+
+/* progreso de la habilidad en el panel (anillo, como en Planes) */
+.ring { width: 18px; height: 18px; border-radius: 50%; flex: none; background: conic-gradient(var(--oro) calc(var(--p) * 1%), var(--line-2) 0);
+  -webkit-mask: radial-gradient(circle, transparent 4px, #000 5px); mask: radial-gradient(circle, transparent 4px, #000 5px); }
 .nm-item .dot.gem { border-radius: 2px; transform: rotate(45deg) scale(.85); }
 .meta .type + .kids { margin-right: 0; }
 .t-concepto .meta .type { color: var(--concepto); }
@@ -169,6 +192,9 @@ button, select, input, textarea { font: inherit; color: inherit; }
   .cur-name { padding: 10px 12px; }
   .tools button { font-size: 15px; padding: 0 6px; }
   .nm-item { padding: 10px 16px 10px 12px; font-size: 13px; }
+  .ask:has(.notes-box) { padding-top: 8vh; }
+  .notes-box textarea { font-size: 16px; }
+  .card .note-dot:not(.has) { opacity: .7; }
 }
 </style>
 </head>
@@ -237,6 +263,17 @@ button, select, input, textarea { font: inherit; color: inherit; }
   </div>
 </div>
 
+<div class="ask" id="notesDlg" hidden>
+  <div class="ask-box notes-box" role="dialog" aria-modal="true" aria-labelledby="notesTitle">
+    <div class="notes-head">
+      <span class="notes-title" id="notesTitle"></span>
+      <button type="button" class="icon-btn" id="notesClose" aria-label="Cerrar">×</button>
+    </div>
+    <textarea id="notesText" placeholder="Notas, links, detalles…"></textarea>
+    <div class="ask-btns"><button type="button" class="btn primary" id="notesOk">listo</button></div>
+  </div>
+</div>
+
 <div class="ask" id="helpDlg" hidden>
   <div class="ask-box">
     <div class="ask-title">Cómo se usa</div>
@@ -246,7 +283,8 @@ button, select, input, textarea { font: inherit; color: inherit; }
       <li>Arrastrá el <b>puerto ●</b> del borde derecho a otra card = conectarlas · a un lugar vacío = nuevo nodo conectado.</li>
       <li>Arrastrá el <b>puerto de entrada</b> (borde izquierdo) = reconectar a otra card · a vacío = quitar la conexión.</li>
       <li>Tocá una <b>card</b> = se abre su menú debajo. <b>Tipo</b>: <b style="color:var(--concepto)">concepto</b> (algo para entender o recordar) o <b style="color:var(--accion)">acción</b> (algo para poder hacer, se entrena repitiendo).</li>
-      <li><b>Estado</b>: <b style="color:var(--bronce)">bronce</b> → <b style="color:var(--plata)">plata</b> → <b style="color:var(--oro)">oro</b> → <b style="color:var(--diamante)">diamante</b>, se ve como una medalla en la card.</li>
+      <li><b>Estado</b>: <b style="color:var(--bronce)">bronce</b> → <b style="color:var(--plata)">plata</b> → <b style="color:var(--oro)">oro</b> → <b style="color:var(--diamante)">diamante</b>, se ve al inicio de la card. Tocalo para pasar al siguiente.</li>
+      <li><b>Notas</b>: el <b>puntito</b> de la card (lleno si tiene notas) o «Notas» en el menú.</li>
       <li>Tocá una <b>línea</b> = seleccionarla para quitarla.</li>
       <li>Arrastrá la <b>card</b> = moverla · <b>Shift + arrastrar</b> = mover con todo lo que sale de ella.</li>
       <li><b>Doble clic</b> = crear nodo / renombrar · <b>✎</b> renombrar · <b>+</b> nodo conectado · <b>×</b> borrar.</li>
@@ -270,6 +308,7 @@ var KEY = "aprender-v2";
 var W = 230, H = 56;      // tamaño de la card (igual que --card-w / --card-h)
 var GX = 60, GY = 18;     // separación entre columnas / filas al reordenar
 var GRID = 10;
+var LEVEL_ORDER = ["", "bronce", "plata", "oro", "diamante"];
 var LEVELS = {
   bronce:   { label: "Bronce",   color: "var(--bronce)" },
   plata:    { label: "Plata",    color: "var(--plata)" },
@@ -303,18 +342,19 @@ function uid(){ return Date.now().toString(36) + Math.random().toString(36).slic
 function newSkillObj(name){ return { id: uid(), name: name, updated: Date.now(), nodes: [], deps: [], view: { x: 60, y: 120, z: 1 } }; }
 
 function demo(){
-  function sk(name, list, links){
+  function sk(name, list, links, notes){
     var s = newSkillObj(name), by = {};
-    list.forEach(function(x){ var n = { id: uid(), title: x[1], x: x[2], y: x[3] }; if(x[4]) n.type = x[4]; if(x[5]) n.level = x[5]; s.nodes.push(n); by[x[0]] = n; });
+    list.forEach(function(x){ var n = { id: uid(), title: x[1], x: x[2], y: x[3] }; if(x[4]) n.type = x[4]; if(x[5]) n.level = x[5]; if(notes && notes[x[0]]) n.notes = notes[x[0]]; s.nodes.push(n); by[x[0]] = n; });
     links.forEach(function(l){ s.deps.push({ from: by[l[0]].id, to: by[l[1]].id }); });
     return s;
   }
+  var latteNotes = { tp: "Arriba de 65 °C la leche pierde dulzor y la espuma se rompe.\nTermómetro de clip en la jarra hasta que salga de memoria." };
   var latte = sk("Latte art", [
     ["la", "Latte art: corazón simétrico", 0, 140],
     ["le", "Leche", 290, 40], ["ve", "Vertido", 290, 240],
     ["te", "Textura (microespuma)", 580, 0, "accion", "plata"], ["tp", "Temperatura 55–65 °C", 580, 80, "concepto", "oro"],
     ["al", "Altura y velocidad", 580, 240, "accion", "bronce"], ["co", "Corte final", 870, 240, "accion"]
-  ], [["la","le"],["la","ve"],["le","te"],["le","tp"],["ve","al"],["al","co"]]);
+  ], [["la","le"],["la","ve"],["le","te"],["le","tp"],["ve","al"],["al","co"]], latteNotes);
   var dec = sk("Decidir con registro", [
     ["d", "Decidir con registro", 0, 60],
     ["de", "Detectar decisiones importantes", 290, 0, "accion", "bronce"], ["fo", "Formato de la predicción", 290, 100, "concepto", "diamante"],
@@ -527,16 +567,16 @@ function renderCards(){
     var c = document.createElement("div");
     var ty = TYPES[t.type];
     var lv = LEVELS[t.level];
-    c.className = "card" + (ty ? " t-" + t.type : !prereqs(p, t.id).length && kids ? " root" : "") + (lv ? " has-medal" : "") + (isSelNode(t.id) ? " selected" : "");
+    c.className = "card" + (ty ? " t-" + t.type : !prereqs(p, t.id).length && kids ? " root" : "") + (lv ? " lv-" + t.level : "") + (isSelNode(t.id) ? " selected" : "");
     c.dataset.id = t.id;
     c.style.left = t.x + "px";
     c.style.top = t.y + "px";
     c.innerHTML =
       '<span class="port in" data-port="in" title="Arrastrá para reconectar o quitar la conexión"></span>' +
-      (lv ? '<span class="medal m-' + t.level + '" style="--m:' + lv.color + '" title="' + lv.label + '"></span>' : '') +
-      '<span class="title"></span>' +
+      '<div class="head"><button class="st" data-act="level" title="' + (lv ? lv.label : "Sin estado") + ' · tocá para cambiar">' +
+        (lv ? '<span class="medal m-' + t.level + '" style="--m:' + lv.color + '"></span>' : "○") + '</button><span class="title"></span></div>' +
       '<div class="meta">' + (ty ? '<span class="type">' + ty.label.toLowerCase() + '</span>' : '') + (kids ? '<span class="kids" title="Nodos conectados">→ ' + kids + '</span>' : '') +
-        '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nuevo nodo conectado (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
+        noteDot(t) + '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nuevo nodo conectado (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
       '</div>' +
       '<span class="port out" data-port="out" title="Arrastrá para conectar"></span>';
     c.querySelector(".title").textContent = t.title;
@@ -583,7 +623,7 @@ function renderMenu(){
       var fl = FIELDS[name], o = fl.opts[t[fl.key]];
       return { act: "open", val: name, html: '<span class="dot' + (name === "estado" && t[fl.key] === "diamante" ? " gem" : "") + '" style="--c:' + (o ? o.color : "var(--faint)") + '"></span>' +
         fl.label + (o ? ": " + o.label : "") + " ▸" };
-    });
+    }).concat([{ act: "notes", html: '<span class="dot" style="--c:' + (t.notes ? "var(--text)" : "var(--faint)") + '"></span>Notas' }]);
   } else {
     items = Object.keys(f.opts).map(function(k){
       var x = f.opts[k];
@@ -621,6 +661,7 @@ $("nmenu").addEventListener("click", function(e){
   var p = cur(), t = byId(p, menu.id); if(!t) return;
   var act = b.dataset.menu;
   if(act === "open"){ menu.view = b.dataset.val; renderMenu(); }
+  else if(act === "notes"){ var nid = menu.id; closeMenu(); openNotes(nid); }
   else if(act === "back"){ menu.view = "root"; renderMenu(); }
   else if(act === "set"){
     var f = FIELDS[menu.view], v = b.dataset.val || null, id = menu.id;
@@ -630,6 +671,50 @@ $("nmenu").addEventListener("click", function(e){
   }
 });
 
+// ---------- estado (toque en el círculo = siguiente estado) ----------
+function cycleLevel(id){
+  var t = byId(cur(), id); if(!t) return;
+  var next = LEVEL_ORDER[(LEVEL_ORDER.indexOf(t.level || "") + 1) % LEVEL_ORDER.length];
+  change(function(){ if(next) t.level = next; else delete t.level; });
+  toast(next ? "Estado: " + LEVELS[next].label : "Sin estado");
+}
+// Progreso de la habilidad: bronce 25 %, plata 50 %, oro 75 %, diamante 100 % por nodo, promediado.
+function progress(p){
+  if(!p.nodes.length) return 0;
+  var sum = p.nodes.reduce(function(a, t){ return a + Math.max(0, LEVEL_ORDER.indexOf(t.level || "")) * 25; }, 0);
+  return Math.round(sum / p.nodes.length);
+}
+
+// ---------- notas de los nodos (como en Planes) ----------
+// La card solo muestra un puntito (lleno si tiene notas); al tocarlo se abren las notas.
+function noteDot(t){
+  var has = !!(t.notes && t.notes.trim());
+  return '<button type="button" class="note-dot' + (has ? " has" : "") + '" data-act="notes" title="' + (has ? "Ver notas" : "Agregar notas") + '" aria-label="Notas"></button>';
+}
+var notesId = null;
+function openNotes(id){
+  var p = cur(), t = p && byId(p, id); if(!t) return;
+  notesId = id;
+  $("notesTitle").textContent = t.title;
+  var ta = $("notesText");
+  ta.value = t.notes || "";
+  $("notesDlg").hidden = false;
+  // Con notas: se muestran sin abrir el teclado. Sin notas: listo para escribir.
+  if(!ta.value) ta.focus(); else { ta.scrollTop = 0; ta.blur(); }
+}
+function closeNotes(){
+  if(notesId === null) return;
+  var id = notesId, v = $("notesText").value.replace(/\s+$/, "");
+  notesId = null;
+  $("notesDlg").hidden = true;
+  var p = cur(), t = p && byId(p, id);
+  if(t && v !== (t.notes || "")) change(function(){ if(v) t.notes = v; else delete t.notes; });
+}
+$("notesOk").addEventListener("click", closeNotes);
+$("notesClose").addEventListener("click", closeNotes);
+$("notesDlg").addEventListener("click", function(e){ if(e.target === e.currentTarget) closeNotes(); });
+document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !$("notesDlg").hidden){ e.preventDefault(); closeNotes(); } });
+
 // ---------- panel lateral: habilidades ----------
 function renderSkills(){
   var list = $("skills");
@@ -638,10 +723,10 @@ function renderSkills(){
   state.skills.slice().sort(function(a, b){ return b.updated - a.updated; }).forEach(function(p){
     var el = document.createElement("div");
     el.className = "skill" + (p.id === state.current ? " active" : "");
-    el.innerHTML = '<span class="ic"></span><div class="txt"><div class="name"></div>' +
-      '<div class="sub">' + p.nodes.length + " nodo" + (p.nodes.length === 1 ? "" : "s") + " · ed. " + new Date(p.updated).toISOString().slice(0, 10) + "</div></div>" +
+    var pct = progress(p);
+    el.innerHTML = '<span class="ring" style="--p:' + pct + '"></span><div class="txt"><div class="name"></div>' +
+      '<div class="sub">' + p.nodes.length + " nodo" + (p.nodes.length === 1 ? "" : "s") + " · " + pct + "% · ed. " + new Date(p.updated).toISOString().slice(0, 10) + "</div></div>" +
       '<button class="x ren" title="Renombrar">✎</button><button class="x del" title="Borrar">×</button>';
-    el.querySelector(".ic").textContent = (p.name.trim()[0] || "?").toUpperCase();
     el.querySelector(".name").textContent = p.name;
     el.addEventListener("click", function(e){
       if(e.target.closest(".ren")){ renameSkill(p); return; }
@@ -898,6 +983,8 @@ canvas.addEventListener("click", function(e){
   var id = b.closest(".card").dataset.id, act = b.dataset.act;
   if(act === "edit"){ select({ node: id }); startEdit(id); }
   else if(act === "child") newChild(id);
+  else if(act === "level") cycleLevel(id);
+  else if(act === "notes"){ closeMenu(); openNotes(id); }
   else if(act === "del"){
     var p = cur(), t = byId(p, id), k = dependents(p, id).length;
     sel = { node: id };
@@ -925,7 +1012,7 @@ canvas.addEventListener("wheel", function(e){
 // ---------- teclado ----------
 document.addEventListener("keydown", function(e){
   var tg = e.target;
-  if(!$("ask").hidden || !$("helpDlg").hidden) return;
+  if(!$("ask").hidden || !$("helpDlg").hidden || !$("notesDlg").hidden) return;
   if(editing || tg.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName)) return;
   var mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
   if(mod && k === "z" && !e.shiftKey){ e.preventDefault(); undo(); }
