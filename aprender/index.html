@@ -1002,6 +1002,18 @@ document.addEventListener('click', async e => {
 
     /* ajustes */
     case 'exportar': {
+      let enMarco = true; try { enMarco = window.self !== window.top; } catch (err) {}
+      if (enMarco) {   // dentro de otra página no se puede descargar: mostrar el JSON para copiar
+        const json = JSON.stringify(db, null, 2);
+        const copiar = await ask({ titulo: 'Exportar JSON', texto: 'Copiá este texto y guardalo en un archivo .json (por ejemplo en Notas o en Drive).',
+          html: `<textarea id="exp" readonly style="min-height:220px;font-size:12px">${esc(json)}</textarea>`,
+          botones: [{ txt: 'Copiar', cls: 'primary', val: true }, { txt: 'Cerrar', cls: 'ghost', val: false }] });
+        if (copiar) {
+          try { await navigator.clipboard.writeText(json); toast('JSON copiado'); }
+          catch (err) { toast('No se pudo copiar solo: mantené apretado el texto y copialo'); }
+        }
+        return;
+      }
       const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob), link = document.createElement('a');
       link.href = url; link.download = `aprender-${hoy()}.json`; document.body.appendChild(link); link.click(); link.remove();
