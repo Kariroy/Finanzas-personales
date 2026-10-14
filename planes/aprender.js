@@ -1,5 +1,5 @@
 // Aprender: vista de Planes para organizar habilidades en diagramas (cards semántico / procedimental,
-// niveles bronce → diamante con criterio, objetivo, requisitos que bloquean y notas adhesivas).
+// niveles bronce → diamante con criterio, líneas de distintas formas y estilos y notas adhesivas).
 // Se dibuja dentro de un shadow root para que sus estilos e ids no choquen con los de Planes.
 // Los datos viven en el estado de Planes (state.aprender) y se guardan/sincronizan con él.
 (function(){
@@ -8,52 +8,53 @@
 // ---------- datos ----------
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
-function newSkillObj(name){ return { id: uid(), name: name, updated: Date.now(), nodes: [], deps: [], reqs: [], stickies: [], view: { x: 60, y: 120, z: 1 } }; }
+function newSkillObj(name){ return { id: uid(), name: name, updated: Date.now(), nodes: [], deps: [], stickies: [], view: { x: 60, y: 120, z: 1 } }; }
 // Completa lo que falte (datos guardados con versiones anteriores o importados).
 function normSkill(s){
   s.id = s.id || uid(); s.name = s.name || "Sin nombre"; s.updated = s.updated || Date.now();
   s.nodes = Array.isArray(s.nodes) ? s.nodes : [];
   s.deps = Array.isArray(s.deps) ? s.deps : [];
-  s.reqs = Array.isArray(s.reqs) ? s.reqs : [];
-  fromLinks(s);
+  migrate(s);
   s.stickies = Array.isArray(s.stickies) ? s.stickies : [];
   s.view = s.view || { x: 60, y: 120, z: 1 };
   return s;
 }
 
-// Datos guardados con otras versiones (ruta / poda / técnicas, o concepto / acción): se pasan a este formato.
-// Tipos: concepto → semántico, acción → procedimental, nodo → sin tipo. «Objetivo: …» al principio de
-// las notas vuelve a ser el objetivo. Líneas: parte y flujo → conexiones, requiere → requisitos.
+// Datos guardados con otras versiones: se pasan a este formato.
+// Tipos: concepto → semántico, acción → procedimental, nodo → sin tipo. El objetivo pasa al principio
+// de las notas. Requisitos y líneas «links» → líneas comunes (los requisitos, con guiones).
 var OLD_TYPE = { semantico: "semantico", procedimental: "procedimental", concepto: "semantico", accion: "procedimental" };
-function fromLinks(s){
+var SIDES = { t: 1, r: 1, b: 1, l: 1 }, SHAPES = { curva: 1, recta: 1, escalon: 1 }, STYLES = { continua: 1, guiones: 1, puntos: 1 };
+function migrate(s){
   s.nodes.forEach(function(n){
     if(!n) return;
     if(n.type){ if(OLD_TYPE[n.type]) n.type = OLD_TYPE[n.type]; else delete n.type; }
-    var m = !n.heart && typeof n.notes === "string" && n.notes.match(/^Objetivo: ([^\n]+)(?:\n\n?([\s\S]*))?$/);
-    if(m){ n.heart = m[1].trim(); if(m[2] && m[2].trim()) n.notes = m[2]; else delete n.notes; }
-    delete n.pruned; delete n.order; delete n.technique;
+    if(typeof n.heart === "string" && n.heart.trim())
+      n.notes = "Objetivo: " + n.heart.trim() + (n.notes && String(n.notes).trim() ? "\n\n" + n.notes : "");
+    delete n.heart; delete n.pruned; delete n.order; delete n.technique;
   });
-  if(!Array.isArray(s.links)){ delete s.links; return; }
-  function has(list, a, b){ return list.some(function(d){ return d.from === a && d.to === b; }); }
-  function reaches(list, a, b){
+  var extra = [];
+  (Array.isArray(s.reqs) ? s.reqs : []).forEach(function(r){ if(r) extra.push({ from: r.from, to: r.to, style: "guiones" }); });
+  (Array.isArray(s.links) ? s.links : []).forEach(function(l){ if(l) extra.push(l.kind === "requiere" ? { from: l.from, to: l.to, style: "guiones" } : { from: l.from, to: l.to }); });
+  delete s.reqs; delete s.links;
+  function has(a, b){ return s.deps.some(function(d){ return (d.from === a && d.to === b) || (d.from === b && d.to === a); }); }
+  function reaches(a, b){
     var seen = {}, stack = [a];
     while(stack.length){ var x = stack.pop(); if(x === b) return true; if(seen[x]) continue; seen[x] = 1;
-      list.forEach(function(d){ if(d.from === x) stack.push(d.to); }); }
+      s.deps.forEach(function(d){ if(d.from === x) stack.push(d.to); }); }
     return false;
   }
-  // Primero parte, después flujo (si no cierra un ciclo con las conexiones).
-  ["parte", "flujo", "requiere"].forEach(function(kind){
-    s.links.forEach(function(l){
-      if(!l || l.kind !== kind || !l.from || !l.to || l.from === l.to) return;
-      var list = kind === "requiere" ? s.reqs : s.deps;
-      if(!has(list, l.from, l.to) && !reaches(list, l.to, l.from)) list.push({ from: l.from, to: l.to });
-    });
+  s.deps = s.deps.filter(function(d){ return d && d.from && d.to && d.from !== d.to; });
+  extra.forEach(function(d){ if(d.from && d.to && d.from !== d.to && !has(d.from, d.to) && !reaches(d.to, d.from)) s.deps.push(d); });
+  s.deps.forEach(function(d){
+    if(!SIDES[d.fs]) delete d.fs; if(!SIDES[d.ts]) delete d.ts;
+    if(!SHAPES[d.shape] || d.shape === "curva") delete d.shape;
+    if(!STYLES[d.style] || d.style === "continua") delete d.style;
   });
-  delete s.links;
 }
 
 function demo(){
-  // list: [clave, título, x, y, tipo, nivel] · extra: notes / hearts {clave: texto}, reqs [[requerida, requiere]], stickies
+  // list: [clave, título, x, y, tipo, nivel] · links: [desde, hasta, extra] · extra: notes {clave: texto}, stickies
   function sk(name, list, links, extra){
     var s = newSkillObj(name), by = {};
     extra = extra || {};
@@ -61,11 +62,9 @@ function demo(){
       var n = { id: uid(), title: x[1], x: x[2], y: x[3] };
       if(x[4]) n.type = x[4]; if(x[5]) n.level = x[5];
       if(extra.notes && extra.notes[x[0]]) n.notes = extra.notes[x[0]];
-      if(extra.hearts && extra.hearts[x[0]]) n.heart = extra.hearts[x[0]];
       s.nodes.push(n); by[x[0]] = n;
     });
-    links.forEach(function(l){ s.deps.push({ from: by[l[0]].id, to: by[l[1]].id }); });
-    (extra.reqs || []).forEach(function(r){ s.reqs.push({ from: by[r[0]].id, to: by[r[1]].id }); });
+    links.forEach(function(l){ s.deps.push(Object.assign({ from: by[l[0]].id, to: by[l[1]].id }, l[2] || {})); });
     (extra.stickies || []).forEach(function(n){ s.stickies.push(Object.assign({ id: uid() }, n)); });
     return s;
   }
@@ -74,10 +73,10 @@ function demo(){
     ["le", "Leche", 290, 40], ["ve", "Vertido", 290, 260],
     ["te", "Textura (microespuma)", 580, 0, "procedimental", "plata"], ["tp", "Temperatura 55–65 °C", 580, 100, "semantico", "oro"],
     ["al", "Altura y velocidad", 580, 260, "procedimental", "bronce"], ["co", "Corte final", 580, 380, "procedimental"]
-  ], [["la","le"],["la","ve"],["le","te"],["le","tp"],["ve","al"],["ve","co"]], {
-    notes: { tp: "Arriba de 65 °C la leche pierde dulzor y la espuma se rompe.\nTermómetro de clip en la jarra hasta que salga de memoria." },
-    hearts: { la: "corazón simétrico 8 de 10", tp: "digo la temperatura tocando la jarra, ±5 °C", te: "superficie brillante sin burbujas, 8 de 10" },
-    reqs: [["al", "co"]],
+  ], [["la","le"],["la","ve"],["le","te"],["le","tp"],["ve","al"],["ve","co"],
+      ["le","ve",{ fs: "b", ts: "t", shape: "escalon" }], ["al","co",{ fs: "b", ts: "t", style: "guiones" }]], {
+    notes: { la: "Objetivo: corazón simétrico 8 de 10",
+             tp: "Arriba de 65 °C la leche pierde dulzor y la espuma se rompe.\nTermómetro de clip en la jarra hasta que salga de memoria." },
     stickies: [{ color: "rosa", text: "cuello: el chorro se corta", x: 840, y: 250, w: 170, h: 90 }]
   });
   var dec = sk("Decidir con registro", [
@@ -85,7 +84,7 @@ function demo(){
     ["de", "Detectar decisiones importantes", 290, 0, "procedimental", "bronce"], ["fo", "Formato de la predicción", 290, 110, "semantico", "diamante"],
     ["re", "Revisión mensual", 580, 50, "procedimental"]
   ], [["d","de"],["d","fo"],["de","re"],["fo","re"]], {
-    hearts: { d: "predicción escrita en 9 de cada 10 decisiones importantes", fo: "resultado esperado + % de confianza, 10 de 10" }
+    notes: { d: "Objetivo: predicción escrita en 9 de cada 10 decisiones importantes" }
   });
   return [latte, dec];
 }
@@ -113,7 +112,6 @@ var CSS = `
   --accent: #58a6ff; --teal: #56d4c4; --danger: #f47067;
   --semantico: #c297ff; --procedimental: #f0883e;
   --bronce: #c98a5a; --plata: #c3ccd6; --oro: #e8c547; --diamante: #7fd8f5;
-  --heart: #ef8fb0; --req: #ef8fb0;
   --s-rosa: #f8b6cd; --s-amarillo: #fde68a; --s-azul: #a9d3ff; --s-verde: #b6ebc2; --s-ink: #1f2328;
   --card-w: 230px; --card-h: 56px;
   color-scheme: dark;
@@ -209,10 +207,14 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .wire .hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
 .wire:hover .line { stroke: #6b7788; }
 .wire.selected .line { stroke: var(--accent); stroke-width: 2.4; }
-/* requisito: flecha punteada, distinta de la conexión "es parte de" */
-.wire.req .line { stroke: var(--req); stroke-dasharray: 6 5; opacity: .8; }
-.wire.req:hover .line { opacity: 1; }
-.wire.req.selected .line { stroke: var(--accent); opacity: 1; }
+.wire.s-guiones .line { stroke-dasharray: 7 5; }
+.wire.s-puntos .line { stroke-dasharray: 0.1 5; stroke-linecap: round; stroke-width: 2.2; }
+.wire.s-puntos.selected .line { stroke-width: 3; }
+/* barra de la línea elegida: forma y estilo */
+.toolbar .lk { padding: 6px 9px; }
+.toolbar .lk svg { display: block; }
+.toolbar .lk.on { border-color: var(--accent); background: #142033; }
+.toolbar .sep { width: 1px; align-self: stretch; background: var(--line); margin: 2px 2px; }
 .temp { fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-dasharray: 5 4; }
 
 .card { position: absolute; width: var(--card-w); min-height: var(--card-h); background: var(--card); border: 1px solid var(--line);
@@ -220,26 +222,26 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .card:hover { border-color: var(--line-2); border-left-color: var(--teal); }
 .card.root { border-left-color: var(--accent); background: #131c27; }
 .card.selected { border-color: var(--accent) !important; box-shadow: 0 0 0 2px rgba(88,166,255,.45) !important; opacity: 1; }
-.card.drop, .card.pickable:hover { border-color: var(--accent) !important; box-shadow: 0 0 0 2px var(--accent) !important; }
+.card.drop { border-color: var(--accent) !important; box-shadow: 0 0 0 2px var(--accent) !important; }
 .card.dragging { cursor: grabbing; z-index: 5; }
-.card.blocked { opacity: .5; }
-.card.blocked .st { cursor: not-allowed; }
 .title { display: block; font-weight: 600; font-size: 12px; line-height: 1.4; min-width: 0; outline: none; overflow-wrap: anywhere; }
 .title[contenteditable="true"] { background: var(--input); border-radius: 3px; padding: 0 3px; margin: 0 -3px; box-shadow: 0 0 0 1px var(--accent); cursor: text; user-select: text; -webkit-user-select: text; }
-.card .heart { margin: 3px 0 0 24px; font-size: 10.5px; line-height: 1.35; color: var(--heart); overflow-wrap: anywhere; }
 .meta { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 5px; font-size: 10.5px; color: var(--muted); height: 16px; }
-.meta .kids, .meta .lock { margin-right: auto; color: var(--faint); }
-.meta .lock { color: var(--muted); }
-.meta .lock + .kids { margin-right: 0; }
+.meta .kids { margin-right: auto; color: var(--faint); }
 .tools { display: flex; gap: 2px; opacity: 0; transition: opacity .1s; }
 .card:hover .tools, .card.selected .tools { opacity: 1; }
 .tools button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0 3px; font-size: 12px; }
 .tools button:hover { color: var(--text); }
 .tools button[data-act="del"]:hover { color: var(--danger); }
-.port { position: absolute; top: 50%; width: 11px; height: 11px; margin-top: -5.5px; border-radius: 50%; background: var(--bg); border: 1.5px solid #4b5563; cursor: crosshair; }
-.port::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; }
-.port.out { right: -6.5px; }
-.port.in { left: -8px; }
+/* puntos para conectar, en los cuatro lados (arriba y abajo aparecen al pasar o con la card elegida) */
+.port { position: absolute; width: 11px; height: 11px; border-radius: 50%; background: var(--bg); border: 1.5px solid #4b5563; cursor: crosshair; }
+.port::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; }
+.port.p-r { right: -6.5px; top: 50%; margin-top: -5.5px; }
+.port.p-l { left: -8px; top: 50%; margin-top: -5.5px; }
+.port.p-t { top: -6.5px; left: 50%; margin-left: -5.5px; }
+.port.p-b { bottom: -6.5px; left: 50%; margin-left: -5.5px; }
+.port.p-t, .port.p-b { opacity: 0; transition: opacity .1s; }
+.card:hover .port, .card.selected .port, .card.drop .port { opacity: 1; }
 .port:hover { border-color: var(--accent); background: var(--accent); }
 
 /* tipos */
@@ -267,12 +269,6 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .card .note-dot { margin-right: -4px; }
 .note-prog { font-size: 10px; color: var(--muted); margin-right: -2px; }
 .note-prog.all { color: #3fb950; }
-/* objetivo y requiere, al lado del puntito de notas: aparecen al pasar o con la card elegida */
-.mt { display: inline-flex; align-items: center; background: none; border: 0; padding: 0 2px; cursor: pointer; font-size: 12px; line-height: 1; color: var(--muted); opacity: 0; transition: opacity .1s; }
-.card:hover .mt, .card.selected .mt { opacity: 1; }
-.mt svg { display: block; }
-.mt.goal.has, .mt.goal:hover { color: var(--heart); }
-.mt.req:hover { color: var(--req); }
 .card .note-dot:not(.has) { opacity: 0; }
 .card:hover .note-dot, .card.selected .note-dot { opacity: .7; }
 .card .note-dot.has { opacity: 1; }
@@ -364,7 +360,11 @@ button, select, input, textarea { font: inherit; color: inherit; }
     transform: translateX(-100%); transition: transform .2s; box-shadow: 0 0 40px rgba(0,0,0,.5); }
   .layout.side-collapsed .side { display: flex; }
   .side.open { transform: none; }
-  .tools, .mt { opacity: 1; }
+  .tools { opacity: 1; }
+  .port.p-t, .port.p-b { opacity: .7; }
+  .toolbar .lk { padding: 9px 9px; }
+  #wireBar { flex-wrap: wrap; justify-content: center; width: calc(100% - 16px); }
+  #wireBar .sep { display: none; }
   .skill .x { opacity: 1; font-size: 15px; padding: 4px 6px; }
   .skill { padding: 11px 10px; }
   .btn { padding: 10px 12px; }
@@ -444,12 +444,16 @@ var HTML = `<div class="layout" id="layoutEl">
         <button class="btn" id="multiClear">soltar</button>
       </div>
       <div class="toolbar" id="wireBar" hidden>
-        <button class="btn primary" id="wireDel">× quitar conexión</button>
-        <button class="btn" id="wireCancel">cancelar</button>
-      </div>
-      <div class="toolbar pick" id="pickBar" hidden>
-        <span id="pickTxt"></span>
-        <button class="btn" id="pickCancel">cancelar</button>
+        <button class="btn lk" data-shape="recta" title="Recta" aria-label="Recta"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M3 11 L23 3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+        <button class="btn lk" data-shape="escalon" title="Escalonada" aria-label="Escalonada"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M3 11 H13 V3 H23" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+        <button class="btn lk" data-shape="curva" title="Curva" aria-label="Curva"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M2 9 C7 1 11 1 13 7 S19 13 24 5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+        <span class="sep"></span>
+        <button class="btn lk" data-style="continua" title="Continua" aria-label="Continua"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M2 7 H24" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+        <button class="btn lk" data-style="guiones" title="Guiones" aria-label="Guiones"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M2 7 H24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="4.5 3"/></svg></button>
+        <button class="btn lk" data-style="puntos" title="Puntos" aria-label="Puntos"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M3 7 H24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="0.1 4" stroke-linecap="round" stroke-width="2.4"/></svg></button>
+        <span class="sep"></span>
+        <button class="btn primary" id="wireDel" title="Borrar la línea">× borrar</button>
+        <button class="btn" id="wireCancel">listo</button>
       </div>
     </main>
     <div class="toast" id="toast"></div>
@@ -485,15 +489,11 @@ var HTML = `<div class="layout" id="layoutEl">
     <div class="ask-title">Cómo se usa</div>
     <ul class="help">
       <li>Cada <b>habilidad</b> del panel izquierdo es un diagrama. Tocala para verla.</li>
-      <li><b>Conexión</b> (línea continua) A → B = <b>B es parte de A</b>. Arrastrá el <b>puerto ●</b> del borde derecho a otra card = conectarlas · a un lugar vacío = nuevo nodo.</li>
-      <li><b>Requisito</b> (<b style="color:var(--req)">flecha punteada</b>) A ⇢ B = <b>B requiere A</b>. Se crea con el botón <b style="color:var(--req)">⇢</b> de la card y tocando después la card requerida.</li>
-      <li><b>🔒 Bloqueada</b>: si alguna card requerida está por debajo de Plata, la card que la requiere se atenúa y no puede subir de nivel. Se desbloquea sola cuando todas llegan a Plata.</li>
+      <li><b>Líneas</b>: arrastrá un <b>●</b> de cualquiera de los cuatro lados de la card hasta otra card = conectarlas (llega al lado más cercano) · a un lugar vacío = nuevo nodo.</li>
+      <li>Tocá una <b>línea</b> = elegir su forma (recta, escalonada, curva) y su estilo (continua, guiones, puntos), o borrarla. Las líneas nuevas salen con la última forma y estilo que elegiste.</li>
       <li>Tocá una <b>card</b> = menú debajo para elegir <b style="color:var(--semantico)">semántico</b> / <b style="color:var(--procedimental)">procedimental</b>.</li>
-      <li>Al lado del puntito de notas: <b style="color:var(--heart)">◎ objetivo</b> y <b style="color:var(--req)">⇢ requiere</b> (flechita punteada).</li>
-      <li><b style="color:var(--heart)">Objetivo</b> = lo que tiene que salir y cuánto (ej. «corazón simétrico 8 de 10»). Sin objetivo, una card no pasa de Plata.</li>
       <li><b>Estado</b>: tocá el círculo al inicio de la card para subirlo. El nivel de cada card es independiente del de sus partes.</li>
       <li><b>Notas</b>: el <b>puntito</b> de la card (lleno si tiene notas).</li>
-      <li>Tocá una <b>línea</b> o <b>flecha</b> = seleccionarla para quitarla.</li>
       <li>Arrastrá la <b>card</b> = moverla · <b>Shift + arrastrar</b> = mover con todas sus partes.</li>
       <li><b>Doble clic</b> = crear nodo / renombrar · <b>✎</b> renombrar · <b>+</b> nueva parte · <b>×</b> borrar.</li>
       <li>Arrastrá el fondo = mover · rueda o dos dedos = zoom · <b>⇶</b> reordenar · <b>⤢</b> centrar.</li>
@@ -504,7 +504,7 @@ var HTML = `<div class="layout" id="layoutEl">
       <span></span><span class="h">Procedimental</span><span class="h">Semántico</span>
       <b style="color:var(--bronce)">Bronce</b><span>lo entiendo o lo hice una vez</span><span>lo leí</span>
       <b style="color:var(--plata)">Plata</b><span>me sale con atención deliberada</span><span>lo recuerdo con ayuda</span>
-      <b style="color:var(--oro)">Oro</b><span>cumplo el objetivo de forma consistente</span><span>lo explico sin mirar</span>
+      <b style="color:var(--oro)">Oro</b><span>me sale de forma consistente</span><span>lo explico sin mirar</span>
       <b style="color:var(--diamante)">Diamante</b><span>automatizado, me sale mientras pienso en otra cosa</span><span>lo uso sin pensarlo</span>
     </div>
     <div class="help-h">Notas adhesivas <span style="font-weight:400;text-transform:none;letter-spacing:0">(botón ▣ nota)</span></div>
@@ -555,7 +555,7 @@ function engine(root, api){
   // Criterio de cada nivel según el tipo (una card sin tipo usa los de procedimental).
   var CRITERIA = {
     procedimental: { bronce: "lo entiendo o lo hice una vez", plata: "me sale con atención deliberada",
-                     oro: "cumplo el objetivo de forma consistente", diamante: "automatizado, me sale mientras pienso en otra cosa" },
+                     oro: "me sale de forma consistente", diamante: "automatizado, me sale mientras pienso en otra cosa" },
     semantico:     { bronce: "lo leí", plata: "lo recuerdo con ayuda", oro: "lo explico sin mirar", diamante: "lo uso sin pensarlo" }
   };
   var TYPES = {
@@ -569,12 +569,11 @@ function engine(root, api){
 
   var state = api.state();
   var hist = [], fut = [];
-  var sel = null;          // {node: id} | {dep: {from, to}} | {req: {from, to}} | {sticky: id}
+  var sel = null;          // {node: id} | {dep: {from, to}} | {sticky: id}
   var els = {};            // id de nodo → elemento de la card
   var sEls = {};           // id de nota adhesiva → elemento
   var drag = null, pinch = null, pointers = {}, tempWire = null, editing = null;
   var menu = null;         // {id} menú abierto sobre un nodo
-  var pick = null;         // {to: id} eligiendo la card que «to» requiere
 
   // Guardar = lo guarda Planes (en el navegador y, con cuenta, en la nube).
   function save(){ api.save(); }
@@ -618,28 +617,24 @@ function engine(root, api){
   }
   function addDep(p, from, to){
     if(from === to) return false;
-    if(p.deps.some(function(d){ return d.from === from && d.to === to; })){ toast("Esa conexión ya existe"); return false; }
+    if(findDep(p, from, to) || findDep(p, to, from)){ toast("Esa conexión ya existe"); return false; }
     if(reaches(p, to, from)){ toast("Eso crearía un ciclo"); return false; }
-    p.deps.push({ from: from, to: to });
+    p.deps.push(lineFor({ from: from, to: to }));
     return true;
   }
   function removeDep(p, from, to){ p.deps = p.deps.filter(function(d){ return !(d.from === from && d.to === to); }); }
 
-  // ---------- requisitos y bloqueo ----------
+  function findDep(p, from, to){ return p.deps.filter(function(d){ return d.from === from && d.to === to; })[0] || null; }
+  // Forma y estilo de las líneas nuevas: los últimos que se eligieron.
+  function lineFor(d){
+    var ld = state.lineDefault || {};
+    if(ld.shape && ld.shape !== "curva") d.shape = ld.shape;
+    if(ld.style && ld.style !== "continua") d.style = ld.style;
+    return d;
+  }
+
   function rank(l){ return Math.max(0, LEVEL_ORDER.indexOf(l || "")); }
   function criterion(t, l){ return CRITERIA[t.type === "semantico" ? "semantico" : "procedimental"][l]; }
-  function reqsOf(p, id){ return p.reqs.filter(function(r){ return r.to === id; }).map(function(r){ return r.from; }); }
-  // Cards requeridas que todavía están por debajo de Plata.
-  function blockers(p, t){ return reqsOf(p, t.id).map(function(id){ return byId(p, id); }).filter(function(x){ return x && rank(x.level) < PLATA; }); }
-  function blockedSet(p){ var o = {}; if(p) p.nodes.forEach(function(t){ if(blockers(p, t).length) o[t.id] = 1; }); return o; }
-  function addReq(p, from, to){
-    var a = byId(p, from), b = byId(p, to);
-    if(!a || !b || from === to) return false;
-    if(p.reqs.some(function(r){ return r.from === from && r.to === to; })){ toast("Ese requisito ya existe"); return false; }
-    if(reachesIn(p.reqs, to, from)){ toast("No se puede: «" + a.title + "» ya requiere (directa o indirectamente) a «" + b.title + "»"); return false; }
-    p.reqs.push({ from: from, to: to });
-    return true;
-  }
 
   function overlaps(p, x, y, skip){ return p.nodes.some(function(t){ return t.id !== skip && Math.abs(t.x - x) < W && Math.abs(t.y - y) < H + 4; }); }
   function freeSpot(p, x, y){ var i = 0; while(overlaps(p, x, y) && i++ < 200) y += H + GY; return { x: x, y: y }; }
@@ -655,24 +650,18 @@ function engine(root, api){
   // ---------- historial ----------
   function snapshot(){ return JSON.stringify({ skills: state.skills, current: state.current }); }
   function pushHist(s){ hist.push(s || snapshot()); if(hist.length > 200) hist.shift(); fut = []; }
-  function restore(s){ var o = JSON.parse(s); state.skills = o.skills; state.current = o.current; sel = null; pick = null; save(); renderAll(); }
+  function restore(s){ var o = JSON.parse(s); state.skills = o.skills; state.current = o.current; sel = null; save(); renderAll(); }
   function undo(){ if(!hist.length) return; fut.push(snapshot()); restore(hist.pop()); }
   function redo(){ if(!fut.length) return; hist.push(snapshot()); restore(fut.pop()); }
-  // Cambio con deshacer. Si una card queda desbloqueada por el cambio, avisa.
+  // Cambio con deshacer.
   function change(fn){
-    var before = snapshot(), p = cur(), was = blockedSet(p);
+    var before = snapshot(), p = cur();
     if(fn(p) === false) return;
     pushHist(before);
     p = cur();
     if(p) p.updated = Date.now();
     save();
     renderAll();
-    if(!p) return;
-    var now = blockedSet(p);
-    var freed = p.nodes.filter(function(t){ return was[t.id] && !now[t.id]; });
-    if(freed.length) setTimeout(function(){
-      toast("Desbloqueada" + (freed.length > 1 ? "s" : "") + ": " + freed.map(function(t){ return t.title; }).join(", "));
-    }, 0);
   }
 
   // ---------- vista ----------
@@ -770,7 +759,6 @@ function engine(root, api){
   var multi = [];          // selección múltiple de nodos (recuadro o Ctrl+click)
   function isSelNode(id){ return (sel && sel.node === id) || multi.indexOf(id) >= 0; }
   function isSelDep(d){ return sel && sel.dep && sel.dep.from === d.from && sel.dep.to === d.to; }
-  function isSelReq(r){ return sel && sel.req && sel.req.from === r.from && sel.req.to === r.to; }
 
   function renderAll(){
     renderSkills();
@@ -789,9 +777,8 @@ function engine(root, api){
     renderPanel();
   }
 
-  function levelTip(p, t, lv, bl){
+  function levelTip(p, t, lv){
     var s = lv ? lv.label + ": " + criterion(t, t.level) : "Sin estado";
-    if(bl.length) return s + " · 🔒 requiere llevar a Plata: " + bl.map(function(x){ return x.title; }).join(", ");
     var next = LEVEL_ORDER[rank(t.level) + 1];
     return s + (next ? " · tocá para subir a " + LEVELS[next].label + " (" + criterion(t, next) + ")" : " · tocá para volver a sin estado");
   }
@@ -808,28 +795,22 @@ function engine(root, api){
     p.nodes.forEach(function(t){
       var kids = dependents(p, t.id).length;
       var c = document.createElement("div");
-      var ty = TYPES[t.type], lv = LEVELS[t.level], bl = blockers(p, t);
+      var ty = TYPES[t.type], lv = LEVELS[t.level];
       c.className = "card" + (ty ? " t-" + t.type : !prereqs(p, t.id).length && kids ? " root" : "") + (lv ? " lv-" + t.level : "") +
-        (bl.length ? " blocked" : "") + (pick && pick.to !== t.id ? " pickable" : "") + (isSelNode(t.id) ? " selected" : "");
+        (isSelNode(t.id) ? " selected" : "");
       c.dataset.id = t.id;
       c.style.left = t.x + "px";
       c.style.top = t.y + "px";
       c.innerHTML =
-        '<span class="port in" data-port="in" title="Arrastrá para reconectar o quitar la conexión"></span>' +
+        ["t", "r", "b", "l"].map(function(sd){ return '<span class="port p-' + sd + '" data-port="' + sd + '" title="Arrastrá para conectar"></span>'; }).join("") +
         '<div class="head"><button class="st" data-act="level"></button><span class="title"></span></div>' +
-        (t.heart ? '<div class="heart"></div>' : '') +
-        '<div class="meta">' + (bl.length ? '<span class="lock">🔒</span>' : '') + (kids ? '<span class="kids" title="Partes">→ ' + kids + '</span>' : '') +
-          '<button class="mt goal' + (t.heart ? " has" : "") + '" data-act="heart" title="' + (t.heart ? "Editar objetivo" : "Agregar objetivo") + '" aria-label="Objetivo">◎</button>' +
-          '<button class="mt req" data-act="req" title="Requiere… (tocá después la card requerida)" aria-label="Requiere"><svg width="15" height="10" viewBox="0 0 15 10" aria-hidden="true"><path d="M1 5 H10" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.5 2" fill="none"/><path d="M9 1.5 L13.5 5 L9 8.5 Z" fill="currentColor"/></svg></button>' +
+        '<div class="meta">' + (kids ? '<span class="kids" title="Partes">→ ' + kids + '</span>' : '') +
           noteDot(t) + '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nueva parte (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
-        '</div>' +
-        '<span class="port out" data-port="out" title="Arrastrá para conectar"></span>';
+        '</div>';
       var st = c.querySelector(".st");
       st.innerHTML = lv ? '<span class="medal m-' + t.level + '" style="--m:' + lv.color + '"></span>' : "○";
-      st.title = levelTip(p, t, lv, bl);
+      st.title = levelTip(p, t, lv);
       c.querySelector(".title").textContent = t.title;
-      if(t.heart){ var hz = c.querySelector(".heart"); hz.textContent = "◎ " + t.heart; hz.title = "Objetivo: " + t.heart; }
-      if(bl.length) c.querySelector(".lock").title = "Bloqueada: requiere llevar a Plata " + bl.map(function(x){ return "«" + x.title + "»"; }).join(", ");
       cardsEl.appendChild(c);
       els[t.id] = c;
     });
@@ -853,66 +834,80 @@ function engine(root, api){
     });
   }
 
-  function curve(x1, y1, x2, y2, horiz){
-    if(horiz){ var dx = Math.max(30, Math.abs(x2 - x1) / 2) * (x2 >= x1 ? 1 : -1);
-      return "M" + x1 + "," + y1 + " C" + (x1 + dx) + "," + y1 + " " + (x2 - dx) + "," + y2 + " " + x2 + "," + y2; }
-    var dy = Math.max(24, Math.abs(y2 - y1) / 2) * (y2 >= y1 ? 1 : -1);
-    return "M" + x1 + "," + y1 + " C" + x1 + "," + (y1 + dy) + " " + x2 + "," + (y2 - dy) + " " + x2 + "," + y2;
+  // ---------- líneas: salen y llegan por cualquiera de los cuatro lados ----------
+  var NORM = { t: [0, -1], r: [1, 0], b: [0, 1], l: [-1, 0] }, OPP = { t: "b", r: "l", b: "t", l: "r" };
+  function anchor(t, side){
+    var h = cardH(t.id);
+    return side === "t" ? { x: t.x + W / 2, y: t.y } : side === "b" ? { x: t.x + W / 2, y: t.y + h }
+         : side === "l" ? { x: t.x, y: t.y + h / 2 } : { x: t.x + W, y: t.y + h / 2 };
   }
-  function wirePath(x1, y1, x2, y2){
-    var dx = Math.max(30, Math.abs(x2 - x1) / 2);
-    return "M" + x1 + "," + y1 + " C" + (x1 + dx) + "," + y1 + " " + (x2 - dx) + "," + y2 + " " + x2 + "," + y2;
-  }
-  // Flecha de requisito: de lado a lado si las cards están en columnas distintas; si no, de arriba a abajo.
-  function reqPath(a, b){
-    var ah = cardH(a.id), bh = cardH(b.id);
-    var ax = a.x + W / 2, ay = a.y + ah / 2, bx = b.x + W / 2, by = b.y + bh / 2;
-    if(Math.abs(bx - ax) >= W * 0.8){
-      var right = bx > ax;
-      return curve(right ? a.x + W : a.x, ay, right ? b.x - 4 : b.x + W + 4, by, true);
+  function pt(p){ return Math.round(p.x * 10) / 10 + "," + Math.round(p.y * 10) / 10; }
+  // a, b: puntos · as, bs: lados (bs puede faltar mientras se arrastra) · shape: curva | recta | escalon
+  function linePath(a, as, b, bs, shape){
+    var na = NORM[as], nb = bs ? NORM[bs] : null;
+    if(shape === "recta") return "M" + pt(a) + " L" + pt(b);
+    if(shape === "escalon"){
+      var a1 = { x: a.x + na[0] * 14, y: a.y + na[1] * 14 }, b1 = nb ? { x: b.x + nb[0] * 14, y: b.y + nb[1] * 14 } : b;
+      var ah = !!na[0], bh = nb ? !!nb[0] : !ah, mid;
+      if(ah && bh){ var mx = (a1.x + b1.x) / 2; mid = [{ x: mx, y: a1.y }, { x: mx, y: b1.y }]; }
+      else if(!ah && !bh){ var my = (a1.y + b1.y) / 2; mid = [{ x: a1.x, y: my }, { x: b1.x, y: my }]; }
+      else if(ah) mid = [{ x: b1.x, y: a1.y }];
+      else mid = [{ x: a1.x, y: b1.y }];
+      return "M" + [a, a1].concat(mid, [b1, b]).map(pt).join(" L");
     }
-    var down = by > ay, off = W * 0.3;   // corrida hacia la derecha para no tapar las conexiones
-    return curve(ax + off, down ? a.y + ah : a.y, bx + off, down ? b.y - 4 : b.y + bh + 4, false);
+    var k = Math.max(30, Math.hypot(b.x - a.x, b.y - a.y) / 2.5);
+    var c1 = { x: a.x + na[0] * k, y: a.y + na[1] * k }, c2 = nb ? { x: b.x + nb[0] * k, y: b.y + nb[1] * k } : b;
+    return "M" + pt(a) + " C" + pt(c1) + " " + pt(c2) + " " + pt(b);
+  }
+  function depPath(p, d){
+    var a = byId(p, d.from), b = byId(p, d.to);
+    if(!a || !b) return null;
+    var fs = d.fs || "r", ts = d.ts || "l";
+    return linePath(anchor(a, fs), fs, anchor(b, ts), ts, d.shape);
+  }
+  // Lado de la card más cercano al punto (para saber por dónde llega una línea).
+  function sideAt(t, w){
+    var h = cardH(t.id), dx = (w.x - (t.x + W / 2)) / W, dy = (w.y - (t.y + h / 2)) / h;
+    return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "r" : "l") : (dy > 0 ? "b" : "t");
   }
   function renderWires(){
-    var p = cur();
-    var html = '<defs><marker id="reqArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
-      '<path d="M0,0 L10,5 L0,10 z" fill="#ef8fb0"/></marker></defs>';
+    var p = cur(), html = "";
     if(p){
       p.deps.forEach(function(d){
-        if(drag && drag.kind === "wire" && drag.hide && drag.hide.from === d.from && drag.hide.to === d.to) return;
-        var a = byId(p, d.from), b = byId(p, d.to);
-        if(!a || !b) return;
-        var path = wirePath(a.x + W, a.y + cardH(a.id) / 2, b.x, b.y + cardH(b.id) / 2);
-        html += '<g class="wire' + (isSelDep(d) ? " selected" : "") + '" data-from="' + d.from + '" data-to="' + d.to + '"><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"/></g>';
-      });
-      p.reqs.forEach(function(r){
-        var a = byId(p, r.from), b = byId(p, r.to);
-        if(!a || !b) return;
-        var path = reqPath(a, b);
-        html += '<g class="wire req' + (isSelReq(r) ? " selected" : "") + '" data-rfrom="' + r.from + '" data-rto="' + r.to + '"><title>«' +
-          esc(b.title) + '» requiere «' + esc(a.title) + '»</title><path class="hit" d="' + path + '"/><path class="line" d="' + path + '" marker-end="url(#reqArrow)"/></g>';
+        var path = depPath(p, d); if(!path) return;
+        html += '<g class="wire' + (d.style ? " s-" + d.style : "") + (isSelDep(d) ? " selected" : "") + '" data-from="' + d.from + '" data-to="' + d.to + '"><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"/></g>';
       });
     }
     if(tempWire) html += '<path class="temp" d="' + tempWire + '"/>';
     wiresEl.innerHTML = html;
   }
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return "&#" + c.charCodeAt(0) + ";"; }); }
-  // Barra de abajo: normal · línea o flecha seleccionada · eligiendo requisito.
+  // Barra de abajo: normal · línea elegida (forma, estilo, borrar) · varias cards elegidas.
   function renderBars(){
-    var line = !!(sel && (sel.dep || sel.req));
-    var p0 = cur();
+    var p0 = cur(), d = sel && sel.dep && p0 && findDep(p0, sel.dep.from, sel.dep.to);
     if(p0) multi = multi.filter(function(id){ return byId(p0, id); });
-    var many = !pick && multi.length > 1;
-    $("pickBar").hidden = !pick;
+    var many = multi.length > 1, line = !!d;
     $("multiBar").hidden = !many;
     if(many) $("multiN").textContent = multi.length + " seleccionadas";
-    $("wireBar").hidden = !!pick || many || !line;
-    $("toolbar").hidden = !!pick || many || line;
-    if(pick || line) $("palette").hidden = true;
-    $("wireDel").textContent = sel && sel.req ? "× quitar requisito" : "× quitar conexión";
-    if(pick){ var t = cur() && byId(cur(), pick.to); $("pickTxt").textContent = "Tocá la card que «" + (t ? t.title : "") + "» requiere"; }
+    $("wireBar").hidden = many || !line;
+    $("toolbar").hidden = many || line;
+    if(line) $("palette").hidden = true;
+    if(d) Array.prototype.forEach.call(root.querySelectorAll("#wireBar .lk"), function(b){
+      b.classList.toggle("on", b.dataset.shape ? (d.shape || "curva") === b.dataset.shape : (d.style || "continua") === b.dataset.style);
+    });
   }
+  // Forma o estilo de la línea elegida; las próximas líneas salen igual.
+  function setLine(key, val){
+    var p = cur(), d = sel && sel.dep && p && findDep(p, sel.dep.from, sel.dep.to); if(!d) return;
+    var def = key === "shape" ? "curva" : "continua";
+    state.lineDefault = state.lineDefault || {};
+    state.lineDefault[key] = val;
+    if((d[key] || def) === val){ save(); return; }
+    change(function(){ if(val === def) delete d[key]; else d[key] = val; });
+  }
+  Array.prototype.forEach.call(root.querySelectorAll("#wireBar .lk"), function(b){
+    b.addEventListener("click", function(){ if(b.dataset.shape) setLine("shape", b.dataset.shape); else setLine("style", b.dataset.style); });
+  });
 
   // ---------- menú del nodo: el tipo, en fila debajo de la card ----------
   function openMenu(id){ menu = { id: id }; renderMenu(); }
@@ -955,51 +950,15 @@ function engine(root, api){
     }
   });
 
-  // ---------- requisito: elegir la otra card ----------
-  function startPick(id){ pick = { to: id }; select(null); renderCards(); renderWires(); renderBars(); }
-  function endPick(){ pick = null; renderCards(); renderWires(); renderBars(); }
-  function finishPick(fromId){
-    var p = cur(), to = pick && pick.to; pick = null;
-    if(!to || fromId === to){ renderCards(); renderBars(); return; }
-    var a = byId(p, fromId), b = byId(p, to);
-    var ok = false;
-    change(function(){ ok = addReq(p, fromId, to); return ok; });
-    if(!ok){ renderCards(); renderBars(); return; }
-    toast("«" + b.title + "» requiere «" + a.title + "»" + (rank(a.level) < PLATA ? " · queda bloqueada" : ""));
-  }
-  $("pickCancel").addEventListener("click", endPick);
-
   // ---------- estado (toque en el círculo = siguiente estado) ----------
   function setLevel(id, next){
-    var p = cur(), t = byId(p, id); if(!t) return;
-    if(rank(next) > rank(t.level)){
-      var bl = blockers(p, t);
-      if(bl.length){ toast("🔒 Bloqueada: primero llevá a Plata " + bl.map(function(x){ return "«" + x.title + "»"; }).join(", ")); return; }
-      if(rank(next) >= ORO && !(t.heart && t.heart.trim())){
-        ask({ title: "Para pasar a " + LEVELS[next].label + ", escribí el objetivo de «" + t.title + "»",
-              text: "Qué tiene que salir y cuánto. Ej.: corazón simétrico 8 de 10.", input: "", placeholder: "Objetivo…", ok: "guardar y subir" }, function(v){
-          change(function(){ t.heart = v; t.level = next; });
-          toast("Estado: " + LEVELS[next].label);
-        });
-        return;
-      }
-    }
+    var t = byId(cur(), id); if(!t) return;
     change(function(){ if(next) t.level = next; else delete t.level; });
     toast(next ? "Estado: " + LEVELS[next].label : "Sin estado");
   }
   function cycleLevel(id){
     var t = byId(cur(), id); if(!t) return;
     setLevel(id, LEVEL_ORDER[(rank(t.level) + 1) % LEVEL_ORDER.length]);
-  }
-  function editHeart(id){
-    var t = byId(cur(), id); if(!t) return;
-    ask({ title: "Objetivo de «" + t.title + "»", text: "Qué tiene que salir y cuánto, ej.: corazón simétrico 8 de 10. Dejalo vacío para quitarlo.",
-          input: t.heart || "", placeholder: "Objetivo…", ok: "guardar", allowEmpty: true }, function(v){
-      if(v === (t.heart || "")) return;
-      var drop = !v && rank(t.level) >= ORO;
-      change(function(){ if(v) t.heart = v; else delete t.heart; if(drop) t.level = "plata"; });
-      if(drop) toast("Sin objetivo no puede estar en Oro: bajó a Plata");
-    });
   }
   // Progreso de la habilidad: bronce 25 %, plata 50 %, oro 75 %, diamante 100 % por nodo, promediado.
   function progress(p){
@@ -1112,7 +1071,7 @@ function engine(root, api){
           return;
         }
         closeSideMobile();
-        if(state.current !== p.id){ state.current = p.id; sel = null; menu = null; pick = null; $("palette").hidden = true; save(); renderAll(); if(!p.fitted){ p.fitted = true; fit(); } }
+        if(state.current !== p.id){ state.current = p.id; sel = null; menu = null; $("palette").hidden = true; save(); renderAll(); if(!p.fitted){ p.fitted = true; fit(); } }
       });
       el.addEventListener("dblclick", function(e){ if(!e.target.closest(".x")) renameSkill(p); });
       list.appendChild(el);
@@ -1238,7 +1197,7 @@ function engine(root, api){
       var ys = dependents(p, id).map(function(k){ return byId(p, k).y; });
       var y = ys.length ? Math.max.apply(null, ys) + H + GY : parent.y;
       t = makeNode(p, parent.x + W + GX, y);
-      p.deps.push({ from: id, to: t.id });
+      p.deps.push(lineFor({ from: id, to: t.id }));
       sel = { node: t.id };
     });
     if(t){ ensureVisible(t); startEdit(t.id); }
@@ -1258,7 +1217,6 @@ function engine(root, api){
     change(function(p){
       p.nodes = p.nodes.filter(function(t){ return ids.indexOf(t.id) < 0; });
       p.deps = p.deps.filter(function(d){ return ids.indexOf(d.from) < 0 && ids.indexOf(d.to) < 0; });
-      p.reqs = p.reqs.filter(function(r){ return ids.indexOf(r.from) < 0 && ids.indexOf(r.to) < 0; });
       multi = []; sel = null;
     });
     toast(ids.length + " cards borradas · Ctrl+Z para deshacer");
@@ -1286,17 +1244,12 @@ function engine(root, api){
       change(function(p){
         p.nodes = p.nodes.filter(function(t){ return t.id !== id; });
         p.deps = p.deps.filter(function(d){ return d.from !== id && d.to !== id; });
-        p.reqs = p.reqs.filter(function(r){ return r.from !== id && r.to !== id; });
         sel = null;
       });
     } else if(sel.dep){
       var d = sel.dep;
       change(function(p){ removeDep(p, d.from, d.to); sel = null; });
-      toast("Conexión quitada");
-    } else if(sel.req){
-      var q = sel.req;
-      change(function(p){ p.reqs = p.reqs.filter(function(r){ return !(r.from === q.from && r.to === q.to); }); sel = null; });
-      toast("Requisito quitado");
+      toast("Línea borrada");
     } else if(sel.sticky){
       var sid = sel.sticky;
       change(function(p){ p.stickies = p.stickies.filter(function(s){ return s.id !== sid; }); sel = null; });
@@ -1362,19 +1315,12 @@ function engine(root, api){
     var base = { sx: e.clientX, sy: e.clientY, moved: false, before: snapshot() };
     if(stk){
       var s = stickyById(p, stk.dataset.sid); if(!s) return;
-      if(pick) endPick();
       if(t.closest('[data-sact="resize"]')) drag = Object.assign(base, { kind: "resize", s: s, w: s.w, h: s.h });
       else drag = Object.assign(base, { kind: "smove", s: s, x: s.x, y: s.y });
       if(!(sel && sel.sticky === s.id)) select({ sticky: s.id });
-    } else if(port && card && !pick){
-      var id = card.dataset.id;
-      if(port.dataset.port === "out") drag = Object.assign(base, { kind: "wire", from: id });
-      else {
-        var inc = prereqs(p, id);
-        if(!inc.length) drag = moveDrag(base, id, e.shiftKey);
-        else drag = Object.assign(base, { kind: "wire", from: inc[inc.length - 1], hide: { from: inc[inc.length - 1], to: id } });
-      }
-    } else if(card && !pick && (e.ctrlKey || e.metaKey)){
+    } else if(port && card){
+      drag = Object.assign(base, { kind: "wire", from: card.dataset.id, fs: port.dataset.port });
+    } else if(card && (e.ctrlKey || e.metaKey)){
       // Ctrl/⌘ + click: sumar o sacar de la selección múltiple.
       var cid = card.dataset.id, cur0 = multi.length ? multi.slice() : (sel && sel.node ? [sel.node] : []);
       var i = cur0.indexOf(cid);
@@ -1382,16 +1328,16 @@ function engine(root, api){
       closeMenu();
       if(cur0.length) setMulti(cur0); else select(null);
       return;
-    } else if(card && !pick && multi.length > 1 && multi.indexOf(card.dataset.id) >= 0){
+    } else if(card && multi.length > 1 && multi.indexOf(card.dataset.id) >= 0){
       drag = moveDragIds(base, card.dataset.id, multi);
     } else if(card){
       drag = moveDrag(base, card.dataset.id, e.shiftKey);
-      if(!pick && (!isSelNode(card.dataset.id) || multi.length)) select({ node: card.dataset.id });
-    } else if(wire && !pick){
-      if(wire.dataset.rfrom) select({ req: { from: wire.dataset.rfrom, to: wire.dataset.rto } });
-      else select({ dep: { from: wire.dataset.from, to: wire.dataset.to } });
+      if(!isSelNode(card.dataset.id) || multi.length) select({ node: card.dataset.id });
+    } else if(wire){
+      closeMenu();
+      select({ dep: { from: wire.dataset.from, to: wire.dataset.to } });
       return;
-    } else if(mouse && !pick){
+    } else if(mouse){
       // Mantener click y arrastrar sobre el fondo = recuadro de selección.
       var r0 = canvas.getBoundingClientRect();
       drag = Object.assign(base, { kind: "box", ox: e.clientX - r0.left, oy: e.clientY - r0.top, add: e.ctrlKey || e.metaKey || e.shiftKey });
@@ -1450,14 +1396,20 @@ function engine(root, api){
       if(drag.kind === "smove"){ s.x = snap(drag.x + dx / v.z); s.y = snap(drag.y + dy / v.z); if(el){ el.style.left = s.x + "px"; el.style.top = s.y + "px"; } }
       else { s.w = Math.max(90, Math.round(drag.w + dx / v.z)); s.h = Math.max(60, Math.round(drag.h + dy / v.z)); if(el){ el.style.width = s.w + "px"; el.style.height = s.h + "px"; } }
     } else if(drag.kind === "wire"){
-      var a2 = byId(cur(), drag.from), w = toWorld(e.clientX, e.clientY);
+      var a2 = byId(cur(), drag.from), w = toWorld(e.clientX, e.clientY), ts = null;
       var target = dropTarget(e, drag.from);
-      if(target){ var tt = byId(cur(), target); w = { x: tt.x, y: tt.y + cardH(tt.id) / 2 }; }
-      tempWire = wirePath(a2.x + W, a2.y + cardH(a2.id) / 2, w.x, w.y);
+      if(target){ var tt = byId(cur(), target); ts = dropSide(e, tt, w); w = anchor(tt, ts); }
+      var ld = state.lineDefault || {};
+      tempWire = linePath(anchor(a2, drag.fs), drag.fs, w, ts, ld.shape);
       Object.keys(els).forEach(function(k){ els[k].classList.toggle("drop", k === target); });
       renderWires();
     }
   });
+  // Lado por el que llega: el punto que está debajo del dedo, o el lado más cercano.
+  function dropSide(e, t, w){
+    var el = root.elementFromPoint(e.clientX, e.clientY), port = el && el.closest(".port");
+    return port && SIDES[port.dataset.port] ? port.dataset.port : sideAt(t, w);
+  }
   function dropTarget(e, from){
     var el = root.elementFromPoint(e.clientX, e.clientY);
     var c = el && el.closest(".card");
@@ -1480,43 +1432,42 @@ function engine(root, api){
       if(hit.length) setMulti(hit); else select(null);
     } else if(d.kind === "pan"){
       if(d.moved) save();
-      else if(pick) endPick();
       else if(sel || multi.length) select(null);
     } else if(d.kind === "smove" || d.kind === "resize"){
       if(d.moved){ pushHist(d.before); p.updated = Date.now(); save(); renderAll(); }
       else if(d.kind === "smove" && isDoubleTap(e, d.s.id)) editSticky(d.s.id);
     } else if(d.kind === "move"){
       if(d.moved){ pushHist(d.before); p.updated = Date.now(); save(); renderAll(); }
-      else if(pick) finishPick(d.id);
-      else {
-        // toque en una card = abrir / cerrar su menú · doble toque (celular) = renombrar
-        if(isDoubleTap(e, d.id)){ closeMenu(); startEdit(d.id); }
-        else if(menu && menu.id === d.id) closeMenu(); else openMenu(d.id);
-        if(sideNotesOn() && panelId !== d.id) showPanel(d.id, false);
-      }
+      else tapCard(e, d.id);
     } else if(d.kind === "wire"){
       tempWire = null;
       var target = d.moved ? dropTarget(e, d.from) : null;
-      if(d.hide){
-        if(!d.moved || target === d.hide.to){ renderAll(); return; }
-        pushHist(d.before);
-        removeDep(p, d.hide.from, d.hide.to);
-        if(target){ if(!addDep(p, d.from, target)) p.deps.push(d.hide); }
-        else toast("Conexión quitada");
-        p.updated = Date.now(); save(); renderAll();
-      } else if(target){
-        change(function(){ return addDep(p, d.from, target); });
+      if(target){
+        var tt = byId(p, target), ts = dropSide(e, tt, toWorld(e.clientX, e.clientY));
+        change(function(){
+          if(!addDep(p, d.from, target)) return false;
+          var nd = findDep(p, d.from, target); nd.fs = d.fs; nd.ts = ts;
+        });
         renderAll();
       } else if(d.moved){
+        // a un lugar vacío: nueva card hacia ese lado, la línea llega por el lado de enfrente
         var w = toWorld(e.clientX, e.clientY), t;
+        var x = d.fs === "l" ? w.x - W : d.fs === "r" ? w.x : w.x - W / 2;
+        var y = d.fs === "t" ? w.y - H : d.fs === "b" ? w.y : w.y - H / 2;
         change(function(){
-          t = makeNode(p, w.x, w.y - H / 2);
-          p.deps.push({ from: d.from, to: t.id });
+          t = makeNode(p, x, y);
+          p.deps.push(lineFor({ from: d.from, to: t.id, fs: d.fs, ts: OPP[d.fs] }));
           sel = { node: t.id };
         });
         startEdit(t.id);
-      } else renderAll();
+      } else { renderAll(); tapCard(e, d.from); }   // tocar un punto sin arrastrar = tocar la card
     }
+  }
+  // Toque en una card = abrir / cerrar su menú · doble toque (celular) = renombrar.
+  function tapCard(e, id){
+    if(isDoubleTap(e, id)){ closeMenu(); startEdit(id); }
+    else if(menu && menu.id === id) closeMenu(); else openMenu(id);
+    if(sideNotesOn() && panelId !== id) showPanel(id, false);
   }
   canvas.addEventListener("pointerup", endPointer);
   canvas.addEventListener("pointercancel", endPointer);
@@ -1527,7 +1478,6 @@ function engine(root, api){
     var b = e.target.closest("[data-act]"); if(!b) return;
     var card = b.closest(".card"); if(!card) return;
     var id = card.dataset.id, act = b.dataset.act;
-    if(pick){ if(act !== "del") finishPick(id); return; }
     if(act === "edit"){ select({ node: id }); startEdit(id); }
     else if(act === "child") newChild(id);
     else if(act === "level") cycleLevel(id);
@@ -1536,8 +1486,6 @@ function engine(root, api){
       if(sideNotesOn()){ var nt = byId(cur(), id); showPanel(id, !(nt && nt.notes && nt.notes.trim())); }
       else openNotes(id);
     }
-    else if(act === "heart"){ closeMenu(); editHeart(id); }
-    else if(act === "req"){ closeMenu(); startPick(id); }
     else if(act === "del"){
       var p = cur(), t = byId(p, id), k = dependents(p, id).length;
       sel = { node: id };
@@ -1546,7 +1494,7 @@ function engine(root, api){
     }
   });
   canvas.addEventListener("dblclick", function(e){
-    var p = cur(); if(!p || pick) return;
+    var p = cur(); if(!p) return;
     var el = root.elementFromPoint(e.clientX, e.clientY) || e.target;
     if(el.closest("[data-act]") || el.closest("[data-sact]") || el.closest(".toolbar") || el.closest(".palette") || el.closest(".port")) return;
     var stk = el.closest(".sticky");
@@ -1578,7 +1526,7 @@ function engine(root, api){
     else if((k === "enter" || k === "f2") && sel && sel.node){ e.preventDefault(); startEdit(sel.node); }
     else if((k === "enter" || k === "f2") && sel && sel.sticky){ e.preventDefault(); editSticky(sel.sticky); }
     else if(k === "tab" && sel && sel.node){ e.preventDefault(); newChild(sel.node); }
-    else if(k === "escape"){ closeMenu(); $("palette").hidden = true; if(pick) endPick(); select(null); }
+    else if(k === "escape"){ closeMenu(); $("palette").hidden = true; select(null); }
   });
 
   // ---------- ventana propia (reemplaza prompt/confirm, que muchos celulares bloquean) ----------
@@ -1648,7 +1596,7 @@ function engine(root, api){
           var ids = {}; ok.forEach(function(s){ ids[s.id] = 1; });
           state.skills = state.skills.filter(function(s){ return !ids[s.id]; }).concat(ok);
           state.current = ok[0].id;
-          sel = null; pick = null;
+          sel = null;
         });
         fit();
         toast("Importada" + (ok.length > 1 ? "s " + ok.length + " habilidades" : ": " + ok[0].name));
@@ -1706,11 +1654,11 @@ function engine(root, api){
   // Planes trajo otra versión de los datos (otro dispositivo, otra cuenta): empezar de nuevo con esa.
   function reload(){
     state = api.state();
-    hist = []; fut = []; sel = null; menu = null; pick = null; drag = null; tempWire = null; panelId = null; panelEdit = false;
+    hist = []; fut = []; sel = null; menu = null; drag = null; tempWire = null; panelId = null; panelEdit = false;
     applySide();
     if(api.visible()) show();
   }
-  function busy(){ return !!(editing || drag || pick || notesId !== null || (window.PlanesNotes && window.PlanesNotes.isOpen()) || !$("ask").hidden); }
+  function busy(){ return !!(editing || drag || notesId !== null || (window.PlanesNotes && window.PlanesNotes.isOpen()) || !$("ask").hidden); }
   return { show: show, reload: reload, busy: busy };
 }
 })();

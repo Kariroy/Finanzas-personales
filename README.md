@@ -105,8 +105,8 @@ nodo de Aprender usan el mismo formato y la misma barra para escribir (`planes/n
 `` `código` `` y links.
 La vista **Aprender** (`planes/aprender.js`) organiza habilidades en diagramas: cada habilidad es un
 lienzo con cards **semántico** / **procedimental**, niveles bronce → plata → oro → diamante (con el criterio de
-cada uno), un **objetivo** (qué tiene que salir y cuánto) por card, **requisitos** que bloquean una card hasta
-que la requerida llegue a Plata, y **notas adhesivas** de colores (traba, idea, pregunta, recurso).
+cada uno), líneas que se conectan por cualquiera de los cuatro lados de la card (recta, escalonada o curva;
+continua, con guiones o de puntos) y **notas adhesivas** de colores (traba, idea, pregunta, recurso).
 Se guarda en la cuenta con el resto de Planes.
 
 Comparte con la app de gastos solo la infraestructura:
