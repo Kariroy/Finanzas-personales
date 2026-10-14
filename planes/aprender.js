@@ -1,4 +1,4 @@
-// Aprender: vista de Planes para organizar habilidades en diagramas (cards concepto / acción,
+// Aprender: vista de Planes para organizar habilidades en diagramas (cards semántico / procedimental,
 // niveles bronce → diamante con criterio, objetivo, requisitos que bloquean y notas adhesivas).
 // Se dibuja dentro de un shadow root para que sus estilos e ids no choquen con los de Planes.
 // Los datos viven en el estado de Planes (state.aprender) y se guardan/sincronizan con él.
@@ -21,10 +21,10 @@ function normSkill(s){
   return s;
 }
 
-// Datos guardados con la versión de ruta / poda / técnicas: se pasan a este formato.
-// Tipos: semántico → concepto, procedimental → acción, nodo → sin tipo. «Objetivo: …» al principio de
+// Datos guardados con otras versiones (ruta / poda / técnicas, o concepto / acción): se pasan a este formato.
+// Tipos: concepto → semántico, acción → procedimental, nodo → sin tipo. «Objetivo: …» al principio de
 // las notas vuelve a ser el objetivo. Líneas: parte y flujo → conexiones, requiere → requisitos.
-var OLD_TYPE = { semantico: "concepto", procedimental: "accion", concepto: "concepto", accion: "accion" };
+var OLD_TYPE = { semantico: "semantico", procedimental: "procedimental", concepto: "semantico", accion: "procedimental" };
 function fromLinks(s){
   s.nodes.forEach(function(n){
     if(!n) return;
@@ -72,8 +72,8 @@ function demo(){
   var latte = sk("Latte art", [
     ["la", "Latte art: corazón simétrico", 0, 140],
     ["le", "Leche", 290, 40], ["ve", "Vertido", 290, 260],
-    ["te", "Textura (microespuma)", 580, 0, "accion", "plata"], ["tp", "Temperatura 55–65 °C", 580, 100, "concepto", "oro"],
-    ["al", "Altura y velocidad", 580, 260, "accion", "bronce"], ["co", "Corte final", 580, 380, "accion"]
+    ["te", "Textura (microespuma)", 580, 0, "procedimental", "plata"], ["tp", "Temperatura 55–65 °C", 580, 100, "semantico", "oro"],
+    ["al", "Altura y velocidad", 580, 260, "procedimental", "bronce"], ["co", "Corte final", 580, 380, "procedimental"]
   ], [["la","le"],["la","ve"],["le","te"],["le","tp"],["ve","al"],["ve","co"]], {
     notes: { tp: "Arriba de 65 °C la leche pierde dulzor y la espuma se rompe.\nTermómetro de clip en la jarra hasta que salga de memoria." },
     hearts: { la: "corazón simétrico 8 de 10", tp: "digo la temperatura tocando la jarra, ±5 °C", te: "superficie brillante sin burbujas, 8 de 10" },
@@ -82,8 +82,8 @@ function demo(){
   });
   var dec = sk("Decidir con registro", [
     ["d", "Decidir con registro", 0, 60],
-    ["de", "Detectar decisiones importantes", 290, 0, "accion", "bronce"], ["fo", "Formato de la predicción", 290, 110, "concepto", "diamante"],
-    ["re", "Revisión mensual", 580, 50, "accion"]
+    ["de", "Detectar decisiones importantes", 290, 0, "procedimental", "bronce"], ["fo", "Formato de la predicción", 290, 110, "semantico", "diamante"],
+    ["re", "Revisión mensual", 580, 50, "procedimental"]
   ], [["d","de"],["d","fo"],["de","re"],["fo","re"]], {
     hearts: { d: "predicción escrita en 9 de cada 10 decisiones importantes", fo: "resultado esperado + % de confianza, 10 de 10" }
   });
@@ -111,7 +111,7 @@ var CSS = `
   --bg: #0d1117; --panel: #10151c; --panel-2: #161c24; --card: #151a21; --input: #0b0f14;
   --line: #262e39; --line-2: #323c49; --text: #d6dde6; --muted: #7d8896; --faint: #4b5563;
   --accent: #58a6ff; --teal: #56d4c4; --danger: #f47067;
-  --concepto: #c297ff; --accion: #f0883e;
+  --semantico: #c297ff; --procedimental: #f0883e;
   --bronce: #c98a5a; --plata: #c3ccd6; --oro: #e8c547; --diamante: #7fd8f5;
   --heart: #ef8fb0; --req: #ef8fb0;
   --s-rosa: #f8b6cd; --s-amarillo: #fde68a; --s-azul: #a9d3ff; --s-verde: #b6ebc2; --s-ink: #1f2328;
@@ -243,10 +243,10 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .port:hover { border-color: var(--accent); background: var(--accent); }
 
 /* tipos */
-.card.t-concepto, .card.t-concepto:hover { border-left-color: var(--concepto); border-radius: 22px; padding-left: 16px; padding-right: 16px;
-  background: color-mix(in srgb, var(--concepto) 11%, var(--card)); border-color: color-mix(in srgb, var(--concepto) 28%, var(--line)); }
-.card.t-accion, .card.t-accion:hover { border-left-color: var(--accion);
-  background: color-mix(in srgb, var(--accion) 10%, var(--card)); border-color: color-mix(in srgb, var(--accion) 26%, var(--line)); }
+.card.t-semantico, .card.t-semantico:hover { border-left-color: var(--semantico); border-radius: 22px; padding-left: 16px; padding-right: 16px;
+  background: color-mix(in srgb, var(--semantico) 11%, var(--card)); border-color: color-mix(in srgb, var(--semantico) 28%, var(--line)); }
+.card.t-procedimental, .card.t-procedimental:hover { border-left-color: var(--procedimental);
+  background: color-mix(in srgb, var(--procedimental) 10%, var(--card)); border-color: color-mix(in srgb, var(--procedimental) 26%, var(--line)); }
 /* estado: botón al inicio de la card, como el círculo de estado de Planes (toque = siguiente estado) */
 .card .head { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
 .card .head .title { flex: 1; }
@@ -488,7 +488,7 @@ var HTML = `<div class="layout" id="layoutEl">
       <li><b>Conexión</b> (línea continua) A → B = <b>B es parte de A</b>. Arrastrá el <b>puerto ●</b> del borde derecho a otra card = conectarlas · a un lugar vacío = nuevo nodo.</li>
       <li><b>Requisito</b> (<b style="color:var(--req)">flecha punteada</b>) A ⇢ B = <b>B requiere A</b>. Se crea con el botón <b style="color:var(--req)">⇢</b> de la card y tocando después la card requerida.</li>
       <li><b>🔒 Bloqueada</b>: si alguna card requerida está por debajo de Plata, la card que la requiere se atenúa y no puede subir de nivel. Se desbloquea sola cuando todas llegan a Plata.</li>
-      <li>Tocá una <b>card</b> = menú debajo para elegir <b style="color:var(--concepto)">concepto</b> / <b style="color:var(--accion)">acción</b>.</li>
+      <li>Tocá una <b>card</b> = menú debajo para elegir <b style="color:var(--semantico)">semántico</b> / <b style="color:var(--procedimental)">procedimental</b>.</li>
       <li>Al lado del puntito de notas: <b style="color:var(--heart)">◎ objetivo</b> y <b style="color:var(--req)">⇢ requiere</b> (flechita punteada).</li>
       <li><b style="color:var(--heart)">Objetivo</b> = lo que tiene que salir y cuánto (ej. «corazón simétrico 8 de 10»). Sin objetivo, una card no pasa de Plata.</li>
       <li><b>Estado</b>: tocá el círculo al inicio de la card para subirlo. El nivel de cada card es independiente del de sus partes.</li>
@@ -501,7 +501,7 @@ var HTML = `<div class="layout" id="layoutEl">
     </ul>
     <div class="help-h">Niveles</div>
     <div class="lv-tab">
-      <span></span><span class="h">Acción</span><span class="h">Concepto</span>
+      <span></span><span class="h">Procedimental</span><span class="h">Semántico</span>
       <b style="color:var(--bronce)">Bronce</b><span>lo entiendo o lo hice una vez</span><span>lo leí</span>
       <b style="color:var(--plata)">Plata</b><span>me sale con atención deliberada</span><span>lo recuerdo con ayuda</span>
       <b style="color:var(--oro)">Oro</b><span>cumplo el objetivo de forma consistente</span><span>lo explico sin mirar</span>
@@ -552,15 +552,15 @@ function engine(root, api){
     oro:      { label: "Oro",      color: "var(--oro)" },
     diamante: { label: "Diamante", color: "var(--diamante)" }
   };
-  // Criterio de cada nivel según el tipo (una card sin tipo usa los de acción).
+  // Criterio de cada nivel según el tipo (una card sin tipo usa los de procedimental).
   var CRITERIA = {
-    accion:   { bronce: "lo entiendo o lo hice una vez", plata: "me sale con atención deliberada",
-                oro: "cumplo el objetivo de forma consistente", diamante: "automatizado, me sale mientras pienso en otra cosa" },
-    concepto: { bronce: "lo leí", plata: "lo recuerdo con ayuda", oro: "lo explico sin mirar", diamante: "lo uso sin pensarlo" }
+    procedimental: { bronce: "lo entiendo o lo hice una vez", plata: "me sale con atención deliberada",
+                     oro: "cumplo el objetivo de forma consistente", diamante: "automatizado, me sale mientras pienso en otra cosa" },
+    semantico:     { bronce: "lo leí", plata: "lo recuerdo con ayuda", oro: "lo explico sin mirar", diamante: "lo uso sin pensarlo" }
   };
   var TYPES = {
-    concepto: { label: "Concepto", color: "var(--concepto)" },
-    accion:   { label: "Acción",   color: "var(--accion)" }
+    semantico:     { label: "Semántico",     color: "var(--semantico)" },
+    procedimental: { label: "Procedimental", color: "var(--procedimental)" }
   };
   var STICKY_COLORS = ["rosa", "amarillo", "azul", "verde"];
 
@@ -627,7 +627,7 @@ function engine(root, api){
 
   // ---------- requisitos y bloqueo ----------
   function rank(l){ return Math.max(0, LEVEL_ORDER.indexOf(l || "")); }
-  function criterion(t, l){ return CRITERIA[t.type === "concepto" ? "concepto" : "accion"][l]; }
+  function criterion(t, l){ return CRITERIA[t.type === "semantico" ? "semantico" : "procedimental"][l]; }
   function reqsOf(p, id){ return p.reqs.filter(function(r){ return r.to === id; }).map(function(r){ return r.from; }); }
   // Cards requeridas que todavía están por debajo de Plata.
   function blockers(p, t){ return reqsOf(p, t.id).map(function(id){ return byId(p, id); }).filter(function(x){ return x && rank(x.level) < PLATA; }); }
