@@ -1,5 +1,8 @@
-// Aprender: vista de Planes para organizar habilidades en diagramas (cards concepto / acción,
-// niveles bronce → diamante con criterio, objetivo, requisitos que bloquean y notas adhesivas).
+// Aprender: vista de Planes para aprender una habilidad con el método de 6 pasos:
+// 1) desglosar · 2) clasificar nodos · 3) seleccionar los relevantes · 4) revisar requisitos ·
+// 5) planificar la ruta · 6) aplicar técnicas según el tipo.
+// Cards nodo / semántico / procedimental, niveles bronce → diamante, líneas parte / flujo / requiere
+// (los requisitos bloquean), poda, ruta, técnicas, notas y notas adhesivas.
 // Se dibuja dentro de un shadow root para que sus estilos e ids no choquen con los de Planes.
 // Los datos viven en el estado de Planes (state.aprender) y se guardan/sincronizan con él.
 (function(){
@@ -8,52 +11,87 @@
 // ---------- datos ----------
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
-function newSkillObj(name){ return { id: uid(), name: name, updated: Date.now(), nodes: [], deps: [], reqs: [], stickies: [], view: { x: 60, y: 120, z: 1 } }; }
-// Completa lo que falte (datos guardados con versiones anteriores o importados).
+var KINDS = { parte: 1, flujo: 1, requiere: 1 };
+// Tipos de versiones anteriores → tipos actuales.
+var TYPE_MAP = { semantico: "semantico", procedimental: "procedimental", nodo: "nodo", concepto: "semantico", accion: "procedimental" };
+
+function newSkillObj(name){ return { id: uid(), name: name, updated: Date.now(), nodes: [], links: [], stickies: [], view: { x: 60, y: 120, z: 1 } }; }
+// Completa y migra una card (datos guardados con versiones anteriores o importados).
+function normNode(n){
+  n.type = TYPE_MAP[n.type] || "nodo";
+  // El antiguo «objetivo» (heart) pasa al principio de las notas para no perderlo.
+  if(typeof n.heart === "string" && n.heart.trim())
+    n.notes = "Objetivo: " + n.heart.trim() + (n.notes && String(n.notes).trim() ? "\n\n" + n.notes : "");
+  delete n.heart;
+  if(n.pruned !== true) delete n.pruned;
+  if(typeof n.order !== "number" || !isFinite(n.order)) delete n.order;
+  if(typeof n.technique !== "string" || !n.technique.trim()) delete n.technique;
+  if(n.type === "nodo"){ delete n.technique; delete n.order; }
+  if(n.pruned) delete n.order;
+  return n;
+}
+// Completa y migra una habilidad: deps → links «parte», reqs → links «requiere».
 function normSkill(s){
   s.id = s.id || uid(); s.name = s.name || "Sin nombre"; s.updated = s.updated || Date.now();
-  s.nodes = Array.isArray(s.nodes) ? s.nodes : [];
-  s.deps = Array.isArray(s.deps) ? s.deps : [];
-  s.reqs = Array.isArray(s.reqs) ? s.reqs : [];
+  s.nodes = (Array.isArray(s.nodes) ? s.nodes : []).filter(function(n){ return n && n.id; }).map(normNode);
+  var links = [], seen = {};
+  function add(from, to, kind){
+    var k = from + ">" + to + ">" + kind;
+    if(!from || !to || from === to || seen[k]) return;
+    seen[k] = 1; links.push({ from: from, to: to, kind: kind });
+  }
+  (Array.isArray(s.links) ? s.links : []).forEach(function(l){ if(l) add(l.from, l.to, KINDS[l.kind] ? l.kind : "parte"); });
+  (Array.isArray(s.deps) ? s.deps : []).forEach(function(d){ if(d) add(d.from, d.to, "parte"); });
+  (Array.isArray(s.reqs) ? s.reqs : []).forEach(function(r){ if(r) add(r.from, r.to, "requiere"); });
+  s.links = links;
+  delete s.deps; delete s.reqs;
   s.stickies = Array.isArray(s.stickies) ? s.stickies : [];
   s.view = s.view || { x: 60, y: 120, z: 1 };
+  // La ruta queda numerada 1, 2, 3… sin huecos.
+  s.nodes.filter(function(n){ return n.order != null; }).sort(function(a, b){ return a.order - b.order; })
+    .forEach(function(n, i){ n.order = i + 1; });
   return s;
 }
 
 function demo(){
-  // list: [clave, título, x, y, tipo, nivel] · extra: notes / hearts {clave: texto}, reqs [[requerida, requiere]], stickies
-  function sk(name, list, links, extra){
+  // list: [clave, título, x, y, tipo, nivel, técnica, orden, podada]
+  // extra: notes {clave: texto}, links [[desde, hasta, tipo]], stickies
+  function sk(name, list, extra){
     var s = newSkillObj(name), by = {};
-    extra = extra || {};
     list.forEach(function(x){
-      var n = { id: uid(), title: x[1], x: x[2], y: x[3] };
-      if(x[4]) n.type = x[4]; if(x[5]) n.level = x[5];
+      var n = { id: uid(), title: x[1], x: x[2], y: x[3], type: x[4] || "nodo" };
+      if(x[5]) n.level = x[5]; if(x[6]) n.technique = x[6]; if(x[7]) n.order = x[7]; if(x[8]) n.pruned = true;
       if(extra.notes && extra.notes[x[0]]) n.notes = extra.notes[x[0]];
-      if(extra.hearts && extra.hearts[x[0]]) n.heart = extra.hearts[x[0]];
       s.nodes.push(n); by[x[0]] = n;
     });
-    links.forEach(function(l){ s.deps.push({ from: by[l[0]].id, to: by[l[1]].id }); });
-    (extra.reqs || []).forEach(function(r){ s.reqs.push({ from: by[r[0]].id, to: by[r[1]].id }); });
+    (extra.links || []).forEach(function(l){ s.links.push({ from: by[l[0]].id, to: by[l[1]].id, kind: l[2] || "parte" }); });
     (extra.stickies || []).forEach(function(n){ s.stickies.push(Object.assign({ id: uid() }, n)); });
     return s;
   }
   var latte = sk("Latte art", [
-    ["la", "Latte art: corazón simétrico", 0, 140],
-    ["le", "Leche", 290, 40], ["ve", "Vertido", 290, 260],
-    ["te", "Textura (microespuma)", 580, 0, "accion", "plata"], ["tp", "Temperatura 55–65 °C", 580, 100, "concepto", "oro"],
-    ["al", "Altura y velocidad", 580, 260, "accion", "bronce"], ["co", "Corte final", 580, 380, "accion"]
-  ], [["la","le"],["la","ve"],["le","te"],["le","tp"],["ve","al"],["ve","co"]], {
-    notes: { tp: "Arriba de 65 °C la leche pierde dulzor y la espuma se rompe.\nTermómetro de clip en la jarra hasta que salga de memoria." },
-    hearts: { la: "corazón simétrico 8 de 10", tp: "digo la temperatura tocando la jarra, ±5 °C", te: "superficie brillante sin burbujas, 8 de 10" },
-    reqs: [["al", "co"]],
-    stickies: [{ color: "rosa", text: "cuello: el chorro se corta", x: 840, y: 250, w: 170, h: 90 }]
+    ["la", "Latte art: corazón simétrico", 0, 170],
+    ["le", "Leche", 290, 60], ["ve", "Vertido", 290, 300],
+    ["te", "Textura (microespuma)", 580, 0, "procedimental", "plata", "Aislar y repetir", 1],
+    ["tp", "Temperatura 55–65 °C", 580, 110, "semantico", "oro", "Conectar con lo que sé", 2],
+    ["al", "Altura y velocidad", 580, 250, "procedimental", "bronce", "Lento → velocidad", 3],
+    ["co", "Corte final", 580, 370, "procedimental", null, "Aislar y repetir", 4],
+    ["st", "Dibujos con plantilla", 580, 490, "procedimental", null, null, null, true]
+  ], {
+    notes: {
+      la: "Objetivo: corazón simétrico 8 de 10",
+      tp: "Arriba de 65 °C la leche pierde dulzor y la espuma se rompe.\n- [ ] Termómetro de clip en la jarra\n- [ ] Decir la temperatura tocando la jarra, ±5 °C"
+    },
+    links: [["la","le"],["la","ve"],["le","te"],["le","tp"],["ve","al"],["ve","co"],["ve","st"],["le","ve","flujo"],["al","co","requiere"]],
+    stickies: [{ color: "rosa", text: "cuello: el chorro se corta", x: 860, y: 250, w: 170, h: 90 }]
   });
   var dec = sk("Decidir con registro", [
-    ["d", "Decidir con registro", 0, 60],
-    ["de", "Detectar decisiones importantes", 290, 0, "accion", "bronce"], ["fo", "Formato de la predicción", 290, 110, "concepto", "diamante"],
-    ["re", "Revisión mensual", 580, 50, "accion"]
-  ], [["d","de"],["d","fo"],["de","re"],["fo","re"]], {
-    hearts: { d: "predicción escrita en 9 de cada 10 decisiones importantes", fo: "resultado esperado + % de confianza, 10 de 10" }
+    ["d", "Decidir con registro", 0, 80],
+    ["de", "Detectar decisiones importantes", 290, 0, "procedimental", "bronce", "Mini-juego", 1],
+    ["fo", "Formato de la predicción", 290, 120, "semantico", "diamante", "6 preguntas", 2],
+    ["re", "Revisión mensual", 290, 240, "procedimental", null, "Integrar en variaciones", 3]
+  ], {
+    notes: { d: "Objetivo: predicción escrita en 9 de cada 10 decisiones importantes" },
+    links: [["d","de"],["d","fo"],["d","re"],["de","re","flujo"],["fo","re","requiere"]]
   });
   return [latte, dec];
 }
@@ -79,9 +117,9 @@ var CSS = `
   --bg: #0d1117; --panel: #10151c; --panel-2: #161c24; --card: #151a21; --input: #0b0f14;
   --line: #262e39; --line-2: #323c49; --text: #d6dde6; --muted: #7d8896; --faint: #4b5563;
   --accent: #58a6ff; --teal: #56d4c4; --danger: #f47067;
-  --concepto: #c297ff; --accion: #f0883e;
+  --semantico: #c297ff; --procedimental: #f0883e; --nodo: #7d8896;
   --bronce: #c98a5a; --plata: #c3ccd6; --oro: #e8c547; --diamante: #7fd8f5;
-  --heart: #ef8fb0; --req: #ef8fb0;
+  --req: #ef8fb0; --flow: #8b96a5; --warn: #f0b43e;
   --s-rosa: #f8b6cd; --s-amarillo: #fde68a; --s-azul: #a9d3ff; --s-verde: #b6ebc2; --s-ink: #1f2328;
   --card-w: 230px; --card-h: 56px;
   color-scheme: dark;
@@ -172,15 +210,57 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .topbar { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; align-items: center; gap: 8px; z-index: 6; pointer-events: none; }
 .topbar > * { pointer-events: auto; }
 .topbar .help-btn { margin-left: auto; font-weight: 700; font-size: 14px; }
+.tb-btn { background: rgba(20,26,34,.94); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; cursor: pointer; white-space: nowrap; color: var(--text); }
+.tb-btn:hover { border-color: var(--line-2); }
+.tb-btn.on { border-color: var(--accent); background: #142033; }
+.tb-btn.alert { border-color: var(--warn); color: var(--warn); }
+/* leyenda de líneas */
+.lines-legend { position: absolute; right: 10px; top: 10px; z-index: 5; background: rgba(16,21,28,.94); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 11px; color: var(--muted); }
+.lines-legend button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0; font-weight: 700; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
+.lines-legend .ll { display: grid; grid-template-columns: 34px auto; gap: 4px 8px; align-items: center; margin-top: 6px; }
+.lines-legend.closed .ll { display: none; }
+.lines-legend svg { display: block; }
+/* panel de la ruta */
+.route { position: absolute; right: 10px; top: 56px; bottom: 70px; width: 320px; z-index: 6; background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0,0,0,.45); display: flex; flex-direction: column; overflow: hidden; }
+.ro-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.ro-head b { flex: 1; }
+.ro-head .icon-btn { width: 28px; height: 28px; font-size: 14px; }
+.ro-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+.ro-sec { color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 10px 4px 2px; }
+.ro-item { display: flex; align-items: center; gap: 8px; padding: 7px 6px 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.ro-item.next { border-color: var(--oro); background: color-mix(in srgb, var(--oro) 8%, var(--card)); }
+.ro-item.warn { border-color: var(--warn); }
+.ro-item.off { border-style: dashed; opacity: .8; }
+.ro-n { width: 20px; flex: none; text-align: center; font-weight: 700; color: var(--muted); }
+.ro-item.next .ro-n { color: var(--oro); }
+.ro-main { flex: 1; min-width: 0; cursor: pointer; }
+.ro-t { font-weight: 600; overflow-wrap: anywhere; }
+.ro-sub { color: var(--faint); font-size: 10.5px; margin-top: 2px; display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.ro-sub .w { color: var(--warn); }
+.ro-sub .nx { color: var(--oro); font-weight: 700; }
+.ro-item button { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 3px 5px; font-size: 13px; border-radius: 4px; }
+.ro-item button:hover { color: var(--text); background: var(--panel-2); }
+.ro-item button:disabled { opacity: .3; cursor: default; }
+.ro-empty { color: var(--faint); padding: 10px 6px; line-height: 1.6; }
+/* menú de la línea */
+.toolbar .kind.on { border-color: var(--accent); background: #142033; }
+/* elegir técnica */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 11px; cursor: pointer; font-size: 11.5px; }
+.chips button:hover, .chips button.on { border-color: var(--accent); }
 
 .wire .line { fill: none; stroke: #3a4452; stroke-width: 1.6; }
 .wire .hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
 .wire:hover .line { stroke: #6b7788; }
 .wire.selected .line { stroke: var(--accent); stroke-width: 2.4; }
-/* requisito: flecha punteada, distinta de la conexión "es parte de" */
-.wire.req .line { stroke: var(--req); stroke-dasharray: 6 5; opacity: .8; }
-.wire.req:hover .line { opacity: 1; }
-.wire.req.selected .line { stroke: var(--accent); opacity: 1; }
+/* tipos de línea: parte (continua, sin flecha) · flujo (continua con flecha) · requiere (punteada con flecha) */
+.wire.k-flujo .line { stroke: var(--flow); }
+.wire.k-requiere .line { stroke: var(--req); stroke-dasharray: 6 5; opacity: .85; }
+.wire.k-requiere:hover .line { opacity: 1; }
+.wire.selected .line, .wire.k-requiere.selected .line { stroke: var(--accent); opacity: 1; }
+.temp.k-requiere { stroke: var(--req); }
+.temp.k-parte { stroke-dasharray: none; }
 .temp { fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-dasharray: 5 4; }
 
 .card { position: absolute; width: var(--card-w); min-height: var(--card-h); background: var(--card); border: 1px solid var(--line);
@@ -194,7 +274,21 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .card.blocked .st { cursor: not-allowed; }
 .title { display: block; font-weight: 600; font-size: 12px; line-height: 1.4; min-width: 0; outline: none; overflow-wrap: anywhere; }
 .title[contenteditable="true"] { background: var(--input); border-radius: 3px; padding: 0 3px; margin: 0 -3px; box-shadow: 0 0 0 1px var(--accent); cursor: text; user-select: text; -webkit-user-select: text; }
-.card .heart { margin: 3px 0 0 24px; font-size: 10.5px; line-height: 1.35; color: var(--heart); overflow-wrap: anywhere; }
+.card .tech { display: inline-block; margin: 4px 0 0 24px; padding: 0 6px; border-radius: 4px; font-size: 10px; line-height: 16px; color: var(--muted);
+  background: rgba(255,255,255,.05); border: 1px solid var(--line); max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card.t-nodo .tech { margin-left: 0; }
+/* número de orden en la ruta y la próxima */
+.card .ord { position: absolute; top: -10px; right: -10px; min-width: 21px; height: 21px; padding: 0 5px; border-radius: 11px; display: grid; place-items: center;
+  background: #1f2a36; border: 1px solid var(--line-2); color: var(--text); font-size: 10.5px; font-weight: 700; }
+.card.next .ord { background: var(--oro); border-color: var(--oro); color: #1f2328; }
+.card.next { box-shadow: 0 0 0 2px rgba(232,197,71,.55), 0 0 18px rgba(232,197,71,.22); }
+/* podadas */
+.card.pruned { opacity: .42; border-style: dashed; }
+.card.pruned:hover { opacity: .7; }
+.card.req-alert { opacity: .92; border: 1.5px solid var(--warn) !important; border-left-width: 3px !important; box-shadow: 0 0 0 2px rgba(240,180,62,.25); }
+.card .alert { margin: 5px 0 0; display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--warn); line-height: 1.35; }
+.card .alert span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.card .alert button { flex: none; background: var(--warn); color: #1f2328; border: 0; border-radius: 4px; padding: 2px 7px; font-weight: 700; font-size: 10.5px; cursor: pointer; }
 .meta { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 5px; font-size: 10.5px; color: var(--muted); height: 16px; }
 .meta .kids, .meta .lock { margin-right: auto; color: var(--faint); }
 .meta .lock { color: var(--muted); }
@@ -209,12 +303,21 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .port.out { right: -6.5px; }
 .port.in { left: -8px; }
 .port:hover { border-color: var(--accent); background: var(--accent); }
+/* puntos según el tipo de línea: abajo = flujo, arriba = requiere */
+.port.flow, .port.reqp { top: auto; margin-top: 0; left: 50%; margin-left: -5.5px; opacity: 0; transition: opacity .1s; }
+.port.flow { bottom: -6.5px; border-color: var(--flow); border-radius: 2px; transform: rotate(45deg) scale(.85); }
+.port.reqp { top: -6.5px; border-color: var(--req); }
+.card:hover .port.flow, .card:hover .port.reqp, .card.selected .port.flow, .card.selected .port.reqp { opacity: 1; }
+.port.flow:hover { background: var(--flow); border-color: var(--flow); }
+.port.reqp:hover { background: var(--req); border-color: var(--req); }
 
 /* tipos */
-.card.t-concepto, .card.t-concepto:hover { border-left-color: var(--concepto); border-radius: 22px; padding-left: 16px; padding-right: 16px;
-  background: color-mix(in srgb, var(--concepto) 11%, var(--card)); border-color: color-mix(in srgb, var(--concepto) 28%, var(--line)); }
-.card.t-accion, .card.t-accion:hover { border-left-color: var(--accion);
-  background: color-mix(in srgb, var(--accion) 10%, var(--card)); border-color: color-mix(in srgb, var(--accion) 26%, var(--line)); }
+.card.t-semantico, .card.t-semantico:hover { border-left-color: var(--semantico); border-radius: 22px; padding-left: 16px; padding-right: 16px;
+  background: color-mix(in srgb, var(--semantico) 11%, var(--card)); border-color: color-mix(in srgb, var(--semantico) 28%, var(--line)); }
+.card.t-procedimental, .card.t-procedimental:hover { border-left-color: var(--procedimental);
+  background: color-mix(in srgb, var(--procedimental) 10%, var(--card)); border-color: color-mix(in srgb, var(--procedimental) 26%, var(--line)); }
+.card.t-nodo, .card.t-nodo:hover { border-left-color: var(--nodo); }
+.card.t-nodo.root, .card.t-nodo.root:hover { border-left-color: var(--accent); background: #131c27; }
 /* estado: botón al inicio de la card, como el círculo de estado de Planes (toque = siguiente estado) */
 .card .head { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
 .card .head .title { flex: 1; }
@@ -239,7 +342,6 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .mt { display: inline-flex; align-items: center; background: none; border: 0; padding: 0 2px; cursor: pointer; font-size: 12px; line-height: 1; color: var(--muted); opacity: 0; transition: opacity .1s; }
 .card:hover .mt, .card.selected .mt { opacity: 1; }
 .mt svg { display: block; }
-.mt.goal.has, .mt.goal:hover { color: var(--heart); }
 .mt.req:hover { color: var(--req); }
 .card .note-dot:not(.has) { opacity: 0; }
 .card:hover .note-dot, .card.selected .note-dot { opacity: .7; }
@@ -320,6 +422,8 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .help b { color: var(--text); }
 .help-h { color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-top: 2px; }
 .lv-tab { display: grid; grid-template-columns: auto 1fr 1fr; gap: 3px 10px; font-size: 11px; color: var(--muted); line-height: 1.45; }
+.steps { margin: 0; padding-left: 20px; color: var(--muted); line-height: 1.6; font-size: 11.5px; display: grid; gap: 3px; }
+.steps b { color: var(--text); }
 .lv-tab b { color: var(--text); }
 .lv-tab .h { color: var(--faint); font-weight: 700; }
 .legend { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; font-size: 11.5px; color: var(--muted); align-items: center; }
@@ -337,7 +441,11 @@ button, select, input, textarea { font: inherit; color: inherit; }
   .skill { padding: 11px 10px; }
   .btn { padding: 10px 12px; }
   .btn.sq { width: 42px; }
-  .toolbar .lbl { display: none; }
+  .toolbar .lbl, .topbar .lbl { display: none; }
+  .tb-btn { padding: 10px 11px; }
+  .lines-legend { top: 58px; }
+  .route { left: 8px; right: 8px; width: auto; top: auto; bottom: 74px; max-height: 58%; }
+  .port.flow, .port.reqp { opacity: .8; }
   .icon-btn { width: 40px; height: 40px; }
   .tools button { font-size: 15px; padding: 0 6px; }
   .nm-item { padding: 10px 16px 10px 12px; font-size: 13px; }
@@ -380,6 +488,9 @@ var HTML = `<div class="layout" id="layoutEl">
   <div class="stage">
     <div class="topbar">
       <button class="icon-btn" id="openSide" aria-label="Mostrar u ocultar el panel" title="Mostrar / ocultar panel">☰</button>
+      <button class="tb-btn" id="routeBtn" title="Ruta: el orden en que vas a practicar">🗺<span class="lbl"> Ruta</span></button>
+      <button class="tb-btn" id="prunedBtn" hidden title="Mostrar u ocultar las cards podadas"></button>
+      <button class="tb-btn alert" id="reqAlertBtn" hidden title="Cards podadas que otra card seleccionada requiere"></button>
       <button class="icon-btn help-btn only-mobile" data-help aria-label="Ayuda">?</button>
     </div>
     <main class="canvas" id="canvas">
@@ -389,6 +500,18 @@ var HTML = `<div class="layout" id="layoutEl">
         <div class="stickies" id="stickies"></div>
       </div>
       <div class="nmenu" id="nmenu" hidden></div>
+      <div class="lines-legend" id="legend">
+        <button type="button" id="legendBtn">Líneas ▾</button>
+        <div class="ll">
+          <svg width="34" height="10"><path d="M2 5 H32" stroke="#8b96a5" stroke-width="1.6"/></svg><span>parte de</span>
+          <svg width="34" height="10"><path d="M2 5 H27" stroke="#8b96a5" stroke-width="1.6"/><path d="M26 1.5 L32 5 L26 8.5 Z" fill="#8b96a5"/></svg><span>después viene (flujo)</span>
+          <svg width="34" height="10"><path d="M2 5 H27" stroke="#ef8fb0" stroke-width="1.6" stroke-dasharray="4 3"/><path d="M26 1.5 L32 5 L26 8.5 Z" fill="#ef8fb0"/></svg><span>requiere</span>
+        </div>
+      </div>
+      <div class="route" id="routePanel" hidden>
+        <div class="ro-head"><b>Ruta</b><button class="btn sm" id="routeSuggest" title="Ordenar según los requisitos">Sugerir ruta</button><button class="icon-btn" id="routeClose" aria-label="Cerrar">×</button></div>
+        <div class="ro-list" id="routeList"></div>
+      </div>
       <div class="empty" id="empty" hidden><p></p></div>
       <div class="palette" id="palette" hidden>
         <button class="swatch" data-color="rosa" title="Traba / cuello de botella">traba</button>
@@ -412,8 +535,11 @@ var HTML = `<div class="layout" id="layoutEl">
         <button class="btn" id="multiClear">soltar</button>
       </div>
       <div class="toolbar" id="wireBar" hidden>
-        <button class="btn primary" id="wireDel">× quitar conexión</button>
-        <button class="btn" id="wireCancel">cancelar</button>
+        <button class="btn kind" data-kind="parte" title="B es parte de A">parte</button>
+        <button class="btn kind" data-kind="flujo" title="Después de A viene B">flujo →</button>
+        <button class="btn kind" data-kind="requiere" title="B requiere A">requiere ⇢</button>
+        <button class="btn primary" id="wireDel">× borrar</button>
+        <button class="btn" id="wireCancel">listo</button>
       </div>
       <div class="toolbar pick" id="pickBar" hidden>
         <span id="pickTxt"></span>
@@ -429,6 +555,7 @@ var HTML = `<div class="layout" id="layoutEl">
     <div class="ask-title" id="askTitle"></div>
     <div class="ask-text" id="askText" hidden></div>
     <input type="text" id="askInput" maxlength="160">
+    <div class="chips" id="askChips" hidden></div>
     <textarea id="askArea" readonly hidden></textarea>
     <div class="ask-btns">
       <button type="button" class="btn" id="askCancel">cancelar</button>
@@ -450,31 +577,42 @@ var HTML = `<div class="layout" id="layoutEl">
 
 <div class="ask" id="helpDlg" hidden>
   <div class="ask-box wide">
-    <div class="ask-title">Cómo se usa</div>
+    <div class="ask-title">El método, en 6 pasos</div>
+    <ol class="steps">
+      <li><b>Desglosar</b>: partí la habilidad en cards. Arrastrá el <b>●</b> de la derecha a un lugar vacío (o tocá <b>+</b>) = nueva parte.</li>
+      <li><b>Clasificar</b>: tocá cada card y elegí <b style="color:var(--nodo)">nodo</b> (agrupa), <b style="color:var(--semantico)">semántico</b> (entender o recordar) o <b style="color:var(--procedimental)">procedimental</b> (poder hacer, se repite).</li>
+      <li><b>Seleccionar</b>: lo que no vale la pena ahora, <b>✂ Podar</b> desde el menú de la card. Queda atenuada; arriba podés ocultar las podadas.</li>
+      <li><b>Revisar requisitos</b>: uní con <b style="color:var(--req)">requiere</b> lo que necesita otra cosa antes. Si podaste algo que otra card requiere, se marca con <b style="color:var(--warn)">⚠</b> y lo recuperás en un toque.</li>
+      <li><b>Planificar la ruta</b>: botón <b>🗺 Ruta</b> → <b>Sugerir ruta</b> (respeta los requisitos) y ajustá con ↑ ↓. La <b style="color:var(--oro)">próxima</b> brilla en el lienzo.</li>
+      <li><b>Aplicar técnicas</b>: en el menú de la card, <b>Técnica…</b> con sugerencias según el tipo. Practicá y subí el nivel tocando el círculo.</li>
+    </ol>
+    <div class="help-h">Líneas</div>
     <ul class="help">
-      <li>Cada <b>habilidad</b> del panel izquierdo es un diagrama. Tocala para verla.</li>
-      <li><b>Conexión</b> (línea continua) A → B = <b>B es parte de A</b>. Arrastrá el <b>puerto ●</b> del borde derecho a otra card = conectarlas · a un lugar vacío = nuevo nodo.</li>
-      <li><b>Requisito</b> (<b style="color:var(--req)">flecha punteada</b>) A ⇢ B = <b>B requiere A</b>. Se crea con el botón <b style="color:var(--req)">⇢</b> de la card y tocando después la card requerida.</li>
-      <li><b>🔒 Bloqueada</b>: si alguna card requerida está por debajo de Plata, la card que la requiere se atenúa y no puede subir de nivel. Se desbloquea sola cuando todas llegan a Plata.</li>
-      <li>Tocá una <b>card</b> = menú debajo para elegir <b style="color:var(--concepto)">concepto</b> / <b style="color:var(--accion)">acción</b>.</li>
-      <li>Al lado del puntito de notas: <b style="color:var(--heart)">◎ objetivo</b> y <b style="color:var(--req)">⇢ requiere</b> (flechita punteada).</li>
-      <li><b style="color:var(--heart)">Objetivo</b> = lo que tiene que salir y cuánto (ej. «corazón simétrico 8 de 10»). Sin objetivo, una card no pasa de Plata.</li>
-      <li><b>Estado</b>: tocá el círculo al inicio de la card para subirlo. El nivel de cada card es independiente del de sus partes.</li>
-      <li><b>Notas</b>: el <b>puntito</b> de la card (lleno si tiene notas).</li>
-      <li>Tocá una <b>línea</b> o <b>flecha</b> = seleccionarla para quitarla.</li>
-      <li>Arrastrá la <b>card</b> = moverla · <b>Shift + arrastrar</b> = mover con todas sus partes.</li>
-      <li><b>Doble clic</b> = crear nodo / renombrar · <b>✎</b> renombrar · <b>+</b> nueva parte · <b>×</b> borrar.</li>
-      <li>Arrastrá el fondo = mover · rueda o dos dedos = zoom · <b>⇶</b> reordenar · <b>⤢</b> centrar.</li>
-      <li>Teclado: <b>Tab</b> nueva parte · <b>Supr</b> borrar · <b>Enter</b> renombrar · <b>Ctrl+Z / Ctrl+Y</b>.</li>
+      <li><b>Parte</b> (continua, sin flecha) A — B = <b>B es parte de A</b>. Sale del <b>●</b> de la derecha.</li>
+      <li><b>Flujo</b> (continua con flecha) A → B = <b>después de A viene B</b>. Sale del <b>◆</b> de abajo.</li>
+      <li><b style="color:var(--req)">Requiere</b> (punteada con flecha) A ⇢ B = <b>B requiere A</b>. Sale del <b style="color:var(--req)">●</b> de arriba de la card requisito (o botón <b style="color:var(--req)">⇢</b> de la card que requiere y tocás la otra).</li>
+      <li>Tocá una línea para <b>cambiarle el tipo</b> o borrarla. <b>🔒</b>: si un requisito está por debajo de Plata, la card que lo requiere queda bloqueada y no sube de nivel.</li>
     </ul>
     <div class="help-h">Niveles</div>
     <div class="lv-tab">
-      <span></span><span class="h">Acción</span><span class="h">Concepto</span>
+      <span></span><span class="h">Procedimental</span><span class="h">Semántico</span>
       <b style="color:var(--bronce)">Bronce</b><span>lo entiendo o lo hice una vez</span><span>lo leí</span>
       <b style="color:var(--plata)">Plata</b><span>me sale con atención deliberada</span><span>lo recuerdo con ayuda</span>
-      <b style="color:var(--oro)">Oro</b><span>cumplo el objetivo de forma consistente</span><span>lo explico sin mirar</span>
+      <b style="color:var(--oro)">Oro</b><span>me sale de forma consistente</span><span>lo explico sin mirar</span>
       <b style="color:var(--diamante)">Diamante</b><span>automatizado, me sale mientras pienso en otra cosa</span><span>lo uso sin pensarlo</span>
     </div>
+    <ul class="help"><li>Las cards <b>nodo</b> no tienen nivel ni técnica: agrupan partes.</li></ul>
+    <div class="help-h">Técnicas sugeridas</div>
+    <ul class="help">
+      <li><b style="color:var(--procedimental)">Procedimental</b>: árbol de habilidad · aislar y repetir · lento → velocidad · integrar en variaciones · mini-juego.</li>
+      <li><b style="color:var(--semantico)">Semántico</b>: conectar con lo que sé · mapa de conceptos · 6 preguntas · memorizar (anomalías).</li>
+    </ul>
+    <div class="help-h">Más</div>
+    <ul class="help">
+      <li>Tocá una <b>card</b> = menú (tipo, técnica, podar) y sus notas en el panel. <b>Estado</b>: tocá el círculo para subir el nivel.</li>
+      <li>Arrastrá la card = moverla · <b>Shift</b> = con sus partes · arrastrá el fondo con el mouse = recuadro de selección · rueda o dos dedos = zoom.</li>
+      <li><b>Doble clic</b> = crear / renombrar · <b>Tab</b> nueva parte · <b>Supr</b> borrar · <b>Ctrl+Z / Ctrl+Y</b>.</li>
+    </ul>
     <div class="help-h">Notas adhesivas <span style="font-weight:400;text-transform:none;letter-spacing:0">(botón ▣ nota)</span></div>
     <div class="legend">
       <i style="background:var(--s-rosa)"></i><span><b>Rosa</b>: traba / cuello de botella</span>
@@ -482,8 +620,11 @@ var HTML = `<div class="layout" id="layoutEl">
       <i style="background:var(--s-azul)"></i><span><b>Azul</b>: pregunta / investigar</span>
       <i style="background:var(--s-verde)"></i><span><b>Verde</b>: recurso</span>
     </div>
-    <ul class="help"><li>Arrastrala para moverla · <b>doble toque</b> para escribir · esquina de abajo a la derecha para cambiar el tamaño · <b>×</b> para borrarla.</li>
-      <li>Se guarda en tu cuenta junto con Planes. <b>Exportar</b> guarda una copia en JSON.</li></ul>
+    <div class="help-h">Exportar / importar (JSON)</div>
+    <ul class="help">
+      <li><code>{ "skills": [ { "name", "nodes": [ { "id", "title", "x", "y", "type": "nodo|semantico|procedimental", "level", "technique", "pruned", "order", "notes" } ], "links": [ { "from", "to", "kind": "parte|flujo|requiere" } ], "stickies": [...] } ] }</code></li>
+      <li>Los archivos viejos (concepto / acción, deps / reqs, objetivo) se convierten solos.</li>
+    </ul>
     <div class="ask-btns"><button type="button" class="btn primary" id="helpClose">entendido</button></div>
   </div>
 </div>
@@ -520,15 +661,20 @@ function engine(root, api){
     oro:      { label: "Oro",      color: "var(--oro)" },
     diamante: { label: "Diamante", color: "var(--diamante)" }
   };
-  // Criterio de cada nivel según el tipo (una card sin tipo usa los de acción).
+  // Criterio de cada nivel según el tipo. Las cards nodo no tienen nivel.
   var CRITERIA = {
-    accion:   { bronce: "lo entiendo o lo hice una vez", plata: "me sale con atención deliberada",
-                oro: "cumplo el objetivo de forma consistente", diamante: "automatizado, me sale mientras pienso en otra cosa" },
-    concepto: { bronce: "lo leí", plata: "lo recuerdo con ayuda", oro: "lo explico sin mirar", diamante: "lo uso sin pensarlo" }
+    procedimental: { bronce: "lo entiendo o lo hice una vez", plata: "me sale con atención deliberada",
+                     oro: "me sale de forma consistente", diamante: "automatizado, me sale mientras pienso en otra cosa" },
+    semantico:     { bronce: "lo leí", plata: "lo recuerdo con ayuda", oro: "lo explico sin mirar", diamante: "lo uso sin pensarlo" }
   };
   var TYPES = {
-    concepto: { label: "Concepto", color: "var(--concepto)" },
-    accion:   { label: "Acción",   color: "var(--accion)" }
+    nodo:          { label: "Nodo",          color: "var(--nodo)" },
+    semantico:     { label: "Semántico",     color: "var(--semantico)" },
+    procedimental: { label: "Procedimental", color: "var(--procedimental)" }
+  };
+  var TECHNIQUES = {
+    procedimental: ["Árbol de habilidad", "Aislar y repetir", "Lento → velocidad", "Integrar en variaciones", "Mini-juego"],
+    semantico:     ["Conectar con lo que sé", "Mapa de conceptos", "6 preguntas", "Memorizar (anomalías)"]
   };
   var STICKY_COLORS = ["rosa", "amarillo", "azul", "verde"];
 
@@ -537,12 +683,13 @@ function engine(root, api){
 
   var state = api.state();
   var hist = [], fut = [];
-  var sel = null;          // {node: id} | {dep: {from, to}} | {req: {from, to}} | {sticky: id}
+  var sel = null;          // {node: id} | {link: {from, to, kind}} | {sticky: id}
   var els = {};            // id de nodo → elemento de la card
   var sEls = {};           // id de nota adhesiva → elemento
   var drag = null, pinch = null, pointers = {}, tempWire = null, editing = null;
   var menu = null;         // {id} menú abierto sobre un nodo
   var pick = null;         // {to: id} eligiendo la card que «to» requiere
+  var routeOpen = false, alertIdx = 0;
 
   // Guardar = lo guarda Planes (en el navegador y, con cuenta, en la nube).
   function save(){ api.save(); }
@@ -559,8 +706,14 @@ function engine(root, api){
     for(var i = 0; i < p.stickies.length; i++) if(p.stickies[i].id === id) return p.stickies[i];
     return null;
   }
-  function prereqs(p, id){ return p.deps.filter(function(d){ return d.to === id; }).map(function(d){ return d.from; }); }
-  function dependents(p, id){ return p.deps.filter(function(d){ return d.from === id; }).map(function(d){ return d.to; }); }
+
+  // ---------- líneas: parte (estructura) · flujo (después viene) · requiere (desbloquea) ----------
+  function linksOf(p, kind){ return p.links.filter(function(l){ return l.kind === kind; }); }
+  // Estructura (columnas al reordenar, «→ N partes», mover con Shift): solo «parte».
+  function prereqs(p, id){ return p.links.filter(function(l){ return l.kind === "parte" && l.to === id; }).map(function(l){ return l.from; }); }
+  function dependents(p, id){ return p.links.filter(function(l){ return l.kind === "parte" && l.from === id; }).map(function(l){ return l.to; }); }
+  function sameLink(a, b){ return !!(a && b) && a.from === b.from && a.to === b.to && a.kind === b.kind; }
+  function findLink(p, from, to, kind){ return p.links.filter(function(l){ return sameLink(l, { from: from, to: to, kind: kind }); })[0] || null; }
 
   function reachesIn(list, a, b){
     var seen = {}, stack = [a];
@@ -573,7 +726,6 @@ function engine(root, api){
     }
     return false;
   }
-  function reaches(p, a, b){ return reachesIn(p.deps, a, b); }
   function descendants(p, id){
     var out = {}, stack = [id];
     while(stack.length){
@@ -584,29 +736,93 @@ function engine(root, api){
     }
     return Object.keys(out);
   }
-  function addDep(p, from, to){
-    if(from === to) return false;
-    if(p.deps.some(function(d){ return d.from === from && d.to === to; })){ toast("Esa conexión ya existe"); return false; }
-    if(reaches(p, to, from)){ toast("Eso crearía un ciclo"); return false; }
-    p.deps.push({ from: from, to: to });
-    return true;
-  }
-  function removeDep(p, from, to){ p.deps = p.deps.filter(function(d){ return !(d.from === from && d.to === to); }); }
-
-  // ---------- requisitos y bloqueo ----------
-  function rank(l){ return Math.max(0, LEVEL_ORDER.indexOf(l || "")); }
-  function criterion(t, l){ return CRITERIA[t.type === "concepto" ? "concepto" : "accion"][l]; }
-  function reqsOf(p, id){ return p.reqs.filter(function(r){ return r.to === id; }).map(function(r){ return r.from; }); }
-  // Cards requeridas que todavía están por debajo de Plata.
-  function blockers(p, t){ return reqsOf(p, t.id).map(function(id){ return byId(p, id); }).filter(function(x){ return x && rank(x.level) < PLATA; }); }
-  function blockedSet(p){ var o = {}; if(p) p.nodes.forEach(function(t){ if(blockers(p, t).length) o[t.id] = 1; }); return o; }
-  function addReq(p, from, to){
+  // Agrega una línea si no existe y no cierra un ciclo de su mismo tipo.
+  function addLink(p, from, to, kind){
     var a = byId(p, from), b = byId(p, to);
     if(!a || !b || from === to) return false;
-    if(p.reqs.some(function(r){ return r.from === from && r.to === to; })){ toast("Ese requisito ya existe"); return false; }
-    if(reachesIn(p.reqs, to, from)){ toast("No se puede: «" + a.title + "» ya requiere (directa o indirectamente) a «" + b.title + "»"); return false; }
-    p.reqs.push({ from: from, to: to });
+    if(findLink(p, from, to, kind)){ toast("Esa línea ya existe"); return false; }
+    if(reachesIn(linksOf(p, kind), to, from)){
+      toast(kind === "requiere" ? "Eso crearía un ciclo: «" + a.title + "» ya requiere (directa o indirectamente) a «" + b.title + "»"
+          : kind === "flujo" ? "Eso crearía un ciclo: después de «" + b.title + "» ya viene «" + a.title + "»"
+          : "Eso crearía un ciclo");
+      return false;
+    }
+    p.links.push({ from: from, to: to, kind: kind });
     return true;
+  }
+  function removeLink(p, l){ p.links = p.links.filter(function(x){ return !sameLink(x, l); }); }
+  function linkText(p, l){
+    var a = byId(p, l.from), b = byId(p, l.to);
+    if(!a || !b) return "";
+    return l.kind === "requiere" ? "«" + b.title + "» requiere «" + a.title + "»"
+         : l.kind === "flujo" ? "Después de «" + a.title + "» viene «" + b.title + "»"
+         : "«" + b.title + "» es parte de «" + a.title + "»";
+  }
+
+  // ---------- requisitos y bloqueo (solo «requiere») ----------
+  function rank(l){ return Math.max(0, LEVEL_ORDER.indexOf(l || "")); }
+  function criterion(t, l){ return CRITERIA[t.type === "semantico" ? "semantico" : "procedimental"][l]; }
+  function reqsOf(p, id){ return p.links.filter(function(l){ return l.kind === "requiere" && l.to === id; }).map(function(l){ return l.from; }); }
+  // Requisitos (semánticos o procedimentales) que todavía están por debajo de Plata. Una podada también bloquea.
+  function blockers(p, t){
+    if(t.type === "nodo") return [];
+    return reqsOf(p, t.id).map(function(id){ return byId(p, id); }).filter(function(x){ return x && x.type !== "nodo" && rank(x.level) < PLATA; });
+  }
+  function blockedSet(p){ var o = {}; if(p) p.nodes.forEach(function(t){ if(blockers(p, t).length) o[t.id] = 1; }); return o; }
+  // Cards podadas que una card seleccionada (no podada) requiere: id → títulos de las que la requieren.
+  function reqAlerts(p){
+    var o = {};
+    if(p) p.links.forEach(function(l){
+      if(l.kind !== "requiere") return;
+      var a = byId(p, l.from), b = byId(p, l.to);
+      if(a && b && a.pruned && !b.pruned) (o[a.id] = o[a.id] || []).push(b.title);
+    });
+    return o;
+  }
+  function isHidden(t, alerts){ return !!(t.pruned && state.hidePruned && !alerts[t.id]); }
+
+  // ---------- ruta ----------
+  function eligible(t){ return t.type !== "nodo" && !t.pruned; }
+  function routeList(p){ return p.nodes.filter(function(t){ return t.order != null; }).sort(function(a, b){ return a.order - b.order; }); }
+  // Saca de la ruta lo que ya no corresponde (podadas, nodo) y numera 1, 2, 3…
+  function renumber(p){
+    p.nodes.forEach(function(t){ if(t.order != null && !eligible(t)) delete t.order; });
+    routeList(p).forEach(function(t, i){ t.order = i + 1; });
+  }
+  // La próxima: la primera de la ruta que todavía no está en Oro ni Diamante.
+  function nextCard(p){ return routeList(p).filter(function(t){ return rank(t.level) < ORO; })[0] || null; }
+  // Avisos de la ruta: un requisito que va después o que quedó afuera (y todavía no está en Plata).
+  function routeWarns(p, t){
+    var out = [];
+    reqsOf(p, t.id).forEach(function(id){
+      var r = byId(p, id); if(!r || r.type === "nodo") return;
+      if(r.order != null && r.order > t.order) out.push("va antes que su requisito «" + r.title + "»");
+      else if(r.order == null && rank(r.level) < PLATA) out.push("requiere «" + r.title + "»" + (r.pruned ? " (podada)" : ", que no está en la ruta"));
+    });
+    return out;
+  }
+  // Orden topológico por «requiere» (también a través de cards podadas o nodo).
+  // Empates: primero la que desbloquea más (directa o indirectamente), después por posición.
+  function suggestRoute(p){
+    var el = p.nodes.filter(eligible), req = linksOf(p, "requiere");
+    var after = {}, unlocks = {}, indeg = {};
+    el.forEach(function(a){
+      after[a.id] = el.filter(function(b){ return b !== a && reachesIn(req, a.id, b.id); }).map(function(b){ return b.id; });
+      unlocks[a.id] = after[a.id].length;
+      indeg[a.id] = 0;
+    });
+    el.forEach(function(a){ after[a.id].forEach(function(b){ indeg[b]++; }); });
+    function cmp(a, b){ return unlocks[b.id] - unlocks[a.id] || a.y - b.y || a.x - b.x; }
+    var ready = el.filter(function(t){ return !indeg[t.id]; }), out = [];
+    while(ready.length){
+      ready.sort(cmp);
+      var t = ready.shift();
+      out.push(t);
+      after[t.id].forEach(function(b){ if(--indeg[b] === 0) ready.push(byId(p, b)); });
+    }
+    p.nodes.forEach(function(t){ delete t.order; });
+    out.forEach(function(t, i){ t.order = i + 1; });
+    return out.length;
   }
 
   function overlaps(p, x, y, skip){ return p.nodes.some(function(t){ return t.id !== skip && Math.abs(t.x - x) < W && Math.abs(t.y - y) < H + 4; }); }
@@ -614,7 +830,7 @@ function engine(root, api){
   function snap(v){ return Math.round(v / GRID) * GRID; }
   function makeNode(p, x, y, title){
     var s = freeSpot(p, snap(x), snap(y));
-    var t = { id: uid(), title: title || "Nuevo nodo", x: s.x, y: s.y };
+    var t = { id: uid(), title: title || "Nuevo nodo", x: s.x, y: s.y, type: "nodo" };
     p.nodes.push(t);
     return t;
   }
@@ -689,7 +905,7 @@ function engine(root, api){
   function layout(p){
     var level = {}, order = [], indeg = {};
     p.nodes.forEach(function(t){ indeg[t.id] = 0; level[t.id] = 0; });
-    p.deps.forEach(function(d){ if(indeg[d.to] !== undefined) indeg[d.to]++; });
+    linksOf(p, "parte").forEach(function(d){ if(indeg[d.to] !== undefined) indeg[d.to]++; });
     var queue = p.nodes.filter(function(t){ return !indeg[t.id]; })
       .sort(function(a, b){ return a.y - b.y || a.x - b.x; }).map(function(t){ return t.id; });
     while(queue.length){
@@ -737,8 +953,7 @@ function engine(root, api){
   // ---------- dibujo ----------
   var multi = [];          // selección múltiple de nodos (recuadro o Ctrl+click)
   function isSelNode(id){ return (sel && sel.node === id) || multi.indexOf(id) >= 0; }
-  function isSelDep(d){ return sel && sel.dep && sel.dep.from === d.from && sel.dep.to === d.to; }
-  function isSelReq(r){ return sel && sel.req && sel.req.from === r.from && sel.req.to === r.to; }
+  function isSelLink(l){ return !!(sel && sel.link && sameLink(sel.link, l)); }
 
   function renderAll(){
     renderSkills();
@@ -755,6 +970,8 @@ function engine(root, api){
     renderBars();
     renderMenu();
     renderPanel();
+    renderTop();
+    renderRoute();
   }
 
   function levelTip(p, t, lv, bl){
@@ -773,30 +990,39 @@ function engine(root, api){
       ? "Doble clic (o «+ nodo») para crear el primer nodo."
       : "Creá una habilidad con «+ habilidad».";
     if(!p) return;
+    var alerts = reqAlerts(p), nx = nextCard(p);
     p.nodes.forEach(function(t){
-      var kids = dependents(p, t.id).length;
+      if(isHidden(t, alerts)) return;
+      var kids = dependents(p, t.id).length, nodo = t.type === "nodo";
       var c = document.createElement("div");
-      var ty = TYPES[t.type], lv = LEVELS[t.level], bl = blockers(p, t);
-      c.className = "card" + (ty ? " t-" + t.type : !prereqs(p, t.id).length && kids ? " root" : "") + (lv ? " lv-" + t.level : "") +
-        (bl.length ? " blocked" : "") + (pick && pick.to !== t.id ? " pickable" : "") + (isSelNode(t.id) ? " selected" : "");
+      var lv = nodo ? null : LEVELS[t.level], bl = blockers(p, t), al = alerts[t.id];
+      c.className = "card t-" + t.type + (nodo && !prereqs(p, t.id).length && kids ? " root" : "") + (lv ? " lv-" + t.level : "") +
+        (bl.length ? " blocked" : "") + (t.pruned ? " pruned" : "") + (al ? " req-alert" : "") + (nx === t ? " next" : "") +
+        (pick && pick.to !== t.id ? " pickable" : "") + (isSelNode(t.id) ? " selected" : "");
       c.dataset.id = t.id;
       c.style.left = t.x + "px";
       c.style.top = t.y + "px";
       c.innerHTML =
         '<span class="port in" data-port="in" title="Arrastrá para reconectar o quitar la conexión"></span>' +
-        '<div class="head"><button class="st" data-act="level"></button><span class="title"></span></div>' +
-        (t.heart ? '<div class="heart"></div>' : '') +
+        '<span class="port reqp" data-port="reqp" title="Requiere: arrastrá hasta la card que necesita a esta"></span>' +
+        '<div class="head">' + (nodo ? "" : '<button class="st" data-act="level"></button>') + '<span class="title"></span></div>' +
+        (t.technique && !nodo ? '<div class="tech"></div>' : "") +
+        (al ? '<div class="alert"><span></span><button type="button" data-act="unprune">Recuperar</button></div>' : "") +
         '<div class="meta">' + (bl.length ? '<span class="lock">🔒</span>' : '') + (kids ? '<span class="kids" title="Partes">→ ' + kids + '</span>' : '') +
-          '<button class="mt goal' + (t.heart ? " has" : "") + '" data-act="heart" title="' + (t.heart ? "Editar objetivo" : "Agregar objetivo") + '" aria-label="Objetivo">◎</button>' +
           '<button class="mt req" data-act="req" title="Requiere… (tocá después la card requerida)" aria-label="Requiere"><svg width="15" height="10" viewBox="0 0 15 10" aria-hidden="true"><path d="M1 5 H10" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.5 2" fill="none"/><path d="M9 1.5 L13.5 5 L9 8.5 Z" fill="currentColor"/></svg></button>' +
           noteDot(t) + '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nueva parte (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
         '</div>' +
-        '<span class="port out" data-port="out" title="Arrastrá para conectar"></span>';
+        (t.order != null ? '<span class="ord" title="Orden en la ruta' + (nx === t ? ' · la próxima' : '') + '">' + t.order + '</span>' : "") +
+        '<span class="port out" data-port="out" title="Parte: arrastrá para agregar o conectar una parte"></span>' +
+        '<span class="port flow" data-port="flow" title="Flujo: arrastrá hasta lo que viene después"></span>';
       var st = c.querySelector(".st");
-      st.innerHTML = lv ? '<span class="medal m-' + t.level + '" style="--m:' + lv.color + '"></span>' : "○";
-      st.title = levelTip(p, t, lv, bl);
+      if(st){
+        st.innerHTML = lv ? '<span class="medal m-' + t.level + '" style="--m:' + lv.color + '"></span>' : "○";
+        st.title = levelTip(p, t, lv, bl);
+      }
       c.querySelector(".title").textContent = t.title;
-      if(t.heart){ var hz = c.querySelector(".heart"); hz.textContent = "◎ " + t.heart; hz.title = "Objetivo: " + t.heart; }
+      var tc = c.querySelector(".tech"); if(tc){ tc.textContent = t.technique; tc.title = "Técnica: " + t.technique; }
+      if(al) c.querySelector(".alert span").textContent = "⚠ requerida por: " + al.join(", ");
       if(bl.length) c.querySelector(".lock").title = "Bloqueada: requiere llevar a Plata " + bl.map(function(x){ return "«" + x.title + "»"; }).join(", ");
       cardsEl.appendChild(c);
       els[t.id] = c;
@@ -842,33 +1068,46 @@ function engine(root, api){
     var down = by > ay, off = W * 0.3;   // corrida hacia la derecha para no tapar las conexiones
     return curve(ax + off, down ? a.y + ah : a.y, bx + off, down ? b.y - 4 : b.y + bh + 4, false);
   }
+  // Flujo: de abajo hacia arriba si una está debajo de la otra; si no, de lado a lado.
+  function flowPath(a, b){
+    var ah = cardH(a.id), bh = cardH(b.id), ax = a.x + W / 2, bx = b.x + W / 2;
+    if(b.y >= a.y + ah + 8) return curve(ax, a.y + ah, bx, b.y - 4, false);
+    if(b.y + bh + 8 <= a.y) return curve(ax, a.y, bx, b.y + bh + 4, false);
+    var right = bx >= ax;
+    return curve(right ? a.x + W : a.x, a.y + ah / 2, right ? b.x - 4 : b.x + W + 4, b.y + bh / 2, true);
+  }
+  function linkPath(p, l){
+    var a = byId(p, l.from), b = byId(p, l.to);
+    if(!a || !b) return null;
+    if(l.kind === "requiere") return reqPath(a, b);
+    if(l.kind === "flujo") return flowPath(a, b);
+    return wirePath(a.x + W, a.y + cardH(a.id) / 2, b.x, b.y + cardH(b.id) / 2);
+  }
+  function marker(id, color){
+    return '<marker id="' + id + '" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="' + color + '"/></marker>';
+  }
   function renderWires(){
     var p = cur();
-    var html = '<defs><marker id="reqArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
-      '<path d="M0,0 L10,5 L0,10 z" fill="#ef8fb0"/></marker></defs>';
+    var html = "<defs>" + marker("arReq", "#ef8fb0") + marker("arFlow", "#8b96a5") + marker("arSel", "#58a6ff") + "</defs>";
     if(p){
-      p.deps.forEach(function(d){
-        if(drag && drag.kind === "wire" && drag.hide && drag.hide.from === d.from && drag.hide.to === d.to) return;
-        var a = byId(p, d.from), b = byId(p, d.to);
-        if(!a || !b) return;
-        var path = wirePath(a.x + W, a.y + cardH(a.id) / 2, b.x, b.y + cardH(b.id) / 2);
-        html += '<g class="wire' + (isSelDep(d) ? " selected" : "") + '" data-from="' + d.from + '" data-to="' + d.to + '"><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"/></g>';
-      });
-      p.reqs.forEach(function(r){
-        var a = byId(p, r.from), b = byId(p, r.to);
-        if(!a || !b) return;
-        var path = reqPath(a, b);
-        html += '<g class="wire req' + (isSelReq(r) ? " selected" : "") + '" data-rfrom="' + r.from + '" data-rto="' + r.to + '"><title>«' +
-          esc(b.title) + '» requiere «' + esc(a.title) + '»</title><path class="hit" d="' + path + '"/><path class="line" d="' + path + '" marker-end="url(#reqArrow)"/></g>';
+      var alerts = reqAlerts(p);
+      p.links.forEach(function(l){
+        if(drag && drag.kind === "wire" && sameLink(drag.hide, l)) return;
+        var a = byId(p, l.from), b = byId(p, l.to);
+        if(!a || !b || isHidden(a, alerts) || isHidden(b, alerts)) return;
+        var path = linkPath(p, l), on = isSelLink(l);
+        var mk = l.kind === "parte" ? "" : ' marker-end="url(#' + (on ? "arSel" : l.kind === "requiere" ? "arReq" : "arFlow") + ')"';
+        html += '<g class="wire k-' + l.kind + (on ? " selected" : "") + '" data-from="' + l.from + '" data-to="' + l.to + '" data-kind="' + l.kind + '"><title>' +
+          esc(linkText(p, l)) + '</title><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"' + mk + '/></g>';
       });
     }
-    if(tempWire) html += '<path class="temp" d="' + tempWire + '"/>';
+    if(tempWire) html += '<path class="temp k-' + tempWire.kind + '" d="' + tempWire.d + '"/>';
     wiresEl.innerHTML = html;
   }
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return "&#" + c.charCodeAt(0) + ";"; }); }
-  // Barra de abajo: normal · línea o flecha seleccionada · eligiendo requisito.
+  // Barra de abajo: normal · línea seleccionada (cambiar tipo o borrar) · eligiendo requisito.
   function renderBars(){
-    var line = !!(sel && (sel.dep || sel.req));
+    var line = !!(sel && sel.link);
     var p0 = cur();
     if(p0) multi = multi.filter(function(id){ return byId(p0, id); });
     var many = !pick && multi.length > 1;
@@ -878,36 +1117,75 @@ function engine(root, api){
     $("wireBar").hidden = !!pick || many || !line;
     $("toolbar").hidden = !!pick || many || line;
     if(pick || line) $("palette").hidden = true;
-    $("wireDel").textContent = sel && sel.req ? "× quitar requisito" : "× quitar conexión";
+    Array.prototype.forEach.call(root.querySelectorAll("#wireBar .kind"), function(b){ b.classList.toggle("on", line && sel.link.kind === b.dataset.kind); });
     if(pick){ var t = cur() && byId(cur(), pick.to); $("pickTxt").textContent = "Tocá la card que «" + (t ? t.title : "") + "» requiere"; }
   }
+  // Cambiar el tipo de la línea elegida (se revisa que no cierre un ciclo).
+  function setKind(kind){
+    var l = sel && sel.link; if(!l || l.kind === kind) return;
+    var ok = false;
+    change(function(p){
+      removeLink(p, l);
+      ok = addLink(p, l.from, l.to, kind);
+      if(!ok){ p.links.push(l); return false; }
+      sel = { link: { from: l.from, to: l.to, kind: kind } };
+    });
+    if(ok) toast(linkText(cur(), sel.link));
+  }
 
-  // ---------- menú del nodo: el tipo, en fila debajo de la card ----------
+  // Botones de arriba: ruta, podadas (mostrar / ocultar) y requisitos podados.
+  function renderTop(){
+    var p = cur();
+    $("routeBtn").disabled = !p;
+    $("routeBtn").classList.toggle("on", routeOpen && !!p);
+    var np = p ? p.nodes.filter(function(t){ return t.pruned; }).length : 0;
+    var pb = $("prunedBtn");
+    pb.hidden = !np;
+    pb.classList.toggle("on", !!state.hidePruned);
+    pb.innerHTML = "✂ " + np + '<span class="lbl"> podada' + (np === 1 ? "" : "s") + (state.hidePruned ? " · ocultas" : "") + "</span>";
+    pb.title = state.hidePruned ? "Mostrar las cards podadas" : "Ocultar las cards podadas";
+    var na = p ? Object.keys(reqAlerts(p)).length : 0, ab = $("reqAlertBtn");
+    ab.hidden = !na;
+    ab.innerHTML = "⚠ " + na + '<span class="lbl"> requisito' + (na === 1 ? "" : "s") + " podado" + (na === 1 ? "" : "s") + "</span>";
+    var closed = state.legendClosed === undefined ? isMobile() : !!state.legendClosed;
+    $("legend").classList.toggle("closed", closed);
+    $("legendBtn").textContent = "Líneas " + (closed ? "▸" : "▾");
+    $("legend").hidden = !p || routeOpen;   // la ruta ocupa ese rincón
+  }
+
+  // ---------- menú del nodo: tipo en una fila y, debajo, técnica y podar ----------
   function openMenu(id){ menu = { id: id }; renderMenu(); }
   function closeMenu(){ if(!menu) return; menu = null; renderMenu(); }
   function renderMenu(){
     var box = $("nmenu"), p = cur(), t = menu && p && byId(p, menu.id);
     if(!t || !els[menu.id]){ menu = null; box.hidden = true; box.innerHTML = ""; return; }
     var items = Object.keys(TYPES).map(function(k){
-      return { act: "set", val: k, on: t.type === k, color: TYPES[k].color, html: '<span class="dot"></span>' + TYPES[k].label };
-    }).concat([{ act: "set", val: "", on: !t.type, html: '<span class="dot"></span>Sin tipo' }]);
+      return { act: "set", val: k, on: t.type === k, color: TYPES[k].color, html: '<span class="dot"></span>' + TYPES[k].label, row: 0 };
+    });
+    if(t.type !== "nodo") items.push({ act: "tech", html: "🛠 " + (t.technique ? "Técnica: " + esc(t.technique) : "Técnica…"), row: 1, on: !!t.technique });
+    items.push(t.pruned ? { act: "unprune", html: "↺ Recuperar", row: 1 } : { act: "prune", html: "✂ Podar", row: 1 });
     box.innerHTML = items.map(function(it, i){
-      return '<button type="button" class="nm-item' + (it.on ? " on" : "") + (it.cls ? " " + it.cls : "") + '" style="--i:' + i + (it.color ? ";--c:" + it.color : "") +
-        '" data-menu="' + it.act + '" data-val="' + (it.val || "") + '">' + it.html + "</button>";
+      return '<button type="button" class="nm-item' + (it.on ? " on" : "") + '" style="--i:' + i + (it.color ? ";--c:" + it.color : "") +
+        '" data-row="' + it.row + '" data-menu="' + it.act + '" data-val="' + (it.val || "") + '">' + it.html + "</button>";
     }).join("");
     box.hidden = false;
     placeMenu();
   }
-  // Los botones salen debajo de la card, uno al lado del otro.
+  // Los botones salen debajo de la card, uno al lado del otro, en dos filas.
   function placeMenu(){
     var box = $("nmenu");
     if(!menu || box.hidden || !els[menu.id]) return;
     var cr = canvas.getBoundingClientRect(), r = els[menu.id].getBoundingClientRect(), gap = 6;
-    var kids = Array.prototype.slice.call(box.children);
-    var total = kids.reduce(function(a, b){ return a + b.offsetWidth; }, 0) + gap * (kids.length - 1);
-    var x = r.left - cr.left, y = r.bottom - cr.top + 8;
-    x = Math.max(8, Math.min(x, cr.width - 8 - total));   // que no se salga por la derecha
-    kids.forEach(function(b){ b.style.left = x + "px"; b.style.top = y + "px"; x += b.offsetWidth + gap; });
+    var y = r.bottom - cr.top + 8;
+    [0, 1].forEach(function(row){
+      var kids = Array.prototype.filter.call(box.children, function(b){ return b.dataset.row === String(row); });
+      if(!kids.length) return;
+      var total = kids.reduce(function(a, b){ return a + b.offsetWidth; }, 0) + gap * (kids.length - 1);
+      var x = Math.max(8, Math.min(r.left - cr.left, cr.width - 8 - total));   // que no se salga por la derecha
+      var h = 0;
+      kids.forEach(function(b){ b.style.left = x + "px"; b.style.top = y + "px"; x += b.offsetWidth + gap; h = Math.max(h, b.offsetHeight); });
+      y += h + gap;
+    });
   }
   $("nmenu").addEventListener("pointerdown", function(e){ e.stopPropagation(); });
   $("nmenu").addEventListener("dblclick", function(e){ e.stopPropagation(); });
@@ -917,11 +1195,29 @@ function engine(root, api){
     var act = b.dataset.menu;
     menu = null;
     if(act === "set"){
-      var v = b.dataset.val || null;
-      if((t.type || null) !== v) change(function(){ if(v) t.type = v; else delete t.type; });
-      else renderMenu();
+      var v = b.dataset.val;
+      if(t.type === v){ renderMenu(); return; }
+      var hadOrder = t.order != null;
+      change(function(p){ t.type = v; if(v === "nodo"){ delete t.technique; renumber(p); } });
+      if(v === "nodo" && hadOrder) toast("Las cards nodo no van en la ruta: salió de la ruta");
     }
+    else if(act === "tech") editTechnique(t.id);
+    else if(act === "prune") setPruned(t.id, true);
+    else if(act === "unprune") setPruned(t.id, false);
   });
+  function setPruned(id, on){
+    var t = byId(cur(), id); if(!t || !!t.pruned === on) return;
+    change(function(p){ if(on){ t.pruned = true; renumber(p); } else delete t.pruned; });
+    toast(on ? "Podada: «" + t.title + "»" + (state.hidePruned ? " (oculta)" : "") : "Recuperada: «" + t.title + "»");
+  }
+  function editTechnique(id){
+    var t = byId(cur(), id); if(!t || t.type === "nodo") return;
+    ask({ title: "Técnica para «" + t.title + "»", text: "Elegí una sugerida o escribí la tuya. Vacío = sin técnica.",
+          input: t.technique || "", placeholder: "Técnica…", ok: "guardar", allowEmpty: true, chips: TECHNIQUES[t.type] }, function(v){
+      if(v === (t.technique || "")) return;
+      change(function(){ if(v) t.technique = v; else delete t.technique; });
+    });
+  }
 
   // ---------- requisito: elegir la otra card ----------
   function startPick(id){ pick = { to: id }; select(null); renderCards(); renderWires(); renderBars(); }
@@ -931,49 +1227,33 @@ function engine(root, api){
     if(!to || fromId === to){ renderCards(); renderBars(); return; }
     var a = byId(p, fromId), b = byId(p, to);
     var ok = false;
-    change(function(){ ok = addReq(p, fromId, to); return ok; });
+    change(function(){ ok = addLink(p, fromId, to, "requiere"); return ok; });
     if(!ok){ renderCards(); renderBars(); return; }
-    toast("«" + b.title + "» requiere «" + a.title + "»" + (rank(a.level) < PLATA ? " · queda bloqueada" : ""));
+    toast("«" + b.title + "» requiere «" + a.title + "»" + (blockers(p, b).length ? " · queda bloqueada" : ""));
   }
   $("pickCancel").addEventListener("click", endPick);
 
   // ---------- estado (toque en el círculo = siguiente estado) ----------
   function setLevel(id, next){
-    var p = cur(), t = byId(p, id); if(!t) return;
+    var p = cur(), t = byId(p, id); if(!t || t.type === "nodo") return;
     if(rank(next) > rank(t.level)){
       var bl = blockers(p, t);
       if(bl.length){ toast("🔒 Bloqueada: primero llevá a Plata " + bl.map(function(x){ return "«" + x.title + "»"; }).join(", ")); return; }
-      if(rank(next) >= ORO && !(t.heart && t.heart.trim())){
-        ask({ title: "Para pasar a " + LEVELS[next].label + ", escribí el objetivo de «" + t.title + "»",
-              text: "Qué tiene que salir y cuánto. Ej.: corazón simétrico 8 de 10.", input: "", placeholder: "Objetivo…", ok: "guardar y subir" }, function(v){
-          change(function(){ t.heart = v; t.level = next; });
-          toast("Estado: " + LEVELS[next].label);
-        });
-        return;
-      }
     }
     change(function(){ if(next) t.level = next; else delete t.level; });
-    toast(next ? "Estado: " + LEVELS[next].label : "Sin estado");
+    toast(next ? LEVELS[next].label + ": " + criterion(t, next) : "Sin estado");
   }
   function cycleLevel(id){
     var t = byId(cur(), id); if(!t) return;
     setLevel(id, LEVEL_ORDER[(rank(t.level) + 1) % LEVEL_ORDER.length]);
   }
-  function editHeart(id){
-    var t = byId(cur(), id); if(!t) return;
-    ask({ title: "Objetivo de «" + t.title + "»", text: "Qué tiene que salir y cuánto, ej.: corazón simétrico 8 de 10. Dejalo vacío para quitarlo.",
-          input: t.heart || "", placeholder: "Objetivo…", ok: "guardar", allowEmpty: true }, function(v){
-      if(v === (t.heart || "")) return;
-      var drop = !v && rank(t.level) >= ORO;
-      change(function(){ if(v) t.heart = v; else delete t.heart; if(drop) t.level = "plata"; });
-      if(drop) toast("Sin objetivo no puede estar en Oro: bajó a Plata");
-    });
-  }
-  // Progreso de la habilidad: bronce 25 %, plata 50 %, oro 75 %, diamante 100 % por nodo, promediado.
+  // Progreso de la habilidad: bronce 25 %, plata 50 %, oro 75 %, diamante 100 % por card
+  // semántica o procedimental (no podada), promediado.
   function progress(p){
-    if(!p.nodes.length) return 0;
-    var sum = p.nodes.reduce(function(a, t){ return a + rank(t.level) * 25; }, 0);
-    return Math.round(sum / p.nodes.length);
+    var list = p.nodes.filter(function(t){ return t.type !== "nodo" && !t.pruned; });
+    if(!list.length) return 0;
+    var sum = list.reduce(function(a, t){ return a + rank(t.level) * 25; }, 0);
+    return Math.round(sum / list.length);
   }
 
   // ---------- notas de los nodos (como en Planes) ----------
@@ -1206,7 +1486,7 @@ function engine(root, api){
       var ys = dependents(p, id).map(function(k){ return byId(p, k).y; });
       var y = ys.length ? Math.max.apply(null, ys) + H + GY : parent.y;
       t = makeNode(p, parent.x + W + GX, y);
-      p.deps.push({ from: id, to: t.id });
+      p.links.push({ from: id, to: t.id, kind: "parte" });
       sel = { node: t.id };
     });
     if(t){ ensureVisible(t); startEdit(t.id); }
@@ -1225,8 +1505,8 @@ function engine(root, api){
     var ids = multi.slice();
     change(function(p){
       p.nodes = p.nodes.filter(function(t){ return ids.indexOf(t.id) < 0; });
-      p.deps = p.deps.filter(function(d){ return ids.indexOf(d.from) < 0 && ids.indexOf(d.to) < 0; });
-      p.reqs = p.reqs.filter(function(r){ return ids.indexOf(r.from) < 0 && ids.indexOf(r.to) < 0; });
+      p.links = p.links.filter(function(d){ return ids.indexOf(d.from) < 0 && ids.indexOf(d.to) < 0; });
+      renumber(p);
       multi = []; sel = null;
     });
     toast(ids.length + " cards borradas · Ctrl+Z para deshacer");
@@ -1253,18 +1533,14 @@ function engine(root, api){
       var id = sel.node;
       change(function(p){
         p.nodes = p.nodes.filter(function(t){ return t.id !== id; });
-        p.deps = p.deps.filter(function(d){ return d.from !== id && d.to !== id; });
-        p.reqs = p.reqs.filter(function(r){ return r.from !== id && r.to !== id; });
+        p.links = p.links.filter(function(d){ return d.from !== id && d.to !== id; });
+        renumber(p);
         sel = null;
       });
-    } else if(sel.dep){
-      var d = sel.dep;
-      change(function(p){ removeDep(p, d.from, d.to); sel = null; });
-      toast("Conexión quitada");
-    } else if(sel.req){
-      var q = sel.req;
-      change(function(p){ p.reqs = p.reqs.filter(function(r){ return !(r.from === q.from && r.to === q.to); }); sel = null; });
-      toast("Requisito quitado");
+    } else if(sel.link){
+      var l = sel.link;
+      change(function(p){ removeLink(p, l); sel = null; });
+      toast(l.kind === "requiere" ? "Requisito quitado" : "Línea borrada");
     } else if(sel.sticky){
       var sid = sel.sticky;
       change(function(p){ p.stickies = p.stickies.filter(function(s){ return s.id !== sid; }); sel = null; });
@@ -1335,12 +1611,13 @@ function engine(root, api){
       else drag = Object.assign(base, { kind: "smove", s: s, x: s.x, y: s.y });
       if(!(sel && sel.sticky === s.id)) select({ sticky: s.id });
     } else if(port && card && !pick){
-      var id = card.dataset.id;
-      if(port.dataset.port === "out") drag = Object.assign(base, { kind: "wire", from: id });
+      var id = card.dataset.id, pt = port.dataset.port;
+      // Cada punto crea su tipo de línea: ● derecha = parte · ◆ abajo = flujo · ● arriba (rosa) = requiere.
+      if(pt === "out" || pt === "flow" || pt === "reqp") drag = Object.assign(base, { kind: "wire", from: id, lk: pt === "out" ? "parte" : pt === "flow" ? "flujo" : "requiere" });
       else {
         var inc = prereqs(p, id);
         if(!inc.length) drag = moveDrag(base, id, e.shiftKey);
-        else drag = Object.assign(base, { kind: "wire", from: inc[inc.length - 1], hide: { from: inc[inc.length - 1], to: id } });
+        else drag = Object.assign(base, { kind: "wire", from: inc[inc.length - 1], lk: "parte", hide: { from: inc[inc.length - 1], to: id, kind: "parte" } });
       }
     } else if(card && !pick && (e.ctrlKey || e.metaKey)){
       // Ctrl/⌘ + click: sumar o sacar de la selección múltiple.
@@ -1356,8 +1633,8 @@ function engine(root, api){
       drag = moveDrag(base, card.dataset.id, e.shiftKey);
       if(!pick && (!isSelNode(card.dataset.id) || multi.length)) select({ node: card.dataset.id });
     } else if(wire && !pick){
-      if(wire.dataset.rfrom) select({ req: { from: wire.dataset.rfrom, to: wire.dataset.rto } });
-      else select({ dep: { from: wire.dataset.from, to: wire.dataset.to } });
+      closeMenu();
+      select({ link: { from: wire.dataset.from, to: wire.dataset.to, kind: wire.dataset.kind } });
       return;
     } else if(mouse && !pick){
       // Mantener click y arrastrar sobre el fondo = recuadro de selección.
@@ -1418,10 +1695,13 @@ function engine(root, api){
       if(drag.kind === "smove"){ s.x = snap(drag.x + dx / v.z); s.y = snap(drag.y + dy / v.z); if(el){ el.style.left = s.x + "px"; el.style.top = s.y + "px"; } }
       else { s.w = Math.max(90, Math.round(drag.w + dx / v.z)); s.h = Math.max(60, Math.round(drag.h + dy / v.z)); if(el){ el.style.width = s.w + "px"; el.style.height = s.h + "px"; } }
     } else if(drag.kind === "wire"){
-      var a2 = byId(cur(), drag.from), w = toWorld(e.clientX, e.clientY);
+      var a2 = byId(cur(), drag.from), w = toWorld(e.clientX, e.clientY), lk = drag.lk;
       var target = dropTarget(e, drag.from);
-      if(target){ var tt = byId(cur(), target); w = { x: tt.x, y: tt.y + cardH(tt.id) / 2 }; }
-      tempWire = wirePath(a2.x + W, a2.y + cardH(a2.id) / 2, w.x, w.y);
+      if(target){ var tt = byId(cur(), target); w = lk === "parte" ? { x: tt.x, y: tt.y + cardH(tt.id) / 2 } : { x: tt.x + W / 2, y: w.y < tt.y + cardH(tt.id) / 2 ? tt.y : tt.y + cardH(tt.id) }; }
+      var ah = cardH(a2.id);
+      tempWire = { kind: lk, d: lk === "parte" ? wirePath(a2.x + W, a2.y + ah / 2, w.x, w.y)
+        : lk === "flujo" ? curve(a2.x + W / 2, a2.y + ah, w.x, w.y, false)
+        : curve(a2.x + W / 2, a2.y, w.x, w.y, false) };
       Object.keys(els).forEach(function(k){ els[k].classList.toggle("drop", k === target); });
       renderWires();
     }
@@ -1458,9 +1738,7 @@ function engine(root, api){
       else if(pick) finishPick(d.id);
       else {
         // toque en una card = abrir / cerrar su menú · doble toque (celular) = renombrar
-        if(isDoubleTap(e, d.id)){ closeMenu(); startEdit(d.id); }
-        else if(menu && menu.id === d.id) closeMenu(); else openMenu(d.id);
-        if(sideNotesOn() && panelId !== d.id) showPanel(d.id, false);
+        tapCard(e, d.id);
       }
     } else if(d.kind === "wire"){
       tempWire = null;
@@ -1468,23 +1746,30 @@ function engine(root, api){
       if(d.hide){
         if(!d.moved || target === d.hide.to){ renderAll(); return; }
         pushHist(d.before);
-        removeDep(p, d.hide.from, d.hide.to);
-        if(target){ if(!addDep(p, d.from, target)) p.deps.push(d.hide); }
+        removeLink(p, d.hide);
+        if(target){ if(!addLink(p, d.from, target, "parte")) p.links.push(d.hide); }
         else toast("Conexión quitada");
         p.updated = Date.now(); save(); renderAll();
       } else if(target){
-        change(function(){ return addDep(p, d.from, target); });
+        var added = false;
+        change(function(){ return (added = addLink(p, d.from, target, d.lk)); });
         renderAll();
+        if(added && d.lk !== "parte") toast(linkText(p, { from: d.from, to: target, kind: d.lk }) + (d.lk === "requiere" && blockers(p, byId(p, target)).length ? " · queda bloqueada" : ""));
       } else if(d.moved){
         var w = toWorld(e.clientX, e.clientY), t;
         change(function(){
-          t = makeNode(p, w.x, w.y - H / 2);
-          p.deps.push({ from: d.from, to: t.id });
+          t = makeNode(p, d.lk === "parte" ? w.x : w.x - W / 2, d.lk === "flujo" ? w.y : d.lk === "requiere" ? w.y - H : w.y - H / 2);
+          p.links.push({ from: d.from, to: t.id, kind: d.lk });
           sel = { node: t.id };
         });
         startEdit(t.id);
-      } else renderAll();
+      } else { renderAll(); tapCard(e, d.from); }   // tocar un punto sin arrastrar = tocar la card
     }
+  }
+  function tapCard(e, id){
+    if(isDoubleTap(e, id)){ closeMenu(); startEdit(id); }
+    else if(menu && menu.id === id) closeMenu(); else openMenu(id);
+    if(sideNotesOn() && panelId !== id) showPanel(id, false);
   }
   canvas.addEventListener("pointerup", endPointer);
   canvas.addEventListener("pointercancel", endPointer);
@@ -1504,7 +1789,7 @@ function engine(root, api){
       if(sideNotesOn()){ var nt = byId(cur(), id); showPanel(id, !(nt && nt.notes && nt.notes.trim())); }
       else openNotes(id);
     }
-    else if(act === "heart"){ closeMenu(); editHeart(id); }
+    else if(act === "unprune") setPruned(id, false);
     else if(act === "req"){ closeMenu(); startPick(id); }
     else if(act === "del"){
       var p = cur(), t = byId(p, id), k = dependents(p, id).length;
@@ -1558,13 +1843,18 @@ function engine(root, api){
     input.value = o.input || "";
     input.placeholder = o.placeholder || "";
     area.hidden = o.area === undefined; area.value = o.area || "";
+    var chips = $("askChips");
+    chips.hidden = !(o.chips && o.chips.length);
+    chips.innerHTML = (o.chips || []).map(function(c){ return '<button type="button"' + (c === o.input ? ' class="on"' : "") + ">" + esc(c) + "</button>"; }).join("");
+    // Tocar una sugerencia = elegirla.
+    chips.onclick = function(e){ var b = e.target.closest("button"); if(!b) return; input.value = b.textContent; accept(); };
     $("askBox").classList.toggle("wide", o.area !== undefined);
     $("askOk").textContent = o.ok || "aceptar";
     $("askOk").classList.toggle("danger", !!o.danger);
     $("askCancel").textContent = o.cancel || "cancelar";
     box.hidden = false;
     setTimeout(function(){ if(input.hidden) $("askOk").focus(); else { input.focus(); input.select(); } }, 30);
-    function close(){ box.hidden = true; $("askOk").onclick = $("askCancel").onclick = box.onclick = box.onkeydown = null; }
+    function close(){ box.hidden = true; $("askOk").onclick = $("askCancel").onclick = box.onclick = box.onkeydown = chips.onclick = null; }
     function accept(){
       var v = input.value.replace(/\s+/g, " ").trim();
       if(!input.hidden && !v && !o.allowEmpty){ input.focus(); return; }
@@ -1583,7 +1873,7 @@ function engine(root, api){
   // ---------- exportar / importar ----------
   function exportJSON(){
     closeSideMobile();
-    var json = JSON.stringify({ app: "aprender", version: 3, skills: state.skills }, null, 2);
+    var json = JSON.stringify({ app: "aprender", version: 4, skills: state.skills }, null, 2);
     // Se puede descargar salvo dentro de un marco de otro sitio (ej. una vista previa); dentro de Planes sí.
     var canDownload = true;
     try { if(window.self !== window.top) canDownload = !!window.top.location.href; } catch(e){ canDownload = false; }
@@ -1646,6 +1936,98 @@ function engine(root, api){
   $("zoomIn").addEventListener("click", function(){ var r = canvas.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.2); });
   $("zoomOut").addEventListener("click", function(){ var r = canvas.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2); });
   $("wireDel").addEventListener("click", deleteSelected);
+  Array.prototype.forEach.call(root.querySelectorAll("#wireBar .kind"), function(b){ b.addEventListener("click", function(){ setKind(b.dataset.kind); }); });
+
+  // ---------- arriba: podadas, requisitos podados, leyenda ----------
+  $("prunedBtn").addEventListener("click", function(){
+    state.hidePruned = !state.hidePruned;
+    if(state.hidePruned && sel && sel.node){ var t = byId(cur(), sel.node); if(t && t.pruned) sel = null; }
+    closeMenu(); save(); renderAll();
+  });
+  function centerOn(t){
+    var r = canvas.getBoundingClientRect(), v = view();
+    v.x = r.width / 2 - (t.x + W / 2) * v.z;
+    v.y = r.height / 2 - (t.y + cardH(t.id) / 2) * v.z;
+    applyView(); saveSoon();
+  }
+  // Cada toque lleva a la siguiente card podada que hace falta recuperar.
+  $("reqAlertBtn").addEventListener("click", function(){
+    var p = cur(); if(!p) return;
+    var al = reqAlerts(p), list = p.nodes.filter(function(t){ return al[t.id]; }).sort(function(a, b){ return a.y - b.y || a.x - b.x; });
+    if(!list.length) return;
+    var t = list[alertIdx++ % list.length];
+    closeMenu(); select({ node: t.id }); centerOn(t);
+    toast("«" + t.title + "» está podada y la requiere: " + al[t.id].join(", "));
+  });
+  $("legendBtn").addEventListener("click", function(){
+    state.legendClosed = !$("legend").classList.contains("closed");
+    save(); renderTop();
+  });
+  ["legend", "routePanel"].forEach(function(id){
+    ["pointerdown", "dblclick", "wheel"].forEach(function(ev){ $(id).addEventListener(ev, function(e){ e.stopPropagation(); }, { passive: true }); });
+  });
+
+  // ---------- ruta ----------
+  function renderRoute(){
+    var p = cur(), box = $("routePanel");
+    box.hidden = !routeOpen || !p;
+    if(box.hidden) return;
+    var list = routeList(p), nx = nextCard(p), html = "";
+    function sub(t, warns){
+      var ty = TYPES[t.type], lv = LEVELS[t.level];
+      return '<div class="ro-sub"><span style="color:' + ty.color + '">' + ty.label + "</span>" +
+        "<span>" + (lv ? '<b style="color:' + lv.color + '">' + lv.label + "</b>" : "sin estado") + "</span>" +
+        (t.technique ? "<span>🛠 " + esc(t.technique) + "</span>" : "") + (t === nx ? '<span class="nx">★ próxima</span>' : "") +
+        (warns || []).map(function(w){ return '<span class="w">⚠ ' + esc(w) + "</span>"; }).join("") + "</div>";
+    }
+    if(!list.length) html += '<div class="ro-empty">Todavía no hay ruta. Tocá <b>Sugerir ruta</b> para ordenar las cards según sus requisitos, o agregalas una por una con <b>+</b>.</div>';
+    list.forEach(function(t, i){
+      var w = routeWarns(p, t);
+      html += '<div class="ro-item' + (t === nx ? " next" : "") + (w.length ? " warn" : "") + '" data-id="' + t.id + '"><span class="ro-n">' + t.order + "</span>" +
+        '<div class="ro-main" data-ro="go" title="Ver en el lienzo"><div class="ro-t">' + esc(t.title) + "</div>" + sub(t, w) + "</div>" +
+        '<button type="button" data-ro="up" title="Antes"' + (i ? "" : " disabled") + ">↑</button>" +
+        '<button type="button" data-ro="down" title="Después"' + (i < list.length - 1 ? "" : " disabled") + ">↓</button>" +
+        '<button type="button" data-ro="rm" title="Sacar de la ruta">×</button></div>';
+    });
+    var rest = p.nodes.filter(function(t){ return eligible(t) && t.order == null; }).sort(function(a, b){ return a.y - b.y || a.x - b.x; });
+    if(rest.length){
+      html += '<div class="ro-sec">Fuera de la ruta</div>';
+      rest.forEach(function(t){
+        html += '<div class="ro-item off" data-id="' + t.id + '"><span class="ro-n">·</span><div class="ro-main" data-ro="go" title="Ver en el lienzo"><div class="ro-t">' + esc(t.title) + "</div>" + sub(t) + "</div>" +
+          '<button type="button" data-ro="add" title="Agregar al final de la ruta">+</button></div>';
+      });
+    }
+    if(!list.length && !rest.length) html = '<div class="ro-empty">La ruta usa las cards <b>semánticas</b> y <b>procedimentales</b> que no están podadas. Clasificá las cards tocándolas.</div>';
+    $("routeList").innerHTML = html;
+  }
+  $("routeList").addEventListener("click", function(e){
+    var b = e.target.closest("[data-ro]"); if(!b) return;
+    var item = b.closest("[data-id]"), p = cur(), t = p && byId(p, item.dataset.id); if(!t) return;
+    var act = b.dataset.ro;
+    if(act === "go"){
+      if(state.hidePruned && t.pruned){ state.hidePruned = false; renderAll(); }
+      closeMenu(); select({ node: t.id }); centerOn(t);
+      if(isMobile()){ routeOpen = false; renderTop(); renderRoute(); }
+      return;
+    }
+    change(function(p){
+      var list = routeList(p), i = list.indexOf(t);
+      if(act === "up" || act === "down"){
+        var j = act === "up" ? i - 1 : i + 1; if(i < 0 || j < 0 || j >= list.length) return false;
+        var o = list[j].order; list[j].order = t.order; t.order = o;
+      } else if(act === "rm") delete t.order;
+      else if(act === "add") t.order = list.length + 1;
+      renumber(p);
+    });
+  });
+  $("routeBtn").addEventListener("click", function(){ if(!cur()) return; routeOpen = !routeOpen; closeMenu(); renderTop(); renderRoute(); });
+  $("routeClose").addEventListener("click", function(){ routeOpen = false; renderTop(); renderRoute(); });
+  $("routeSuggest").addEventListener("click", function(){
+    var p = cur(); if(!p) return;
+    function go(){ var n = 0; change(function(p){ n = suggestRoute(p); return n > 0; }); toast(n ? "Ruta sugerida: " + n + " cards según sus requisitos" : "No hay cards semánticas o procedimentales para ordenar"); }
+    if(routeList(p).length) ask({ title: "¿Reemplazar el orden actual de la ruta?", text: "Se ordena todo de nuevo según los requisitos (primero lo que desbloquea más).", ok: "sugerir" }, go);
+    else go();
+  });
   $("wireCancel").addEventListener("click", function(){ select(null); });
   Array.prototype.forEach.call(root.querySelectorAll("[data-help]"), function(b){
     b.addEventListener("click", function(){ closeSideMobile(); $("helpDlg").hidden = false; });

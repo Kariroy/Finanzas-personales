@@ -103,10 +103,17 @@ Las notas de la vista Notas, las de cada tarea (el puntito de la card o de la fi
 nodo de Aprender usan el mismo formato y la misma barra para escribir (`planes/notas.js`):
 `# título`, `- lista`, `- [ ] tarea` (se tilda tocándola, y la card muestra cuántas van), `**negrita**`,
 `` `código` `` y links.
-La vista **Aprender** (`planes/aprender.js`) organiza habilidades en diagramas: cada habilidad es un
-lienzo con cards **concepto** / **acción**, niveles bronce → plata → oro → diamante (con el criterio de
-cada uno), un **objetivo** (qué tiene que salir y cuánto) por card, **requisitos** que bloquean una card hasta
-que la requerida llegue a Plata, y **notas adhesivas** de colores (traba, idea, pregunta, recurso).
+La vista **Aprender** (`planes/aprender.js`) sigue un método de 6 pasos para aprender una habilidad:
+desglosar, clasificar, seleccionar, revisar requisitos, planificar la ruta y aplicar técnicas. Cada
+habilidad es un lienzo con cards **nodo** (agrupan), **semánticas** (entender o recordar) y
+**procedimentales** (poder hacer), con niveles bronce → plata → oro → diamante (con el criterio de cada
+uno según el tipo). Las líneas son de tres tipos: **parte** (B es parte de A), **flujo** (después de A
+viene B) y **requiere** (B requiere A; bloquea B hasta que A llegue a Plata). Lo que no vale la pena
+ahora se **poda** (con un aviso si otra card lo requiere), la **ruta** ordena lo que vas a practicar
+(se puede sugerir según los requisitos y marca la próxima) y cada card puede tener una **técnica**.
+También hay **notas adhesivas** de colores (traba, idea, pregunta, recurso). Exporta e importa JSON
+(`{ skills: [{ name, nodes: [{ id, title, x, y, type, level, technique, pruned, order, notes }],
+links: [{ from, to, kind }], stickies }] }`); los archivos de versiones anteriores se convierten solos.
 Se guarda en la cuenta con el resto de Planes.
 
 Comparte con la app de gastos solo la infraestructura:
