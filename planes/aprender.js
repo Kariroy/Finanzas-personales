@@ -197,6 +197,8 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .note-dot:hover { border-color: var(--text); opacity: 1; }
 .note-dot.has { background: var(--text); border-color: var(--text); opacity: 1; }
 .card .note-dot { margin-right: -4px; }
+.note-prog { font-size: 10px; color: var(--muted); margin-right: -2px; }
+.note-prog.all { color: #3fb950; }
 /* objetivo y requiere, al lado del puntito de notas: aparecen al pasar o con la card elegida */
 .mt { display: inline-flex; align-items: center; background: none; border: 0; padding: 0 2px; cursor: pointer; font-size: 12px; line-height: 1; color: var(--muted); opacity: 0; transition: opacity .1s; }
 .card:hover .mt, .card.selected .mt { opacity: 1; }
@@ -938,11 +940,20 @@ function engine(root, api){
   // ---------- notas de los nodos (como en Planes) ----------
   // La card solo muestra un puntito (lleno si tiene notas); al tocarlo se abren las notas.
   function noteDot(t){
+    if(window.PlanesNotes) return window.PlanesNotes.dot(t.notes);
     var has = !!(t.notes && t.notes.trim());
     return '<button type="button" class="note-dot' + (has ? " has" : "") + '" data-act="notes" title="' + (has ? "Ver notas" : "Agregar notas") + '" aria-label="Notas"></button>';
   }
   var notesId = null;
   function openNotes(id){
+    // Dentro de Planes: la misma ventana de notas con formato que las tareas.
+    if(window.PlanesNotes){
+      var tt = byId(cur(), id); if(!tt) return;
+      window.PlanesNotes.open({ title: tt.title, text: tt.notes || "", at: tt.notesAt, save: function(v){
+        change(function(){ if(v){ tt.notes = v; tt.notesAt = Date.now(); } else { delete tt.notes; delete tt.notesAt; } });
+      } });
+      return;
+    }
     var p = cur(), t = p && byId(p, id); if(!t) return;
     notesId = id;
     $("notesTitle").textContent = t.title;
@@ -1422,7 +1433,7 @@ function engine(root, api){
 
   // ---------- teclado ----------
   document.addEventListener("keydown", function(e){
-    if(!api.visible()) return;
+    if(!api.visible() || (window.PlanesNotes && window.PlanesNotes.isOpen())) return;
     var tg = root.activeElement || e.target;
     if(!$("ask").hidden || !$("helpDlg").hidden || !$("notesDlg").hidden) return;
     if(editing || tg.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName)) return;
@@ -1567,7 +1578,7 @@ function engine(root, api){
     applySide();
     if(api.visible()) show();
   }
-  function busy(){ return !!(editing || drag || pick || notesId !== null || !$("ask").hidden); }
+  function busy(){ return !!(editing || drag || pick || notesId !== null || (window.PlanesNotes && window.PlanesNotes.isOpen()) || !$("ask").hidden); }
   return { show: show, reload: reload, busy: busy };
 }
 })();

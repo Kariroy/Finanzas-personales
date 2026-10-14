@@ -182,9 +182,15 @@
   <div class="ask-box notes-box" role="dialog" aria-modal="true" aria-labelledby="notesTitle">
     <div class="notes-head">
       <span class="notes-title" id="notesTitle"></span>
+      <button type="button" class="btn" id="notesMode">✎ editar</button>
       <button type="button" class="icon-btn" id="notesClose" aria-label="Cerrar">×</button>
     </div>
-    <textarea id="notesText" placeholder="Notas, links, detalles…"></textarea>
+    <div class="notes-meta" id="notesMeta"></div>
+    <div class="nt-body notes-view" id="notesView"></div>
+    <div class="notes-edit" id="notesEdit" hidden>
+      <div class="nt-tools" id="notesTools"></div>
+      <textarea id="notesText" placeholder="Notas, links, pasos… (- [ ] para una tarea que se tilda)"></textarea>
+    </div>
     <div class="ask-btns"><button type="button" class="btn primary" id="notesOk">listo</button></div>
   </div>
 </div>
@@ -246,8 +252,9 @@
       <div class="rt-chips nt-catchips" id="ntCats"></div>
     </div>
     <div>
-      <div class="rt-lbl">Texto <span class="nt-hint"># título · - lista · **negrita** · `código`</span></div>
-      <textarea id="ntBody" placeholder="Lo que quieras anotar…"></textarea>
+      <div class="rt-lbl">Texto</div>
+      <div class="nt-tools" id="ntTools"></div>
+      <textarea id="ntBody" placeholder="Lo que quieras anotar… (- [ ] para una tarea que se tilda)"></textarea>
     </div>
     <div class="rt-err" id="ntErr"></div>
     <div class="rt-btns">
@@ -372,6 +379,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="../config.js"></script>
+<script src="notas.js"></script>
 <script src="aprender.js"></script>
 <script src="planes.js"></script>
 <script>

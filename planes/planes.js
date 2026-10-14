@@ -1507,39 +1507,15 @@ $("openSide").addEventListener("click", function(){
 applySide();
 
 // ---------- notas de las tareas ----------
-// La tarea solo muestra un puntito (lleno si tiene notas); al tocarlo se abren las notas.
-function noteDot(t){
-  var has = !!(t.notes && t.notes.trim());
-  return '<button type="button" class="note-dot' + (has ? " has" : "") + '" data-act="notes" title="' +
-    (has ? "Ver notas" : "Agregar notas") + '" aria-label="Notas"></button>';
-}
-
-var notesId = null;
+// Las mismas notas con formato que usan Aprender y la vista Notas (planes/notas.js).
+// La tarea muestra un puntito (lleno si tiene notas) y, si las notas tienen tareas, cuántas van tildadas.
+function noteDot(t){ return PlanesNotes.dot(t.notes); }
 function openNotes(id){
   var p = proj(), t = p && byId(p, id); if(!t) return;
-  notesId = id;
-  $("notesTitle").textContent = t.title;
-  var ta = $("notesText");
-  ta.value = t.notes || "";
-  $("notesDlg").hidden = false;
-  // Con notas: se muestran sin abrir el teclado. Sin notas: listo para escribir.
-  if(!ta.value) ta.focus();
-  else { ta.scrollTop = 0; ta.blur(); }
+  PlanesNotes.open({ title: t.title, text: t.notes || "", at: t.notesAt, save: function(v){
+    change(function(){ if(v){ t.notes = v; t.notesAt = Date.now(); } else { delete t.notes; delete t.notesAt; } });
+  } });
 }
-function closeNotes(){
-  if(notesId === null) return;
-  var id = notesId, v = $("notesText").value.replace(/\s+$/, "");
-  notesId = null;
-  $("notesDlg").hidden = true;
-  var p = proj(), t = p && byId(p, id);
-  if(t && v !== (t.notes || "")) change(function(){ if(v) t.notes = v; else delete t.notes; });
-}
-$("notesOk").addEventListener("click", closeNotes);
-$("notesClose").addEventListener("click", closeNotes);
-$("notesDlg").addEventListener("click", function(e){ if(e.target === e.currentTarget) closeNotes(); });
-document.addEventListener("keydown", function(e){
-  if(e.key === "Escape" && !$("notesDlg").hidden){ e.preventDefault(); closeNotes(); }
-});
 $("closeSide").addEventListener("click", closeSideMobile);
 
 window.addEventListener("storage", function(e){
@@ -1884,32 +1860,8 @@ function ntColor(c){
 function ntChip(c){ return c ? '<span class="nt-cat" style="--c:' + ntColor(c) + '">' + esc(c) + "</span>" : ""; }
 function ntById(id){ for(var i = 0; i < state.notes.length; i++) if(state.notes[i].id === id) return state.notes[i]; return null; }
 function ntDate(ms){ var d = new Date(ms); return d.getDate() + " " + RT_MONTHS[d.getMonth()].slice(0, 3) + (d.getFullYear() !== new Date().getFullYear() ? " " + d.getFullYear() : ""); }
-function ntPreview(b){
-  var l = String(b || "").split("\n").map(function(x){ return x.replace(/^\s*(#+|[-*]|\d+[.)])\s+/, "").replace(/[*`]/g, "").trim(); })
-    .filter(Boolean).join(" · ");
-  return l.length > 110 ? l.slice(0, 110) + "…" : l;
-}
-// Texto con formato mínimo: # títulos, - listas, 1. numeradas, **negrita**, `código` y links.
-function ntInline(s){
-  return esc(s)
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
-    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-}
-function ntFormat(b){
-  var out = "", list = null;
-  function close(){ if(list){ out += "</" + list + ">"; list = null; } }
-  String(b || "").split("\n").forEach(function(line){
-    var m;
-    if((m = line.match(/^\s*(#{1,3})\s+(.*)$/))){ close(); out += '<div class="nt-h' + m[1].length + '">' + ntInline(m[2]) + "</div>"; }
-    else if((m = line.match(/^\s*[-*•]\s+(.*)$/))){ if(list !== "ul"){ close(); out += "<ul>"; list = "ul"; } out += "<li>" + ntInline(m[1]) + "</li>"; }
-    else if((m = line.match(/^\s*\d+[.)]\s+(.*)$/))){ if(list !== "ol"){ close(); out += "<ol>"; list = "ol"; } out += "<li>" + ntInline(m[1]) + "</li>"; }
-    else if(!line.trim()){ close(); out += '<div class="nt-gap"></div>'; }
-    else { close(); out += "<p>" + ntInline(line) + "</p>"; }
-  });
-  close();
-  return out;
-}
+function ntPreview(b){ return PlanesNotes.preview(b); }
+function ntFormat(b){ return PlanesNotes.format(b, true); }
 
 function renderNotes(){
   var box = $("notes");
@@ -1965,6 +1917,14 @@ function renderNoteDetail(n){
 }
 
 function ntOpen(id){ ntShown = id; renderNotes(); $("notes").scrollTop = 0; }
+// En la ficha de una nota, tocar una tarea la tilda o destilda.
+$("ntCard").addEventListener("click", function(e){
+  var b = e.target.closest("[data-ln]"), n = ntShown && ntById(ntShown);
+  if(!b || !n) return;
+  rtChange(function(){ n.body = PlanesNotes.toggle(n.body, +b.dataset.ln); n.updated = Date.now(); });
+});
+PlanesNotes.tools($("ntTools"), $("ntBody"));
+PlanesNotes.continueLists($("ntBody"));
 function ntBack(){ ntShown = null; renderNotes(); }
 
 $("ntSearch").addEventListener("input", function(e){ ntQuery = e.target.value; renderNotes(); });
