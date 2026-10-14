@@ -127,10 +127,10 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .side { width: 300px; flex: none; background: var(--panel); border-right: 1px solid var(--line); padding: 12px;
   padding-top: calc(12px + env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
 .layout.side-collapsed .side { display: none; }
-.side-head { display: flex; align-items: center; gap: 8px; }
-.brand { font-weight: 700; font-size: 14px; flex: 1; letter-spacing: .02em; }
-.row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
-.row2 .btn { width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.side-head { display: flex; align-items: center; gap: 6px; }
+.side-head .grow { flex: 1; }
+.side-head .sec { margin-top: 0; }
+.side-head .add { width: 26px; height: 26px; font-size: 16px; line-height: 1; }
 .btn { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; cursor: pointer; text-align: center; white-space: nowrap; }
 .btn:hover { border-color: var(--line-2); background: #1b222c; }
 .btn:disabled { opacity: .4; cursor: default; }
@@ -385,15 +385,14 @@ button, select, input, textarea { font: inherit; color: inherit; }
 var HTML = `<div class="layout" id="layoutEl">
   <aside class="side" id="side">
     <div class="side-head">
-      <span class="brand">🎯 Aprender</span>
+      <span class="sec">Habilidades</span>
+      <button class="icon-btn add" id="newSkill" aria-label="Nueva habilidad" title="Nueva habilidad">+</button>
+      <span class="grow"></span>
+      <button class="icon-btn" id="exportBtn" aria-label="Exportar" title="Exportar: guardar una copia de todas las habilidades en JSON">⇩</button>
+      <button class="icon-btn" id="importBtn" aria-label="Importar" title="Importar: cargar habilidades desde un JSON">⇧</button>
       <button class="icon-btn" data-help aria-label="Ayuda" title="Ayuda">?</button>
       <button class="icon-btn only-mobile" id="closeSide" aria-label="Cerrar panel">×</button>
     </div>
-    <div class="row2">
-      <button class="btn" id="newSkill">+ habilidad</button>
-      <button class="btn" id="newNode">+ nodo</button>
-    </div>
-    <div class="sec">Habilidades</div>
     <div class="skills" id="skills"></div>
     <div class="pnotes" id="pnotes" hidden>
       <div class="pn-head"><span class="pn-title" id="pnTitle">Notas</span><button class="btn sm" id="pnMode" hidden>✎ editar</button></div>
@@ -403,10 +402,6 @@ var HTML = `<div class="layout" id="layoutEl">
         <div class="nt-tools" id="pnTools"></div>
         <textarea id="pnText" placeholder="Notas, links, pasos… (- [ ] para una tarea que se tilda)"></textarea>
       </div>
-    </div>
-    <div class="row2">
-      <button class="btn" id="exportBtn" title="Guardar una copia de todas las habilidades en JSON">⇩ exportar</button>
-      <button class="btn" id="importBtn" title="Cargar habilidades desde un JSON">⇧ importar</button>
     </div>
   </aside>
   <div class="stage">
@@ -769,7 +764,7 @@ function engine(root, api){
     var p = cur();
     $("undo").disabled = !hist.length;
     $("redo").disabled = !fut.length;
-    $("newNode").disabled = $("noteBtn").disabled = !p;
+    $("noteBtn").disabled = !p;
     $("layout").disabled = !p || !p.nodes.length;
     $("fit").disabled = !p || (!p.nodes.length && !p.stickies.length);
     renderBars();
@@ -789,8 +784,8 @@ function engine(root, api){
     els = {};
     $("empty").hidden = !!(p && (p.nodes.length || p.stickies.length));
     $("empty").firstElementChild.textContent = p
-      ? "Doble clic (o «+ nodo») para crear el primer nodo."
-      : "Creá una habilidad con «+ habilidad».";
+      ? "Doble clic (o doble toque) para crear el primer nodo."
+      : "Creá una habilidad con el + de Habilidades.";
     if(!p) return;
     p.nodes.forEach(function(t){
       var kids = dependents(p, t.id).length;
@@ -1050,7 +1045,7 @@ function engine(root, api){
   function renderSkills(){
     var list = $("skills");
     list.innerHTML = "";
-    if(!state.skills.length){ list.innerHTML = '<div class="no-skills">Todavía no hay habilidades.<br>Creá una con «+ habilidad».</div>'; return; }
+    if(!state.skills.length){ list.innerHTML = '<div class="no-skills">Todavía no hay habilidades.<br>Creá una con el <b>+</b>.</div>'; return; }
     state.skills.slice().sort(function(a, b){ return b.updated - a.updated; }).forEach(function(p){
       var el = document.createElement("div");
       el.className = "skill" + (p.id === state.current ? " active" : "");
@@ -1606,14 +1601,6 @@ function engine(root, api){
 
   // ---------- botones ----------
   $("newSkill").addEventListener("click", newSkill);
-  $("newNode").addEventListener("click", function(){
-    var p = cur(); if(!p) return;
-    closeSideMobile();
-    var r = canvas.getBoundingClientRect();
-    var c = toWorld(r.left + r.width / 2, r.top + r.height / 2), t;
-    change(function(){ t = makeNode(p, c.x - W / 2, c.y - H / 2); sel = { node: t.id }; });
-    startEdit(t.id);
-  });
   $("undo").addEventListener("click", undo);
   $("redo").addEventListener("click", redo);
   $("exportBtn").addEventListener("click", exportJSON);
