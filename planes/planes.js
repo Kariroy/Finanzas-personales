@@ -308,7 +308,7 @@ function renderAll(){
   $("redo").disabled = !fut.length;
   $("newTask").disabled = !p;
   canvas.classList.toggle("hl", state.highlight !== false);
-  renderMultiBar();
+  pruneMulti();
   $("highlight").checked = state.highlight !== false;
 }
 
@@ -748,7 +748,7 @@ function select(s){
 function paintSel(){
   Object.keys(els).forEach(function(k){ els[k].classList.toggle("selected", isSelTask(k)); });
   renderWires();
-  renderMultiBar();
+  pruneMulti();
 }
 // Selección de varias tareas: con una sola se comporta como la selección normal.
 function setMulti(ids){
@@ -757,15 +757,10 @@ function setMulti(ids){
   multi = ids;
   paintSel();
 }
-function renderMultiBar(){
-  var p = proj(), bar = $("multiBar");
+// Saca de la selección múltiple las tareas que ya no existen.
+function pruneMulti(){
+  var p = proj();
   if(p) multi = multi.filter(function(id){ return byId(p, id); });
-  bar.hidden = multi.length < 2 || state.mode !== "map";
-  if(!bar.hidden) $("multiN").textContent = multi.length + " seleccionadas";
-}
-function multiStatus(st){
-  var ids = multi.slice();
-  change(function(p){ ids.forEach(function(id){ var t = byId(p, id); if(t) t.status = st; }); });
 }
 function multiDelete(){
   var ids = multi.slice();
@@ -776,13 +771,6 @@ function multiDelete(){
   });
   toast(ids.length + " tareas borradas", { label: "deshacer", fn: undo });
 }
-$("multiBar").addEventListener("click", function(e){
-  var b = e.target.closest("[data-mact]"); if(!b) return;
-  var a = b.dataset.mact;
-  if(a === "del") multiDelete();
-  else if(a === "clear") select(null);
-  else multiStatus(a);
-});
 
 function newChild(id){
   var p = proj(), parent = byId(p, id); if(!parent) return;
@@ -884,7 +872,7 @@ canvas.addEventListener("pointerdown", function(e){
   if(mouse && e.button !== 0 && e.button !== 1 && e.button !== 2) return;
   var p = proj(); if(!p) return;
   if(mouse && e.button !== 0){
-    if(e.target.closest(".toolbar") || e.target.closest(".menu") || e.target.closest("#multiBar")) return;
+    if(e.target.closest(".toolbar") || e.target.closest(".menu")) return;
     e.preventDefault();
     var v0 = view();
     drag = { sx: e.clientX, sy: e.clientY, moved: false, kind: "pan", vx: v0.x, vy: v0.y };
@@ -902,7 +890,7 @@ canvas.addEventListener("pointerdown", function(e){
     return;
   }
   var t = e.target;
-  if(t.closest("[data-act]") || t.closest(".toolbar") || t.closest(".menu") || t.closest("#multiBar")) return;
+  if(t.closest("[data-act]") || t.closest(".toolbar") || t.closest(".menu")) return;
 
   var card = t.closest(".card"), port = t.closest(".port"), wire = t.closest(".wire");
   var base = { sx: e.clientX, sy: e.clientY, moved: false, before: snapshot() };

@@ -430,11 +430,6 @@ var HTML = `<div class="layout" id="layoutEl">
         <button class="btn" id="noteBtn" title="Nota adhesiva">▣ nota</button>
       </div>
       <div class="sel-box" id="selBox" hidden></div>
-      <div class="toolbar pick" id="multiBar" hidden>
-        <span id="multiN"></span>
-        <button class="btn primary" id="multiDel">× borrar</button>
-        <button class="btn" id="multiClear">soltar</button>
-      </div>
       <div class="toolbar" id="wireBar" hidden>
         <button class="btn lk" data-shape="recta" title="Recta" aria-label="Recta"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M3 11 L23 3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
         <button class="btn lk" data-shape="escalon" title="Escalonada" aria-label="Escalonada"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M3 11 H13 V3 H23" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
@@ -824,15 +819,13 @@ function engine(root, api){
     wiresEl.innerHTML = html;
   }
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return "&#" + c.charCodeAt(0) + ";"; }); }
-  // Barra de abajo: normal · línea elegida (forma, estilo, borrar) · varias cards elegidas.
+  // Barra de abajo: normal · línea elegida (forma, estilo, borrar).
   function renderBars(){
     var p0 = cur(), d = sel && sel.dep && p0 && findDep(p0, sel.dep.from, sel.dep.to);
     if(p0) multi = multi.filter(function(id){ return byId(p0, id); });
-    var many = multi.length > 1, line = !!d;
-    $("multiBar").hidden = !many;
-    if(many) $("multiN").textContent = multi.length + " seleccionadas";
-    $("wireBar").hidden = many || !line;
-    $("toolbar").hidden = many || line;
+    var line = !!d;
+    $("wireBar").hidden = !line;
+    $("toolbar").hidden = line;
     if(line) $("palette").hidden = true;
     if(d) Array.prototype.forEach.call(root.querySelectorAll("#wireBar .lk"), function(b){
       b.classList.toggle("on", b.dataset.shape ? (d.shape || "curva") === b.dataset.shape : (d.style || "continua") === b.dataset.style);
@@ -1163,8 +1156,6 @@ function engine(root, api){
     });
     toast(ids.length + " cards borradas · Ctrl+Z para deshacer");
   }
-  $("multiDel").addEventListener("click", multiDelete);
-  $("multiClear").addEventListener("click", function(){ select(null); });
   function moveDragIds(base, id, ids){
     var p = cur();
     return Object.assign(base, { kind: "move", id: id, items: ids.map(function(k){ return byId(p, k); }).filter(Boolean).map(function(t){ return { t: t, x: t.x, y: t.y }; }) });
