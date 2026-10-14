@@ -111,6 +111,43 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .sec { color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-top: 4px; }
 
 .skills { display: flex; flex-direction: column; gap: 4px; min-height: 80px; flex: 1; overflow-y: auto; }
+.side:has(.pnotes:not([hidden])) .skills { flex: 0 1 auto; max-height: 34%; }
+/* notas del nodo elegido, en el panel */
+.pnotes { flex: 1; min-height: 120px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.pn-head { display: flex; align-items: center; gap: 8px; }
+.pn-title { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn.sm { padding: 4px 9px; font-size: 11px; }
+.pn-meta { color: var(--faint); font-size: 10.5px; margin-top: -4px; }
+.pn-meta:empty { display: none; }
+.pn-view { flex: 1; min-height: 0; overflow-y: auto; cursor: text; }
+.pn-edit { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.pn-edit textarea { flex: 1; min-height: 120px; resize: none; background: var(--input); border: 1px solid var(--line-2); border-radius: 6px; padding: 10px;
+  font-size: 12.5px; line-height: 1.5; color: var(--text); width: 100%; }
+.pn-edit textarea:focus { outline: none; border-color: var(--accent); }
+/* formato de notas (igual que en Planes) */
+.nt-body { font-size: 12.5px; line-height: 1.6; overflow-wrap: anywhere; }
+.nt-body p { margin: 0; }
+.nt-body ul, .nt-body ol { margin: 2px 0; padding-left: 20px; }
+.nt-body li::marker { color: var(--muted); }
+.nt-body code { background: var(--input); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.nt-body a { color: var(--accent); }
+.nt-body b { color: #fff; }
+.nt-body > :first-child { margin-top: 0; }
+.nt-gap { height: 10px; }
+.nt-h1, .nt-h2, .nt-h3 { display: flex; align-items: center; gap: 8px; font-weight: 700; margin: 10px 0 4px; }
+.nt-h1 { font-size: 14px; }
+.nt-h2, .nt-h3 { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.nt-h2::after, .nt-h3::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.nt-nobody { color: var(--faint); }
+.nt-tools { display: flex; gap: 5px; flex-wrap: wrap; }
+.nt-tools button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; cursor: pointer; color: var(--muted); font-size: 11px; }
+.nt-tools button:hover { color: var(--text); border-color: var(--line-2); }
+.nt-check { list-style: none; margin: 2px 0; padding: 0; }
+.nt-check li { display: flex; align-items: flex-start; gap: 8px; padding: 2px 0; }
+.nt-check .nt-box { flex: none; width: 16px; height: 16px; margin-top: 2px; border: 1.5px solid var(--muted); border-radius: 4px; background: none;
+  color: #fff; font-size: 10.5px; line-height: 13px; text-align: center; padding: 0; cursor: pointer; }
+.nt-check li.done .nt-box { background: #3fb950; border-color: #3fb950; }
+.nt-check li.done > span:last-child { color: var(--muted); text-decoration: line-through; }
 .skill { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
 .skill:hover { background: var(--panel-2); }
 .skill.active { background: #132a2e; border-color: #2c6b6b; }
@@ -134,7 +171,6 @@ button, select, input, textarea { font: inherit; color: inherit; }
 
 .topbar { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; align-items: center; gap: 8px; z-index: 6; pointer-events: none; }
 .topbar > * { pointer-events: auto; }
-.cur-name { background: rgba(16,21,28,.92); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .topbar .help-btn { margin-left: auto; font-weight: 700; font-size: 14px; }
 
 .wire .line { fill: none; stroke: #3a4452; stroke-width: 1.6; }
@@ -303,7 +339,6 @@ button, select, input, textarea { font: inherit; color: inherit; }
   .btn.sq { width: 42px; }
   .toolbar .lbl { display: none; }
   .icon-btn { width: 40px; height: 40px; }
-  .cur-name { padding: 10px 12px; }
   .tools button { font-size: 15px; padding: 0 6px; }
   .nm-item { padding: 10px 16px 10px 12px; font-size: 13px; }
   .ask:has(.notes-box), .ask:has(.wide) { padding-top: 8vh; }
@@ -328,6 +363,15 @@ var HTML = `<div class="layout" id="layoutEl">
     </div>
     <div class="sec">Habilidades</div>
     <div class="skills" id="skills"></div>
+    <div class="pnotes" id="pnotes" hidden>
+      <div class="pn-head"><span class="pn-title" id="pnTitle">Notas</span><button class="btn sm" id="pnMode" hidden>✎ editar</button></div>
+      <div class="pn-meta" id="pnMeta"></div>
+      <div class="nt-body pn-view" id="pnView"></div>
+      <div class="pn-edit" id="pnEdit" hidden>
+        <div class="nt-tools" id="pnTools"></div>
+        <textarea id="pnText" placeholder="Notas, links, pasos… (- [ ] para una tarea que se tilda)"></textarea>
+      </div>
+    </div>
     <div class="row2">
       <button class="btn" id="exportBtn" title="Guardar una copia de todas las habilidades en JSON">⇩ exportar</button>
       <button class="btn" id="importBtn" title="Cargar habilidades desde un JSON">⇧ importar</button>
@@ -336,7 +380,6 @@ var HTML = `<div class="layout" id="layoutEl">
   <div class="stage">
     <div class="topbar">
       <button class="icon-btn" id="openSide" aria-label="Mostrar u ocultar el panel" title="Mostrar / ocultar panel">☰</button>
-      <span class="cur-name" id="curName" title="Renombrar"></span>
       <button class="icon-btn help-btn only-mobile" data-help aria-label="Ayuda">?</button>
     </div>
     <main class="canvas" id="canvas">
@@ -709,10 +752,9 @@ function engine(root, api){
     $("newNode").disabled = $("noteBtn").disabled = !p;
     $("layout").disabled = !p || !p.nodes.length;
     $("fit").disabled = !p || (!p.nodes.length && !p.stickies.length);
-    $("curName").textContent = p ? p.name : "";
-    $("curName").hidden = !p;
     renderBars();
     renderMenu();
+    renderPanel();
   }
 
   function levelTip(p, t, lv, bl){
@@ -1094,6 +1136,63 @@ function engine(root, api){
     span.addEventListener("blur", function(){ finish(true); });
   }
 
+  // ---------- notas del nodo en el panel lateral ----------
+  // En la compu, con el panel abierto, tocar un nodo muestra sus notas ahí (leer, tildar, escribir).
+  // En el celular o con el panel plegado, las notas se abren en la ventana de siempre.
+  var PN = window.PlanesNotes, panelId = null, panelEdit = false;
+  function sideNotesOn(){ return !!PN && !isMobile() && !state.sideCollapsed; }
+  function showPanel(id, edit){
+    commitPanel();
+    panelId = id; panelEdit = !!edit;
+    renderPanel();
+    if(panelEdit) focusPanel();
+  }
+  function focusPanel(){ setTimeout(function(){ var ta = $("pnText"); ta.focus(); var n = ta.value.length; ta.setSelectionRange(n, n); }, 20); }
+  function commitPanel(){
+    if(!panelId || !panelEdit) return;
+    var t = byId(cur(), panelId); if(!t) return;
+    var v = $("pnText").value.replace(/\s+$/, "");
+    if(v !== (t.notes || "")) change(function(){ if(v){ t.notes = v; t.notesAt = Date.now(); } else { delete t.notes; delete t.notesAt; } });
+  }
+  function renderPanel(){
+    var box = $("pnotes"); if(!box) return;
+    var on = sideNotesOn();
+    box.hidden = !on;
+    if(!on) return;
+    var p = cur(), t = p && panelId && byId(p, panelId);
+    if(!t){
+      panelId = null; panelEdit = false;
+      $("pnTitle").textContent = "Notas"; $("pnMode").hidden = true; $("pnMeta").textContent = "";
+      $("pnEdit").hidden = true; $("pnView").hidden = false;
+      $("pnView").innerHTML = '<p class="nt-nobody">Tocá un nodo para ver y escribir sus notas acá.</p>';
+      return;
+    }
+    $("pnTitle").textContent = t.title; $("pnTitle").title = t.title;
+    var tk = PN.tasks(t.notes);
+    $("pnMeta").textContent = [t.notesAt ? "editada " + PN.when(t.notesAt) : "", tk.total ? tk.done + " de " + tk.total + " tareas" : ""].filter(Boolean).join(" · ");
+    $("pnMode").hidden = false;
+    $("pnMode").textContent = panelEdit ? "👁 ver" : "✎ editar";
+    $("pnView").hidden = panelEdit; $("pnEdit").hidden = !panelEdit;
+    if(panelEdit){ if(root.activeElement !== $("pnText")) $("pnText").value = t.notes || ""; }
+    else $("pnView").innerHTML = t.notes && t.notes.trim() ? PN.format(t.notes, true) : '<p class="nt-nobody">Sin notas. Tocá acá para escribir.</p>';
+  }
+  if(PN){
+    PN.tools($("pnTools"), $("pnText"));
+    PN.continueLists($("pnText"));
+  }
+  $("pnText").addEventListener("blur", commitPanel);
+  $("pnText").addEventListener("keydown", function(e){ if(e.key === "Escape"){ e.preventDefault(); $("pnText").blur(); } });
+  $("pnMode").addEventListener("click", function(){
+    if(panelEdit){ commitPanel(); panelEdit = false; renderPanel(); }
+    else { panelEdit = true; renderPanel(); focusPanel(); }
+  });
+  $("pnView").addEventListener("click", function(e){
+    var t = panelId && byId(cur(), panelId); if(!t) return;
+    var b = e.target.closest("[data-ln]");
+    if(b){ change(function(){ t.notes = PN.toggle(t.notes, +b.dataset.ln); t.notesAt = Date.now(); }); return; }
+    if(!e.target.closest("a") && !getSelection().toString()){ panelEdit = true; renderPanel(); focusPanel(); }
+  });
+
   // ---------- acciones ----------
   function select(s){
     sel = s;
@@ -1364,6 +1463,7 @@ function engine(root, api){
         // toque en una card = abrir / cerrar su menú · doble toque (celular) = renombrar
         if(isDoubleTap(e, d.id)){ closeMenu(); startEdit(d.id); }
         else if(menu && menu.id === d.id) closeMenu(); else openMenu(d.id);
+        if(sideNotesOn() && panelId !== d.id) showPanel(d.id, false);
       }
     } else if(d.kind === "wire"){
       tempWire = null;
@@ -1402,7 +1502,11 @@ function engine(root, api){
     if(act === "edit"){ select({ node: id }); startEdit(id); }
     else if(act === "child") newChild(id);
     else if(act === "level") cycleLevel(id);
-    else if(act === "notes"){ closeMenu(); openNotes(id); }
+    else if(act === "notes"){
+      closeMenu();
+      if(sideNotesOn()){ var nt = byId(cur(), id); showPanel(id, !(nt && nt.notes && nt.notes.trim())); }
+      else openNotes(id);
+    }
     else if(act === "heart"){ closeMenu(); editHeart(id); }
     else if(act === "req"){ closeMenu(); startPick(id); }
     else if(act === "del"){
@@ -1546,7 +1650,6 @@ function engine(root, api){
   $("zoomOut").addEventListener("click", function(){ var r = canvas.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2); });
   $("wireDel").addEventListener("click", deleteSelected);
   $("wireCancel").addEventListener("click", function(){ select(null); });
-  $("curName").addEventListener("click", function(){ var p = cur(); if(p) renameSkill(p); });
   Array.prototype.forEach.call(root.querySelectorAll("[data-help]"), function(b){
     b.addEventListener("click", function(){ closeSideMobile(); $("helpDlg").hidden = false; });
   });
@@ -1556,7 +1659,7 @@ function engine(root, api){
   function isMobile(){ return matchMedia("(max-width: 800px)").matches; }
   function closeSideMobile(){ $("side").classList.remove("open"); }
   // En el celular ☰ abre el panel en pantalla completa; en la compu lo pliega o despliega.
-  function applySide(){ $("layoutEl").classList.toggle("side-collapsed", !!state.sideCollapsed); }
+  function applySide(){ $("layoutEl").classList.toggle("side-collapsed", !!state.sideCollapsed); if(typeof renderPanel === "function") renderPanel(); }
   $("openSide").addEventListener("click", function(){
     if(isMobile()){ $("side").classList.add("open"); return; }
     state.sideCollapsed = !state.sideCollapsed;
@@ -1574,7 +1677,7 @@ function engine(root, api){
   // Planes trajo otra versión de los datos (otro dispositivo, otra cuenta): empezar de nuevo con esa.
   function reload(){
     state = api.state();
-    hist = []; fut = []; sel = null; menu = null; pick = null; drag = null; tempWire = null;
+    hist = []; fut = []; sel = null; menu = null; pick = null; drag = null; tempWire = null; panelId = null; panelEdit = false;
     applySide();
     if(api.visible()) show();
   }
