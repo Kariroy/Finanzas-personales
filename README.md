@@ -104,7 +104,7 @@ nodo de Aprender usan el mismo formato y la misma barra para escribir (`planes/n
 `# título`, `- lista`, `- [ ] tarea` (se tilda tocándola, y la card muestra cuántas van), `**negrita**`,
 `` `código` `` y links.
 La vista **Aprender** (`planes/aprender.js`) organiza habilidades en diagramas: cada habilidad es un
-lienzo con cards **concepto** / **acción**, niveles bronce → plata → oro → diamante (con el criterio de
+lienzo con cards **semántico** / **procedimental**, niveles bronce → plata → oro → diamante (con el criterio de
 cada uno), un **objetivo** (qué tiene que salir y cuánto) por card, **requisitos** que bloquean una card hasta
 que la requerida llegue a Plata, y **notas adhesivas** de colores (traba, idea, pregunta, recurso).
 Se guarda en la cuenta con el resto de Planes.
