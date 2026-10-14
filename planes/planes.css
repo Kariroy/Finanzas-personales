@@ -453,7 +453,26 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .li .note-dot { width: 13px; height: 13px; margin: 0 9px 0 6px; border-color: var(--muted); opacity: 1; }
 .li .note-dot::after { inset: -12px; }
 
-.notes-box { width: min(520px, 100%); }
+.notes-box { width: min(560px, 100%); }
+.notes-head .btn { padding: 5px 10px; font-size: 11.5px; }
+.notes-meta { color: var(--faint); font-size: 10.5px; margin-top: -6px; }
+.notes-meta:empty { display: none; }
+.notes-view { max-height: 60vh; overflow-y: auto; cursor: text; min-height: 60px; }
+.notes-edit { display: flex; flex-direction: column; gap: 8px; }
+.notes-edit[hidden] { display: none; }
+/* barra de formato (notas de tareas, de nodos y vista Notas) */
+.nt-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.nt-tools button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; cursor: pointer; color: var(--muted); font-size: 11.5px; }
+.nt-tools button:hover { color: var(--text); border-color: var(--line-2); }
+/* tareas dentro de las notas */
+.nt-check { list-style: none; margin: 2px 0; padding: 0; }
+.nt-check li { display: flex; align-items: flex-start; gap: 8px; padding: 2px 0; }
+.nt-check .nt-box { flex: none; width: 17px; height: 17px; margin-top: 2px; border: 1.5px solid var(--muted); border-radius: 4px; background: none;
+  color: #fff; font-size: 11px; line-height: 14px; text-align: center; padding: 0; cursor: pointer; }
+.nt-check li.done .nt-box { background: var(--done); border-color: var(--done); }
+.nt-check li.done > span:last-child { color: var(--muted); text-decoration: line-through; }
+.note-prog { font-size: 10px; color: var(--muted); margin-right: -2px; }
+.note-prog.all { color: var(--done); }
 .notes-head { display: flex; align-items: center; gap: 10px; }
 .notes-title { flex: 1; font-weight: 700; overflow-wrap: anywhere; }
 .notes-box textarea {

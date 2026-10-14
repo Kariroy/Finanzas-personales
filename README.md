@@ -97,8 +97,12 @@ con proyecto de Planes y categoría para filtrar. Se miden **con un número** (a
 revisión semanal o mensual opcional que avisa «toca revisar») o **con una rutina** (cuentan solos
 los días que la marcaste en Rutinas). Cada uno dice si vas en camino o atrasado según las fechas.
 La vista **Notas** guarda apuntes: buscador, filtro por categoría, ficha de cada nota
-(con formato simple: `# título`, `- lista`, `**negrita**`) y **⇩ exportar**, que descarga las notas
-que se ven (con el filtro y la búsqueda) en un archivo Markdown (`.md`).
+y **⇩ exportar**, que descarga las notas que se ven (con el filtro y la búsqueda) en un archivo
+Markdown (`.md`).
+Las notas de la vista Notas, las de cada tarea (el puntito de la card o de la fila) y las de cada
+nodo de Aprender usan el mismo formato y la misma barra para escribir (`planes/notas.js`):
+`# título`, `- lista`, `- [ ] tarea` (se tilda tocándola, y la card muestra cuántas van), `**negrita**`,
+`` `código` `` y links.
 La vista **Aprender** (`planes/aprender.js`) organiza habilidades en diagramas: cada habilidad es un
 lienzo con cards **concepto** / **acción**, niveles bronce → plata → oro → diamante (con el criterio de
 cada uno), un **objetivo** (qué tiene que salir y cuánto) por card, **requisitos** que bloquean una card hasta
