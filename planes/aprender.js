@@ -426,18 +426,10 @@ var HTML = `<div class="layout" id="layoutEl">
       <div class="toolbar" id="toolbar">
         <button class="btn sq" id="undo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">↶</button>
         <button class="btn sq" id="redo" title="Rehacer (Ctrl+Y)" aria-label="Rehacer">↷</button>
-        <button class="btn" id="layout" title="Acomoda los nodos en columnas según sus conexiones">⇶<span class="lbl"> reordenar</span></button>
         <button class="btn" id="fit" title="Ver todo">⤢<span class="lbl"> centrar</span></button>
-        <button class="btn sq" id="zoomOut" aria-label="Alejar">−</button>
-        <button class="btn sq" id="zoomIn" aria-label="Acercar">+</button>
         <button class="btn" id="noteBtn" title="Nota adhesiva">▣ nota</button>
       </div>
       <div class="sel-box" id="selBox" hidden></div>
-      <div class="toolbar pick" id="multiBar" hidden>
-        <span id="multiN"></span>
-        <button class="btn primary" id="multiDel">× borrar</button>
-        <button class="btn" id="multiClear">soltar</button>
-      </div>
       <div class="toolbar" id="wireBar" hidden>
         <button class="btn lk" data-shape="recta" title="Recta" aria-label="Recta"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M3 11 L23 3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
         <button class="btn lk" data-shape="escalon" title="Escalonada" aria-label="Escalonada"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M3 11 H13 V3 H23" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
@@ -491,7 +483,7 @@ var HTML = `<div class="layout" id="layoutEl">
       <li><b>Notas</b>: el <b>puntito</b> de la card (lleno si tiene notas).</li>
       <li>Arrastrá la <b>card</b> = moverla · <b>Shift + arrastrar</b> = mover con todas sus partes.</li>
       <li><b>Doble clic</b> = crear nodo / renombrar · <b>✎</b> renombrar · <b>+</b> nueva parte · <b>×</b> borrar.</li>
-      <li>Arrastrá el fondo = mover · rueda o dos dedos = zoom · <b>⇶</b> reordenar · <b>⤢</b> centrar.</li>
+      <li>Arrastrá el fondo = mover · rueda o dos dedos = zoom · <b>⤢</b> centrar.</li>
       <li>Teclado: <b>Tab</b> nueva parte · <b>Supr</b> borrar · <b>Enter</b> renombrar · <b>Ctrl+Z / Ctrl+Y</b>.</li>
     </ul>
     <div class="help-h">Niveles</div>
@@ -537,7 +529,7 @@ window.PlanesAprender = {
 function engine(root, api){
 
   var W = 230, H = 56;      // tamaño de la card (igual que --card-w / --card-h)
-  var GX = 60, GY = 18;     // separación entre columnas / filas al reordenar
+  var GX = 60, GY = 18;     // separación entre columnas / filas de las cards nuevas
   var GRID = 10;
   var LEVEL_ORDER = ["", "bronce", "plata", "oro", "diamante"];
   var PLATA = 2, ORO = 3;   // posiciones en LEVEL_ORDER
@@ -701,55 +693,6 @@ function engine(root, api){
     save();
   }
 
-  // ---------- reordenar (auto-layout) ----------
-  function layout(p){
-    var level = {}, order = [], indeg = {};
-    p.nodes.forEach(function(t){ indeg[t.id] = 0; level[t.id] = 0; });
-    p.deps.forEach(function(d){ if(indeg[d.to] !== undefined) indeg[d.to]++; });
-    var queue = p.nodes.filter(function(t){ return !indeg[t.id]; })
-      .sort(function(a, b){ return a.y - b.y || a.x - b.x; }).map(function(t){ return t.id; });
-    while(queue.length){
-      var n = queue.shift();
-      order.push(n);
-      dependents(p, n).forEach(function(k){
-        level[k] = Math.max(level[k], level[n] + 1);
-        if(--indeg[k] === 0) queue.push(k);
-      });
-    }
-    var cols = [];
-    order.forEach(function(id){ (cols[level[id]] = cols[level[id]] || []).push(id); });
-    // Cada columna se ordena por la fila promedio de lo que la conecta (baricentro), así se cruzan poco.
-    var row = {}, rootRow = 0;
-    cols.forEach(function(col, li){
-      var items = col.map(function(id){
-        var pre = prereqs(p, id).filter(function(x){ return row[x] !== undefined; });
-        var want = pre.length ? pre.reduce(function(s, x){ return s + row[x]; }, 0) / pre.length : null;
-        return { id: id, want: want, y: byId(p, id).y };
-      });
-      if(li === 0){
-        items.forEach(function(it){ row[it.id] = rootRow; rootRow += Math.max(1, branchWidth(p, it.id)); });
-        return;
-      }
-      items.sort(function(a, b){ return a.want - b.want || a.y - b.y; });
-      var last = -Infinity;
-      items.forEach(function(it){ var r = Math.max(Math.round(it.want * 2) / 2, last + 1); row[it.id] = r; last = r; });
-    });
-    var pitch = Math.max.apply(null, [H].concat(p.nodes.map(function(t){ return cardH(t.id); }))) + GY;
-    var x0 = Infinity, y0 = Infinity;
-    p.nodes.forEach(function(t){ x0 = Math.min(x0, t.x); y0 = Math.min(y0, t.y); });
-    p.nodes.forEach(function(t){ t.x = snap(x0 + level[t.id] * (W + GX)); t.y = snap(y0 + row[t.id] * pitch); });
-  }
-  function branchWidth(p, id){
-    var depth = {}, count = {};
-    (function walk(n, d){
-      if(depth[n] !== undefined && depth[n] >= d) return;
-      depth[n] = d;
-      dependents(p, n).forEach(function(k){ walk(k, d + 1); });
-    })(id, 0);
-    Object.keys(depth).forEach(function(k){ count[depth[k]] = (count[depth[k]] || 0) + 1; });
-    return Math.max.apply(null, Object.keys(count).map(function(k){ return count[k]; }));
-  }
-
   // ---------- dibujo ----------
   var multi = [];          // selección múltiple de nodos (recuadro o Ctrl+click)
   function isSelNode(id){ return (sel && sel.node === id) || multi.indexOf(id) >= 0; }
@@ -765,7 +708,6 @@ function engine(root, api){
     $("undo").disabled = !hist.length;
     $("redo").disabled = !fut.length;
     $("noteBtn").disabled = !p;
-    $("layout").disabled = !p || !p.nodes.length;
     $("fit").disabled = !p || (!p.nodes.length && !p.stickies.length);
     renderBars();
     renderMenu();
@@ -877,15 +819,13 @@ function engine(root, api){
     wiresEl.innerHTML = html;
   }
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return "&#" + c.charCodeAt(0) + ";"; }); }
-  // Barra de abajo: normal · línea elegida (forma, estilo, borrar) · varias cards elegidas.
+  // Barra de abajo: normal · línea elegida (forma, estilo, borrar).
   function renderBars(){
     var p0 = cur(), d = sel && sel.dep && p0 && findDep(p0, sel.dep.from, sel.dep.to);
     if(p0) multi = multi.filter(function(id){ return byId(p0, id); });
-    var many = multi.length > 1, line = !!d;
-    $("multiBar").hidden = !many;
-    if(many) $("multiN").textContent = multi.length + " seleccionadas";
-    $("wireBar").hidden = many || !line;
-    $("toolbar").hidden = many || line;
+    var line = !!d;
+    $("wireBar").hidden = !line;
+    $("toolbar").hidden = line;
     if(line) $("palette").hidden = true;
     if(d) Array.prototype.forEach.call(root.querySelectorAll("#wireBar .lk"), function(b){
       b.classList.toggle("on", b.dataset.shape ? (d.shape || "curva") === b.dataset.shape : (d.style || "continua") === b.dataset.style);
@@ -1216,8 +1156,6 @@ function engine(root, api){
     });
     toast(ids.length + " cards borradas · Ctrl+Z para deshacer");
   }
-  $("multiDel").addEventListener("click", multiDelete);
-  $("multiClear").addEventListener("click", function(){ select(null); });
   function moveDragIds(base, id, ids){
     var p = cur();
     return Object.assign(base, { kind: "move", id: id, items: ids.map(function(k){ return byId(p, k); }).filter(Boolean).map(function(t){ return { t: t, x: t.x, y: t.y }; }) });
@@ -1605,13 +1543,7 @@ function engine(root, api){
   $("redo").addEventListener("click", redo);
   $("exportBtn").addEventListener("click", exportJSON);
   $("importBtn").addEventListener("click", function(){ closeSideMobile(); $("fileIn").click(); });
-  $("layout").addEventListener("click", function(){
-    change(function(p){ if(!p || !p.nodes.length) return false; layout(p); });
-    fit();
-  });
   $("fit").addEventListener("click", fit);
-  $("zoomIn").addEventListener("click", function(){ var r = canvas.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.2); });
-  $("zoomOut").addEventListener("click", function(){ var r = canvas.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2); });
   $("wireDel").addEventListener("click", deleteSelected);
   $("wireCancel").addEventListener("click", function(){ select(null); });
   Array.prototype.forEach.call(root.querySelectorAll("[data-help]"), function(b){

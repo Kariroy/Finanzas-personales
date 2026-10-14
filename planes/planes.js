@@ -8,7 +8,7 @@
 var KEY = "planes-v1";
 var storeKey = KEY;       // con cuenta: una copia local por usuario (KEY + ":" + id)
 var W = 230, H = 56;      // tamaño de la card (igual que --card-w / --card-h)
-var GX = 60, GY = 18;     // separación entre columnas / filas al reordenar
+var GX = 60, GY = 18;     // separación entre columnas / filas de las tareas nuevas
 var GRID = 10;
 var ICON = { todo: "○", doing: "▶", paused: "❚❚", done: "✓" };
 var NEXT = { todo: "doing", doing: "done", done: "todo", paused: "doing" };
@@ -275,69 +275,6 @@ function fit(){
   save();
 }
 
-// ---------- reordenar (auto-layout) ----------
-function layout(p){
-  var level = {}, order = [];
-  // Orden topológico (Kahn) y nivel = camino más largo desde una raíz.
-  var indeg = {};
-  p.tasks.forEach(function(t){ indeg[t.id] = 0; level[t.id] = 0; });
-  p.deps.forEach(function(d){ if(indeg[d.to] !== undefined) indeg[d.to]++; });
-  var queue = p.tasks.filter(function(t){ return !indeg[t.id]; })
-    .sort(function(a, b){ return a.y - b.y || a.x - b.x; }).map(function(t){ return t.id; });
-  while(queue.length){
-    var n = queue.shift();
-    order.push(n);
-    dependents(p, n).forEach(function(k){
-      level[k] = Math.max(level[k], level[n] + 1);
-      if(--indeg[k] === 0) queue.push(k);
-    });
-  }
-  var cols = [];
-  order.forEach(function(id){ (cols[level[id]] = cols[level[id]] || []).push(id); });
-
-  // Cada columna se ordena por la fila promedio de sus prerequisitos (baricentro),
-  // así las ramas quedan cerca de su origen y se cruzan poco.
-  var row = {};
-  var rootRow = 0;
-  cols.forEach(function(col, li){
-    var items = col.map(function(id){
-      var pre = prereqs(p, id).filter(function(x){ return row[x] !== undefined; });
-      var want = pre.length ? pre.reduce(function(s, x){ return s + row[x]; }, 0) / pre.length : null;
-      return { id: id, want: want, y: byId(p, id).y };
-    });
-    if(li === 0){
-      // Raíces: cada una deja lugar para el ancho de su rama.
-      items.forEach(function(it){ row[it.id] = rootRow; rootRow += Math.max(1, branchWidth(p, it.id)); });
-      return;
-    }
-    items.sort(function(a, b){ return a.want - b.want || a.y - b.y; });
-    var last = -Infinity;
-    items.forEach(function(it){
-      var r = Math.max(Math.round(it.want * 2) / 2, last + 1);
-      row[it.id] = r; last = r;
-    });
-  });
-  // Separación entre filas según la card más alta (nombres largos ocupan más alto).
-  var pitch = Math.max.apply(null, [H].concat(p.tasks.map(function(t){ return cardH(t.id); }))) + GY;
-  var x0 = Infinity, y0 = Infinity;
-  p.tasks.forEach(function(t){ x0 = Math.min(x0, t.x); y0 = Math.min(y0, t.y); });
-  p.tasks.forEach(function(t){
-    t.x = snap(x0 + level[t.id] * (W + GX));
-    t.y = snap(y0 + row[t.id] * pitch);
-  });
-}
-// Cuántas filas ocupa la rama que sale de una raíz (máximo de tareas en una misma columna).
-function branchWidth(p, id){
-  var depth = {}, count = {};
-  (function walk(n, d){
-    if(depth[n] !== undefined && depth[n] >= d) return;
-    depth[n] = d;
-    dependents(p, n).forEach(function(k){ walk(k, d + 1); });
-  })(id, 0);
-  Object.keys(depth).forEach(function(k){ count[depth[k]] = (count[depth[k]] || 0) + 1; });
-  return Math.max.apply(null, Object.keys(count).map(function(k){ return count[k]; }));
-}
-
 // ---------- dibujo ----------
 var multi = [];          // selección múltiple (ids de tareas), con recuadro o Ctrl+click
 function isSelTask(id){ return (sel && sel.task === id) || multi.indexOf(id) >= 0; }
@@ -370,9 +307,8 @@ function renderAll(){
   $("undo").disabled = !hist.length;
   $("redo").disabled = !fut.length;
   $("newTask").disabled = !p;
-  $("layout").disabled = !p;
   canvas.classList.toggle("hl", state.highlight !== false);
-  renderMultiBar();
+  pruneMulti();
   $("highlight").checked = state.highlight !== false;
 }
 
@@ -812,7 +748,7 @@ function select(s){
 function paintSel(){
   Object.keys(els).forEach(function(k){ els[k].classList.toggle("selected", isSelTask(k)); });
   renderWires();
-  renderMultiBar();
+  pruneMulti();
 }
 // Selección de varias tareas: con una sola se comporta como la selección normal.
 function setMulti(ids){
@@ -821,15 +757,10 @@ function setMulti(ids){
   multi = ids;
   paintSel();
 }
-function renderMultiBar(){
-  var p = proj(), bar = $("multiBar");
+// Saca de la selección múltiple las tareas que ya no existen.
+function pruneMulti(){
+  var p = proj();
   if(p) multi = multi.filter(function(id){ return byId(p, id); });
-  bar.hidden = multi.length < 2 || state.mode !== "map";
-  if(!bar.hidden) $("multiN").textContent = multi.length + " seleccionadas";
-}
-function multiStatus(st){
-  var ids = multi.slice();
-  change(function(p){ ids.forEach(function(id){ var t = byId(p, id); if(t) t.status = st; }); });
 }
 function multiDelete(){
   var ids = multi.slice();
@@ -840,13 +771,6 @@ function multiDelete(){
   });
   toast(ids.length + " tareas borradas", { label: "deshacer", fn: undo });
 }
-$("multiBar").addEventListener("click", function(e){
-  var b = e.target.closest("[data-mact]"); if(!b) return;
-  var a = b.dataset.mact;
-  if(a === "del") multiDelete();
-  else if(a === "clear") select(null);
-  else multiStatus(a);
-});
 
 function newChild(id){
   var p = proj(), parent = byId(p, id); if(!parent) return;
@@ -948,7 +872,7 @@ canvas.addEventListener("pointerdown", function(e){
   if(mouse && e.button !== 0 && e.button !== 1 && e.button !== 2) return;
   var p = proj(); if(!p) return;
   if(mouse && e.button !== 0){
-    if(e.target.closest(".toolbar") || e.target.closest(".menu") || e.target.closest("#multiBar")) return;
+    if(e.target.closest(".toolbar") || e.target.closest(".menu")) return;
     e.preventDefault();
     var v0 = view();
     drag = { sx: e.clientX, sy: e.clientY, moved: false, kind: "pan", vx: v0.x, vy: v0.y };
@@ -966,7 +890,7 @@ canvas.addEventListener("pointerdown", function(e){
     return;
   }
   var t = e.target;
-  if(t.closest("[data-act]") || t.closest(".toolbar") || t.closest(".menu") || t.closest("#multiBar")) return;
+  if(t.closest("[data-act]") || t.closest(".toolbar") || t.closest(".menu")) return;
 
   var card = t.closest(".card"), port = t.closest(".port"), wire = t.closest(".wire");
   var base = { sx: e.clientX, sy: e.clientY, moved: false, before: snapshot() };
@@ -1486,13 +1410,7 @@ $("undo").addEventListener("click", undo);
 $("redo").addEventListener("click", redo);
 $("highlight").addEventListener("change", function(e){ state.highlight = e.target.checked; save(); renderAll(); });
 
-$("layout").addEventListener("click", function(){
-  change(function(p){ if(!p || !p.tasks.length) return false; layout(p); });
-  fit();
-});
 $("fit").addEventListener("click", fit);
-$("zoomIn").addEventListener("click", function(){ var r = canvas.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.2); });
-$("zoomOut").addEventListener("click", function(){ var r = canvas.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2); });
 
 function closeSideMobile(){ $("side").classList.remove("open"); }
 function isMobile(){ return matchMedia("(max-width: 800px)").matches; }
