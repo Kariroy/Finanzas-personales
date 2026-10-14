@@ -275,7 +275,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .ring { width: 18px; height: 18px; border-radius: 50%; flex: none; background: conic-gradient(var(--oro) calc(var(--p) * 1%), var(--line-2) 0);
   -webkit-mask: radial-gradient(circle, transparent 4px, #000 5px); mask: radial-gradient(circle, transparent 4px, #000 5px); }
 
-/* menú del nodo: botones en diagonal debajo de la card */
+/* menú del nodo: botones uno al lado del otro, debajo de la card */
 .nmenu { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 4; }
 .nm-item { position: absolute; display: flex; align-items: center; gap: 8px; white-space: nowrap;
   background: #1a222d; border: 1px solid var(--line-2); border-radius: 999px; padding: 7px 14px 7px 10px; cursor: pointer;
@@ -285,7 +285,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .nm-item .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--faint)); flex: none; }
 .nm-item.on { border-color: var(--c, var(--accent)); background: color-mix(in srgb, var(--c, var(--accent)) 16%, #1a222d); }
 .nm-item.tool .dot { background: none; border: 1.5px solid var(--c, var(--faint)); }
-@keyframes nm-in { from { opacity: 0; translate: -8px -8px; } to { opacity: 1; translate: 0 0; } }
+@keyframes nm-in { from { opacity: 0; translate: 0 -6px; } to { opacity: 1; translate: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .nm-item { animation: none; } }
 
 .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); pointer-events: none; text-align: center; padding: 16px; line-height: 1.7; }
@@ -882,7 +882,7 @@ function engine(root, api){
     if(pick){ var t = cur() && byId(cur(), pick.to); $("pickTxt").textContent = "Tocá la card que «" + (t ? t.title : "") + "» requiere"; }
   }
 
-  // ---------- menú del nodo: el tipo, en diagonal debajo de la card ----------
+  // ---------- menú del nodo: el tipo, en fila debajo de la card ----------
   function openMenu(id){ menu = { id: id }; renderMenu(); }
   function closeMenu(){ if(!menu) return; menu = null; renderMenu(); }
   function renderMenu(){
@@ -898,19 +898,16 @@ function engine(root, api){
     box.hidden = false;
     placeMenu();
   }
-  // Los botones salen debajo de la card y bajan en diagonal hacia la derecha.
+  // Los botones salen debajo de la card, uno al lado del otro.
   function placeMenu(){
     var box = $("nmenu");
     if(!menu || box.hidden || !els[menu.id]) return;
-    var cr = canvas.getBoundingClientRect(), r = els[menu.id].getBoundingClientRect();
-    var n = box.children.length, dx = 22, step = isMobile() ? 46 : 38;
-    var widest = Math.max.apply(null, Array.prototype.map.call(box.children, function(b){ return b.offsetWidth; }));
-    var x0 = r.left - cr.left + 6, y0 = r.bottom - cr.top + 8;
-    x0 = Math.max(8, Math.min(x0, cr.width - 8 - widest - (n - 1) * dx));   // que no se salga por la derecha
-    Array.prototype.forEach.call(box.children, function(b, i){
-      b.style.left = (x0 + i * dx) + "px";
-      b.style.top = (y0 + i * step) + "px";
-    });
+    var cr = canvas.getBoundingClientRect(), r = els[menu.id].getBoundingClientRect(), gap = 6;
+    var kids = Array.prototype.slice.call(box.children);
+    var total = kids.reduce(function(a, b){ return a + b.offsetWidth; }, 0) + gap * (kids.length - 1);
+    var x = r.left - cr.left, y = r.bottom - cr.top + 8;
+    x = Math.max(8, Math.min(x, cr.width - 8 - total));   // que no se salga por la derecha
+    kids.forEach(function(b){ b.style.left = x + "px"; b.style.top = y + "px"; x += b.offsetWidth + gap; });
   }
   $("nmenu").addEventListener("pointerdown", function(e){ e.stopPropagation(); });
   $("nmenu").addEventListener("dblclick", function(e){ e.stopPropagation(); });
