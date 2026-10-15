@@ -240,36 +240,38 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .layers button.on svg { opacity: 1; }
 /* visor de rutas: los pasos de la ruta en orden */
 .rv { position: absolute; inset: 0; z-index: 5; background: var(--bg); overflow-y: auto; padding: 64px 16px 40px; }
-.rv-wrap { max-width: 620px; margin: 0 auto; }
+.rv-wrap { max-width: 980px; margin: 0 auto; }
 .rv-head { display: flex; align-items: baseline; gap: 12px; margin: 6px 0 18px; }
 .rv-title { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rv-sub { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .rv-bar { height: 4px; border-radius: 2px; background: var(--line); margin: -10px 0 22px; overflow: hidden; }
 .rv-bar i { display: block; height: 100%; background: var(--ruta); border-radius: 2px; }
 .rv-chain { color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 22px 0 10px; }
-.rv-list { list-style: none; margin: 0; padding: 0; }
-.rv-step { position: relative; display: flex; align-items: flex-start; gap: 14px; padding: 0 0 14px; }
-.rv-cards { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.rv-par { color: var(--faint); font-size: 10.5px; margin: 8px 0 0; }
-/* el hilo que une los pasos */
-.rv-step:not(:last-child)::before { content: ""; position: absolute; left: 15px; top: 40px; bottom: 2px; border-left: 3px dotted var(--line-2); }
-.rv-step.hecho:not(:last-child)::before { border-left-color: var(--ruta); }
-.rv-n { flex: none; margin-top: 8px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px;
-  border: 2px solid var(--line-2); color: var(--muted); background: var(--bg); position: relative; }
-.rv-step.hecho .rv-n { background: var(--ruta); border-color: var(--ruta); color: #0d1117; }
-.rv-step.actual .rv-n { border-color: var(--ruta); color: var(--ruta); box-shadow: 0 0 0 4px rgba(126,231,135,.15); }
-.rv-card { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; min-height: 32px; }
+/* la ruta como diagrama de flujo: inicio, cards con flechas, fin */
+.rv-scroll { overflow-x: auto; padding-bottom: 6px; }
+.rv-flow { position: relative; margin: 0 auto; }
+.rv-flow svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.rf-edge { fill: none; stroke: var(--line-2); stroke-width: 2; }
+.rf-edge.done { stroke: var(--ruta); }
+.rf-arrow { fill: var(--line-2); }
+.rf-arrow.done { fill: var(--ruta); }
+.rf-term { position: absolute; display: grid; place-items: center; border: 1.5px solid var(--line-2); border-radius: 999px; color: var(--muted);
+  font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--bg); }
+.rf-term.done { border-color: var(--ruta); color: var(--ruta); }
+.rv-card { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 4px; background: var(--card); border: 1px solid var(--line);
+  border-left: 3px solid var(--teal); border-radius: 8px; padding: 8px 10px 8px 11px; cursor: pointer; overflow: hidden; }
 .rv-card:hover { border-color: var(--line-2); }
-.rv-card.actual { border-color: rgba(126,231,135,.55); background: #121c17; }
+.rv-card.actual { border-color: rgba(126,231,135,.6); background: #121c17; box-shadow: 0 0 0 3px rgba(126,231,135,.12); }
+.rv-card.hecho { opacity: .78; }
 .rv-card.sel { border-color: var(--accent); }
-.rv-card.hecho .rv-t { color: var(--muted); }
-.rv-body { flex: 1; min-width: 0; }
-.rv-t { font-weight: 600; overflow-wrap: anywhere; }
-.rv-m { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10.5px; margin-top: 3px; }
-.rv-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); flex: none; }
-.rv-st { flex: none; font-size: 10.5px; color: var(--faint); white-space: nowrap; }
+.rv-top { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--faint); }
+.rv-num { font-weight: 700; }
+.rv-st { margin-left: auto; white-space: nowrap; }
 .rv-card.hecho .rv-st { color: var(--ruta); }
 .rv-card.actual .rv-st { color: var(--ruta); font-weight: 700; }
+.rv-t { font-weight: 600; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.rv-card.hecho .rv-t { color: var(--muted); }
+.rv-m { color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rv-empty { color: var(--muted); line-height: 1.7; max-width: 440px; margin: 12vh auto 0; text-align: center; }
 .rv-empty b { color: var(--text); }
 .rv-empty .btn { margin-top: 14px; }
@@ -587,7 +589,7 @@ var HTML = `<div class="layout" id="layoutEl">
       <li>Qué significa cada línea: <b>continua</b> = es parte de (composición) · <b>guiones</b> = requisito (dependencia) · <b style="color:var(--ruta)">punteado grande con flecha</b> = <b>ruta</b>, el orden en que vas a aprender. La ruta es una secuencia, no un requisito: va por su lado y no tiene que seguir las dependencias. A una card pueden llegar varias flechas de ruta (dos caminos que se juntan) o salir varias (un camino que se abre); lo único que no se puede es cerrar un círculo.</li>
       <li><b>➜ ruta</b> (abajo): prendido, las líneas que arrastres salen como flechas de ruta; apagado, como líneas comunes.</li>
       <li><b>Capas</b> (arriba): prendé o apagá Composición, Dependencia y Ruta para ver solo lo que te interesa.</li>
-      <li><b>➜ Ruta</b> (arriba): los pasos de la ruta en orden, con su estado: <b>hecho</b> (oro o diamante), <b>ahora</b> (sin terminar y con todo lo anterior hecho) y pendiente. Las cards a las que llegan varios caminos van después de todos ellos; las del mismo paso salen juntas, en paralelo. Tocá un paso para ver sus notas.</li>
+      <li><b>➜ Ruta</b> (arriba): la ruta como diagrama de flujo, de <b>Inicio</b> a <b>Fin</b>, con su estado: <b>hecho</b> (oro o diamante), <b>ahora</b> (sin terminar y con todo lo anterior hecho) y pendiente. Las cards a las que llegan varios caminos van después de todos ellos; las del mismo paso salen juntas, en paralelo. Tocá un paso para ver sus notas.</li>
       <li><b>◉ Foco</b> (arriba): las cards como bolitas en 3D. Se ve una card en el centro y solo sus conexiones directas; tocá otra bolita para centrarla. <b>Ver mapa completo</b> muestra todo; tocando una bolita volvés al foco. Arrastrá para girar, rueda o dos dedos para el zoom. <b>Diagrama</b> vuelve a editar.</li>
       <li>Tocá una <b>card</b> = menú debajo para elegir <b style="color:var(--semantico)">semántico</b> / <b style="color:var(--procedimental)">procedimental</b>.</li>
       <li><b>Estado</b>: tocá el círculo al inicio de la card para subirlo. El nivel de cada card es independiente del de sus partes.</li>
@@ -997,24 +999,55 @@ function engine(root, api){
       '<div class="rv-bar"><i style="width:' + (total ? Math.round(done / total * 100) : 0) + '%"></i></div>';
     groups.forEach(function(g, gi){
       if(groups.length > 1) html += '<div class="rv-chain">Ruta ' + (gi + 1) + "</div>";
-      html += '<ol class="rv-list">' + g.steps.map(function(st, i){
-        // ahora = sin terminar y con todo lo anterior de la ruta terminado
-        var cards = st.map(function(id){
-          var t = byId(p, id), ready = (g.prev[id] || []).every(isDone);
-          var cs = isDone(id) ? "hecho" : ready ? "actual" : "pendiente";
-          var meta = [TYPES[t.type] ? TYPES[t.type].label : "Sin tipo", LEVELS[t.level] ? LEVELS[t.level].label : "Sin estado"].join(" · ");
-          return { cs: cs, html: '<div class="rv-card ' + cs + (panelId === id ? " sel" : "") + '" data-id="' + id + '"><div class="rv-body"><div class="rv-t">' + esc(t.title) + "</div>" +
-            '<div class="rv-m"><span class="rv-dot"' + (TYPES[t.type] ? ' style="background:' + TYPES[t.type].color + '"' : "") + "></span>" + meta + "</div></div>" +
-            '<span class="rv-st">' + (cs === "hecho" ? "hecho" : cs === "actual" ? "▶ ahora" : "pendiente") + "</span></div>" };
-        });
-        var all = cards.every(function(c){ return c.cs === "hecho"; }), any = cards.some(function(c){ return c.cs === "actual"; });
-        return '<li class="rv-step' + (all ? " hecho" : any ? " actual" : "") + '"><span class="rv-n">' + (all ? "✓" : i + 1) + "</span>" +
-          '<div class="rv-cards">' + (cards.length > 1 ? '<div class="rv-par">' + cards.length + " en paralelo · en cualquier orden</div>" : "") +
-          cards.map(function(c){ return c.html; }).join("") + "</div></li>";
-      }).join("") + "</ol>";
+      html += '<div class="rv-scroll">' + flowHTML(p, g, isDone) + "</div>";
     });
     box.innerHTML = html + "</div>";
     box.querySelector(".rv-title").textContent = "Ruta · " + p.name;
+  }
+  // Diagrama de flujo de un grupo: de arriba hacia abajo, un paso por fila, inicio y fin como terminales.
+  function flowHTML(p, g, isDone){
+    var mob = isMobile(), CW = mob ? 170 : 210, CH = 92, GX = mob ? 14 : 22, GY = 46, TH = 28, TW = 92;
+    var rows = g.steps.map(function(r){ return r.slice(); }), next = {}, pos = {};
+    Object.keys(g.prev).forEach(function(to){ g.prev[to].forEach(function(f){ (next[f] = next[f] || []).push(to); }); });
+    var maxN = Math.max.apply(null, rows.map(function(r){ return r.length; }));
+    var W = Math.max(TW, maxN * CW + (maxN - 1) * GX);
+    // Cada fila se ordena según dónde quedaron sus anteriores, para que las flechas se crucen lo menos posible.
+    rows.forEach(function(r, ri){
+      if(ri) r.sort(function(a, b){
+        function bar(id){ var ps = (g.prev[id] || []).filter(function(q){ return pos[q]; }); return ps.length ? ps.reduce(function(s, q){ return s + pos[q].x; }, 0) / ps.length : W / 2; }
+        return bar(a) - bar(b);
+      });
+      var rw = r.length * CW + (r.length - 1) * GX, x0 = (W - rw) / 2, y = TH + GY + ri * (CH + GY);
+      r.forEach(function(id, i){ pos[id] = { x: x0 + i * (CW + GX), y: y }; });
+    });
+    var endY = TH + GY + rows.length * (CH + GY), H = endY + TH;
+    var svg = "", cards = "";
+    function edge(ax, ay, bx, by, ok){
+      var k = Math.max(18, (by - ay) / 2), tip = by - 1;
+      svg += '<path class="rf-edge' + (ok ? " done" : "") + '" d="M' + ax + "," + ay + " C" + ax + "," + (ay + k) + " " + bx + "," + (tip - 8 - k) + " " + bx + "," + (tip - 8) + '"/>' +
+        '<path class="rf-arrow' + (ok ? " done" : "") + '" d="M' + (bx - 6) + "," + (tip - 9) + " L" + (bx + 6) + "," + (tip - 9) + " L" + bx + "," + tip + ' Z"/>';
+    }
+    var cx = W / 2, allDone = true;
+    rows[0].forEach(function(id){ edge(cx, TH, pos[id].x + CW / 2, pos[id].y, true); });
+    rows.forEach(function(r){ r.forEach(function(id){
+      var a = pos[id];
+      (next[id] || []).forEach(function(to){ var b = pos[to]; if(b) edge(a.x + CW / 2, a.y + CH, b.x + CW / 2, b.y, isDone(id)); });
+      if(!(next[id] || []).length) edge(a.x + CW / 2, a.y + CH, cx, endY, isDone(id));
+      if(!isDone(id)) allDone = false;
+    }); });
+    rows.forEach(function(r, ri){ r.forEach(function(id){
+      var t = byId(p, id), a = pos[id], ready = (g.prev[id] || []).every(isDone);
+      var cs = isDone(id) ? "hecho" : ready ? "actual" : "pendiente";
+      var meta = [TYPES[t.type] ? TYPES[t.type].label : "Sin tipo", LEVELS[t.level] ? LEVELS[t.level].label : "Sin estado"].join(" · ");
+      cards += '<div class="rv-card ' + cs + (panelId === id ? " sel" : "") + '" data-id="' + id + '" style="left:' + a.x + "px;top:" + a.y + "px;width:" + CW + "px;height:" + CH + "px" +
+        (TYPES[t.type] ? ";border-left-color:" + TYPES[t.type].color : "") + '">' +
+        '<div class="rv-top"><span class="rv-num">' + (ri + 1) + (r.length > 1 ? " · en paralelo" : "") + '</span><span class="rv-st">' +
+        (cs === "hecho" ? "✓ hecho" : cs === "actual" ? "▶ ahora" : "pendiente") + "</span></div>" +
+        '<div class="rv-t">' + esc(t.title) + '</div><div class="rv-m">' + meta + "</div></div>";
+    }); });
+    var term = function(y, txt, ok){ return '<div class="rf-term' + (ok ? " done" : "") + '" style="left:' + (cx - TW / 2) + "px;top:" + y + "px;width:" + TW + "px;height:" + TH + 'px">' + txt + "</div>"; };
+    return '<div class="rv-flow" style="width:' + W + "px;height:" + H + 'px"><svg width="' + W + '" height="' + H + '">' + svg + "</svg>" +
+      term(0, "Inicio", true) + cards + term(endY, "Fin", allDone) + "</div>";
   }
   $("rv").addEventListener("click", function(e){
     if(e.target.closest('[data-rv="map"]')){ setRuta(false); return; }
