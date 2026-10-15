@@ -107,6 +107,9 @@ La vista **Aprender** (`planes/aprender.js`) organiza habilidades en diagramas: 
 lienzo con cards **semántico** / **procedimental**, niveles bronce → plata → oro → diamante (con el criterio de
 cada uno), líneas que se conectan por cualquiera de los cuatro lados de la card (recta, escalonada o curva;
 continua, con guiones o de puntos) y **notas adhesivas** de colores (traba, idea, pregunta, recurso).
+La **vista foco** (`planes/aprender-foco.js`) muestra las cards como esferas en 3D: una en el centro y sus
+conexiones directas; tocando otra se centra esa, y «Ver mapa completo» muestra todo. Es solo de lectura y
+no usa librerías (proyección en perspectiva propia sobre un `<canvas>`).
 Se guarda en la cuenta con el resto de Planes.
 
 Comparte con la app de gastos solo la infraestructura:

@@ -202,6 +202,17 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .topbar { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; align-items: center; gap: 8px; z-index: 6; pointer-events: none; }
 .topbar > * { pointer-events: auto; }
 .topbar .help-btn { margin-left: auto; font-weight: 700; font-size: 14px; }
+/* cambiar entre el diagrama y la vista foco */
+.vseg { display: flex; background: rgba(20,26,34,.94); border: 1px solid var(--line); border-radius: 7px; padding: 2px; gap: 2px; }
+.vseg button { background: none; border: 0; border-radius: 5px; padding: 5px 10px; cursor: pointer; color: var(--muted); white-space: nowrap; }
+.vseg button.on { background: var(--panel-2); color: var(--text); }
+/* vista foco: lienzo 3D encima del diagrama */
+.foco { position: absolute; inset: 0; z-index: 5; background: #141518; overflow: hidden; }
+.fc-canvas { position: absolute; inset: 0; display: block; touch-action: none; cursor: grab; }
+.fc-bar { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; }
+.fc-btn { background: rgba(28,29,34,.94); border: 1px solid rgba(255,255,255,.1); border-radius: 6px; padding: 7px 12px; cursor: pointer; color: #e6e7ea; font: inherit; }
+.fc-btn:hover { border-color: rgba(233,168,242,.55); }
+.fc-hint { position: absolute; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); color: #6f727b; font-size: 11px; white-space: nowrap; pointer-events: none; }
 
 .wire .line { fill: none; stroke: #3a4452; stroke-width: 1.6; }
 .wire .hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
@@ -365,6 +376,8 @@ button, select, input, textarea { font: inherit; color: inherit; }
   .toolbar .lk { padding: 9px 9px; }
   #wireBar { flex-wrap: wrap; justify-content: center; width: calc(100% - 16px); }
   #wireBar .sep { display: none; }
+  .fc-bar { top: 64px; }
+  .fc-hint { white-space: normal; width: calc(100% - 32px); text-align: center; }
   .skill .x { opacity: 1; font-size: 15px; padding: 4px 6px; }
   .skill { padding: 11px 10px; }
   .btn { padding: 10px 12px; }
@@ -407,8 +420,13 @@ var HTML = `<div class="layout" id="layoutEl">
   <div class="stage">
     <div class="topbar">
       <button class="icon-btn" id="openSide" aria-label="Mostrar u ocultar el panel" title="Mostrar / ocultar panel">☰</button>
+      <div class="vseg" role="tablist" aria-label="Vista">
+        <button type="button" id="vMap" class="on" title="Diagrama para editar">Mapa</button>
+        <button type="button" id="vFoco" title="Vista foco: una card y sus conexiones, en 3D">◉ Foco</button>
+      </div>
       <button class="icon-btn help-btn only-mobile" data-help aria-label="Ayuda">?</button>
     </div>
+    <div class="foco" id="foco" hidden></div>
     <main class="canvas" id="canvas">
       <div class="world" id="world">
         <svg class="wires" id="wires" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -478,6 +496,7 @@ var HTML = `<div class="layout" id="layoutEl">
       <li>Cada <b>habilidad</b> del panel izquierdo es un diagrama. Tocala para verla.</li>
       <li><b>Líneas</b>: arrastrá un <b>●</b> de cualquiera de los cuatro lados de la card hasta otra card = conectarlas (llega al lado más cercano) · a un lugar vacío = nuevo nodo.</li>
       <li>Tocá una <b>línea</b> = elegir su forma (recta, escalonada, curva) y su estilo (continua, guiones, puntos), o borrarla. Las líneas nuevas salen con la última forma y estilo que elegiste.</li>
+      <li><b>◉ Foco</b> (arriba): las cards como bolitas en 3D. Se ve una card en el centro y solo sus conexiones directas; tocá otra bolita para centrarla. <b>Ver mapa completo</b> muestra todo; tocando una bolita volvés al foco. Arrastrá para girar, rueda o dos dedos para el zoom. <b>Mapa</b> vuelve al diagrama.</li>
       <li>Tocá una <b>card</b> = menú debajo para elegir <b style="color:var(--semantico)">semántico</b> / <b style="color:var(--procedimental)">procedimental</b>.</li>
       <li><b>Estado</b>: tocá el círculo al inicio de la card para subirlo. El nivel de cada card es independiente del de sus partes.</li>
       <li><b>Notas</b>: el <b>puntito</b> de la card (lleno si tiene notas).</li>
@@ -712,7 +731,42 @@ function engine(root, api){
     renderBars();
     renderMenu();
     renderPanel();
+    if(focoOn) syncFoco();
   }
+
+  // ---------- vista foco (3D, solo lectura) ----------
+  var focoOn = false, foco = null;
+  function focoGraph(p){
+    return {
+      nodes: p.nodes.map(function(t){
+        return { id: t.id, title: t.title, x: t.x, y: t.y,
+                 typeLabel: TYPES[t.type] ? TYPES[t.type].label : "", levelLabel: LEVELS[t.level] ? LEVELS[t.level].label : "" };
+      }),
+      edges: p.deps.map(function(d){ return { from: d.from, to: d.to }; })
+    };
+  }
+  function setFoco(on){
+    var p = cur();
+    if(on && (!p || !p.nodes.length)){ toast("Esta habilidad todavía no tiene nodos"); on = false; }
+    if(!window.AprenderFoco) on = false;
+    focoOn = on;
+    $("vMap").classList.toggle("on", !on); $("vFoco").classList.toggle("on", on);
+    $("foco").hidden = !on;
+    if(!on){ if(foco) foco.close(); return; }
+    // centro: la card elegida, la de las notas o la primera
+    var start = (sel && sel.node) || panelId || multi[0] || p.nodes[0].id;
+    closeMenu(); select(null); $("palette").hidden = true;
+    if(!foco) foco = window.AprenderFoco.create($("foco"), { onCenter: function(id){ if(sideNotesOn()) showPanel(id, false); } });
+    foco.open(focoGraph(p), start);
+    if(sideNotesOn()) showPanel(foco.center(), false);
+  }
+  function syncFoco(){
+    var p = cur();
+    if(!p || !p.nodes.length){ setFoco(false); return; }
+    foco.update(focoGraph(p), panelId);
+  }
+  $("vMap").addEventListener("click", function(){ setFoco(false); });
+  $("vFoco").addEventListener("click", function(){ if(!focoOn) setFoco(true); });
 
   function levelTip(p, t, lv){
     var s = lv ? lv.label + ": " + criterion(t, t.level) : "Sin estado";
@@ -1447,7 +1501,7 @@ function engine(root, api){
 
   // ---------- teclado ----------
   document.addEventListener("keydown", function(e){
-    if(!api.visible() || (window.PlanesNotes && window.PlanesNotes.isOpen())) return;
+    if(!api.visible() || focoOn || (window.PlanesNotes && window.PlanesNotes.isOpen())) return;
     var tg = root.activeElement || e.target;
     if(!$("ask").hidden || !$("helpDlg").hidden || !$("notesDlg").hidden) return;
     if(editing || tg.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName)) return;
