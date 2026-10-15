@@ -56,24 +56,24 @@ function migrate(s){
 
 // Ruta de aprendizaje: la secuencia en que se van a aprender las cards. Va aparte de las líneas (s.deps)
 // porque no es un requisito: puede ir entre dos cards que ya tienen otra línea y no sigue las dependencias.
-// Es una cadena: cada card tiene como mucho una flecha de ruta que sale y una que llega, sin círculos.
+// A una card pueden llegar o salir varias flechas de ruta (caminos que se juntan o se abren); solo no puede haber círculos.
 function normRoute(s){
-  var out = {}, inn = {}, ok = [];
+  var ok = [];
+  function reach(a, b){
+    var seen = {}, st = [a];
+    while(st.length){ var x = st.pop(); if(x === b) return true; if(seen[x]) continue; seen[x] = 1;
+      ok.forEach(function(r){ if(r.from === x) st.push(r.to); }); }
+    return false;
+  }
   (Array.isArray(s.route) ? s.route : []).forEach(function(r){
-    if(!r || !r.from || !r.to || r.from === r.to || out[r.from] || inn[r.to]) return;
+    if(!r || !r.from || !r.to || r.from === r.to) return;
+    if(ok.some(function(o){ return o.from === r.from && o.to === r.to; }) || reach(r.to, r.from)) return;
     if(!SIDES[r.fs]) delete r.fs; if(!SIDES[r.ts]) delete r.ts;
     if(!SHAPES[r.shape] || r.shape === "curva") delete r.shape;
     delete r.style;
-    out[r.from] = r; inn[r.to] = r; ok.push(r);
+    ok.push(r);
   });
-  // Lo que quedó en círculo (no se llega desde ningún comienzo) no es una ruta: se descarta.
-  var keep = {};
-  ok.forEach(function(r){
-    if(inn[r.from]) return;
-    var x = r.from, n = 0;
-    while(out[x] && n++ < 10000){ keep[x] = 1; x = out[x].to; }
-  });
-  s.route = ok.filter(function(r){ return keep[r.from]; });
+  s.route = ok;
 }
 
 function demo(){
@@ -248,26 +248,28 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .rv-bar i { display: block; height: 100%; background: var(--ruta); border-radius: 2px; }
 .rv-chain { color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 22px 0 10px; }
 .rv-list { list-style: none; margin: 0; padding: 0; }
-.rv-step { position: relative; display: flex; align-items: center; gap: 14px; padding: 0 0 14px; cursor: pointer; }
+.rv-step { position: relative; display: flex; align-items: flex-start; gap: 14px; padding: 0 0 14px; }
+.rv-cards { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.rv-par { color: var(--faint); font-size: 10.5px; margin: 8px 0 0; }
 /* el hilo que une los pasos */
-.rv-step:not(:last-child)::before { content: ""; position: absolute; left: 15px; top: 34px; bottom: 2px; border-left: 3px dotted var(--line-2); }
+.rv-step:not(:last-child)::before { content: ""; position: absolute; left: 15px; top: 40px; bottom: 2px; border-left: 3px dotted var(--line-2); }
 .rv-step.hecho:not(:last-child)::before { border-left-color: var(--ruta); }
-.rv-n { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px;
+.rv-n { flex: none; margin-top: 8px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px;
   border: 2px solid var(--line-2); color: var(--muted); background: var(--bg); position: relative; }
 .rv-step.hecho .rv-n { background: var(--ruta); border-color: var(--ruta); color: #0d1117; }
 .rv-step.actual .rv-n { border-color: var(--ruta); color: var(--ruta); box-shadow: 0 0 0 4px rgba(126,231,135,.15); }
-.rv-card { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
-.rv-step:hover .rv-card { border-color: var(--line-2); }
-.rv-step.actual .rv-card { border-color: rgba(126,231,135,.55); background: #121c17; }
-.rv-step.sel .rv-card { border-color: var(--accent); }
-.rv-step.hecho .rv-t { color: var(--muted); }
+.rv-card { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; min-height: 32px; }
+.rv-card:hover { border-color: var(--line-2); }
+.rv-card.actual { border-color: rgba(126,231,135,.55); background: #121c17; }
+.rv-card.sel { border-color: var(--accent); }
+.rv-card.hecho .rv-t { color: var(--muted); }
 .rv-body { flex: 1; min-width: 0; }
 .rv-t { font-weight: 600; overflow-wrap: anywhere; }
 .rv-m { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10.5px; margin-top: 3px; }
 .rv-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); flex: none; }
 .rv-st { flex: none; font-size: 10.5px; color: var(--faint); white-space: nowrap; }
-.rv-step.hecho .rv-st { color: var(--ruta); }
-.rv-step.actual .rv-st { color: var(--ruta); font-weight: 700; }
+.rv-card.hecho .rv-st { color: var(--ruta); }
+.rv-card.actual .rv-st { color: var(--ruta); font-weight: 700; }
 .rv-empty { color: var(--muted); line-height: 1.7; max-width: 440px; margin: 12vh auto 0; text-align: center; }
 .rv-empty b { color: var(--text); }
 .rv-empty .btn { margin-top: 14px; }
@@ -582,10 +584,10 @@ var HTML = `<div class="layout" id="layoutEl">
       <li>Cada <b>habilidad</b> del panel izquierdo es un diagrama. Tocala para verla.</li>
       <li><b>Líneas</b>: arrastrá un <b>●</b> de cualquiera de los cuatro lados de la card hasta otra card = conectarlas (llega al lado más cercano) · a un lugar vacío = nuevo nodo.</li>
       <li>Tocá una <b>línea</b> = elegir su forma (recta, escalonada, curva) y su estilo (continua, guiones, puntos, ruta), o borrarla. Las líneas nuevas salen con la última forma y estilo que elegiste.</li>
-      <li>Qué significa cada línea: <b>continua</b> = es parte de (composición) · <b>guiones</b> = requisito (dependencia) · <b style="color:var(--ruta)">punteado grande con flecha</b> = <b>ruta</b>, el orden en que vas a aprender. La ruta es una secuencia, no un requisito: va por su lado y no tiene que seguir las dependencias. Cada card tiene una sola flecha de ruta que sale y una que llega; si dibujás otra, reemplaza a la anterior.</li>
+      <li>Qué significa cada línea: <b>continua</b> = es parte de (composición) · <b>guiones</b> = requisito (dependencia) · <b style="color:var(--ruta)">punteado grande con flecha</b> = <b>ruta</b>, el orden en que vas a aprender. La ruta es una secuencia, no un requisito: va por su lado y no tiene que seguir las dependencias. A una card pueden llegar varias flechas de ruta (dos caminos que se juntan) o salir varias (un camino que se abre); lo único que no se puede es cerrar un círculo.</li>
       <li><b>➜ ruta</b> (abajo): prendido, las líneas que arrastres salen como flechas de ruta; apagado, como líneas comunes.</li>
       <li><b>Capas</b> (arriba): prendé o apagá Composición, Dependencia y Ruta para ver solo lo que te interesa.</li>
-      <li><b>➜ Ruta</b> (arriba): los pasos de la ruta en orden, con su estado: <b>hecho</b> (oro o diamante), <b>ahora</b> (el primero sin terminar) y pendiente. Tocá un paso para ver sus notas.</li>
+      <li><b>➜ Ruta</b> (arriba): los pasos de la ruta en orden, con su estado: <b>hecho</b> (oro o diamante), <b>ahora</b> (sin terminar y con todo lo anterior hecho) y pendiente. Las cards a las que llegan varios caminos van después de todos ellos; las del mismo paso salen juntas, en paralelo. Tocá un paso para ver sus notas.</li>
       <li><b>◉ Foco</b> (arriba): las cards como bolitas en 3D. Se ve una card en el centro y solo sus conexiones directas; tocá otra bolita para centrarla. <b>Ver mapa completo</b> muestra todo; tocando una bolita volvés al foco. Arrastrá para girar, rueda o dos dedos para el zoom. <b>Diagrama</b> vuelve a editar.</li>
       <li>Tocá una <b>card</b> = menú debajo para elegir <b style="color:var(--semantico)">semántico</b> / <b style="color:var(--procedimental)">procedimental</b>.</li>
       <li><b>Estado</b>: tocá el círculo al inicio de la card para subirlo. El nivel de cada card es independiente del de sus partes.</li>
@@ -732,38 +734,41 @@ function engine(root, api){
 
   // ---------- ruta (secuencia de aprendizaje, aparte de las líneas) ----------
   function findRoute(p, from, to){ return (p.route || []).filter(function(r){ return r.from === from && r.to === to; })[0] || null; }
-  function routeNext(p, id){ var r = (p.route || []).filter(function(x){ return x.from === id; })[0]; return r ? r.to : null; }
-  // Nueva flecha de ruta. Si «from» ya tenía una que sale o «to» una que llega, se reemplaza.
+  // Nueva flecha de ruta. Se pueden juntar o abrir caminos; lo único que no se puede es cerrar un círculo.
   function addRoute(p, from, to, extra){
     if(from === to) return false;
     p.route = p.route || [];
     if(findRoute(p, from, to)){ toast("Esa flecha de ruta ya existe"); return false; }
-    var x = to, n = 0;
-    while(x && n++ < 10000){ if(x === from){ toast("Eso cerraría la ruta en un círculo"); return false; } x = routeNext(p, x); }
-    var replaced = p.route.some(function(r){ return r.from === from || r.to === to; });
-    p.route = p.route.filter(function(r){ return r.from !== from && r.to !== to; });
+    if(reachesIn(p.route, to, from)){ toast("Eso cerraría la ruta en un círculo"); return false; }
     var r = { from: from, to: to }, ld = state.lineDefault || {};
     if(ld.shape && ld.shape !== "curva") r.shape = ld.shape;
     Object.assign(r, extra || {});
     p.route.push(r);
-    if(replaced) toast("Ruta: se reemplazó la flecha anterior");
     return true;
   }
   function removeRoute(p, from, to){ p.route = (p.route || []).filter(function(r){ return !(r.from === from && r.to === to); }); }
-  // Al borrar cards que estaban en la ruta, la ruta sigue: la anterior pasa a apuntar a la siguiente.
+  // Al borrar cards que estaban en la ruta, la ruta sigue: las anteriores pasan a apuntar a las siguientes.
   function dropFromRoute(p, ids){
     var gone = {}; ids.forEach(function(id){ gone[id] = 1; });
-    var prev = {}, next = {};
-    (p.route || []).forEach(function(r){ next[r.from] = r; prev[r.to] = r; });
-    var bridges = [];
-    (p.route || []).forEach(function(r){
+    var R = p.route || [], bridges = [];
+    R.forEach(function(r){
       if(gone[r.from] || !gone[r.to]) return;
-      var x = r.to, n = 0;
-      while(x && gone[x] && next[x] && n++ < 10000) x = next[x].to;
-      if(x && !gone[x] && x !== r.from) bridges.push({ from: r.from, to: x, fs: r.fs, ts: prev[x] ? prev[x].ts : r.ts, shape: r.shape });
+      var seen = {}, st = [r.to];
+      while(st.length){
+        var x = st.pop(); if(seen[x]) continue; seen[x] = 1;
+        R.forEach(function(q){
+          if(q.from !== x) return;
+          if(gone[q.to]) st.push(q.to);
+          else bridges.push({ from: r.from, to: q.to, fs: r.fs, ts: q.ts, shape: r.shape });
+        });
+      }
     });
-    p.route = (p.route || []).filter(function(r){ return !gone[r.from] && !gone[r.to]; });
-    bridges.forEach(function(b){ if(!b.fs) delete b.fs; if(!b.ts) delete b.ts; if(!b.shape) delete b.shape; p.route.push(b); });
+    p.route = R.filter(function(r){ return !gone[r.from] && !gone[r.to]; });
+    bridges.forEach(function(b){
+      if(b.from === b.to || findRoute(p, b.from, b.to) || reachesIn(p.route, b.to, b.from)) return;
+      if(!b.fs) delete b.fs; if(!b.ts) delete b.ts; if(!b.shape) delete b.shape;
+      p.route.push(b);
+    });
   }
 
   // ---------- capas: mostrar u ocultar cada tipo de línea ----------
@@ -930,48 +935,66 @@ function engine(root, api){
     markView();
     if(on){ closeMenu(); select(null); $("palette").hidden = true; renderRoute(); $("rv").scrollTop = 0; }
   }
-  // Cadenas de la ruta: cada una arranca en una card sin flecha de ruta que le llegue.
-  function routeChains(p){
-    var next = {}, hasIn = {};
-    (p.route || []).forEach(function(r){ if(byId(p, r.from) && byId(p, r.to)){ next[r.from] = r.to; hasIn[r.to] = 1; } });
-    var chains = [];
-    Object.keys(next).forEach(function(id){
-      if(hasIn[id]) return;
-      var c = [id], seen = {}, x = next[id]; seen[id] = 1;
-      while(x && !seen[x]){ c.push(x); seen[x] = 1; x = next[x]; }
-      chains.push(c);
+  // Rutas: cada grupo de cards unidas por flechas de ruta. Dentro de cada una, los pasos en orden:
+  // el paso de una card es uno más que el de su anterior más lejana (si dos caminos se juntan, va después de los dos).
+  function routeGroups(p){
+    var R = (p.route || []).filter(function(r){ return byId(p, r.from) && byId(p, r.to); });
+    var ids = {}, prev = {}, next = {};
+    R.forEach(function(r){ ids[r.from] = ids[r.to] = 1; (next[r.from] = next[r.from] || []).push(r.to); (prev[r.to] = prev[r.to] || []).push(r.from); });
+    // grupos conectados
+    var comp = {}, groups = [];
+    Object.keys(ids).forEach(function(id){
+      if(comp[id] !== undefined) return;
+      var g = [], st = [id]; comp[id] = groups.length;
+      while(st.length){ var x = st.pop(); g.push(x);
+        (next[x] || []).concat(prev[x] || []).forEach(function(y){ if(comp[y] === undefined){ comp[y] = groups.length; st.push(y); } }); }
+      groups.push(g);
     });
-    // la que empieza más arriba (y más a la izquierda) en el diagrama, primero
-    chains.sort(function(a, b){ var A = byId(p, a[0]), B = byId(p, b[0]); return (A.y - B.y) || (A.x - B.x); });
-    return chains;
+    // paso de cada card (camino más largo desde un comienzo)
+    var depth = {};
+    function d(id){ if(depth[id] !== undefined) return depth[id]; depth[id] = 0;
+      var m = 0; (prev[id] || []).forEach(function(q){ m = Math.max(m, d(q) + 1); }); return (depth[id] = m); }
+    function pos(a, b){ var A = byId(p, a), B = byId(p, b); return (A.y - B.y) || (A.x - B.x); }
+    return groups.map(function(g){
+      var steps = [];
+      g.forEach(function(id){ var k = d(id); (steps[k] = steps[k] || []).push(id); });
+      steps = steps.filter(Boolean).map(function(st){ return st.sort(pos); });
+      return { steps: steps, prev: prev };
+    }).sort(function(a, b){ return pos(a.steps[0][0], b.steps[0][0]); });
   }
   function renderRoute(){
     var box = $("rv"), p = cur();
     if(!rutaOn) return;
     if(!p){ box.innerHTML = '<div class="rv-empty">Todavía no hay habilidades.</div>'; return; }
-    var chains = routeChains(p);
-    if(!chains.length){
+    var groups = routeGroups(p);
+    if(!groups.length){
       box.innerHTML = '<div class="rv-empty">Esta habilidad todavía no tiene ruta.<br>' +
         'En el <b>Diagrama</b>, prendé <b style="color:var(--ruta)">➜ ruta</b> (abajo) y arrastrá el <b>●</b> de cada card a la que sigue, ' +
         'en el orden en que las vas a aprender. También podés tocar una línea y elegir el estilo ruta.<br>' +
         '<button type="button" class="btn" data-rv="map">ir al diagrama</button></div>';
       return;
     }
+    function isDone(id){ return rank(byId(p, id).level) >= ORO; }
     var total = 0, done = 0;
-    chains.forEach(function(c){ c.forEach(function(id){ total++; if(rank(byId(p, id).level) >= ORO) done++; }); });
-    var html = '<div class="rv-wrap"><div class="rv-head"><div class="rv-title"></div><div class="rv-sub">' + done + " de " + total + " paso" + (total === 1 ? "" : "s") + " hecho" + (total === 1 ? "" : "s") + '</div></div>' +
+    groups.forEach(function(g){ g.steps.forEach(function(st){ st.forEach(function(id){ total++; if(isDone(id)) done++; }); }); });
+    var html = '<div class="rv-wrap"><div class="rv-head"><div class="rv-title"></div><div class="rv-sub">' + done + " de " + total + " card" + (total === 1 ? "" : "s") + " hecha" + (total === 1 ? "" : "s") + '</div></div>' +
       '<div class="rv-bar"><i style="width:' + (total ? Math.round(done / total * 100) : 0) + '%"></i></div>';
-    chains.forEach(function(c, ci){
-      if(chains.length > 1) html += '<div class="rv-chain">Ruta ' + (ci + 1) + "</div>";
-      var current = false;
-      html += '<ol class="rv-list">' + c.map(function(id, i){
-        var t = byId(p, id), st = rank(t.level) >= ORO ? "hecho" : current ? "pendiente" : "actual";
-        if(st === "actual") current = true;
-        var meta = [TYPES[t.type] ? TYPES[t.type].label : "Sin tipo", LEVELS[t.level] ? LEVELS[t.level].label : "Sin estado"].join(" · ");
-        return '<li class="rv-step ' + st + (panelId === id ? " sel" : "") + '" data-id="' + id + '">' +
-          '<span class="rv-n">' + (st === "hecho" ? "✓" : i + 1) + '</span><div class="rv-card"><div class="rv-body"><div class="rv-t">' + esc(t.title) + "</div>" +
-          '<div class="rv-m"><span class="rv-dot"' + (TYPES[t.type] ? ' style="background:' + TYPES[t.type].color + '"' : "") + "></span>" + meta + "</div></div>" +
-          '<span class="rv-st">' + (st === "hecho" ? "hecho" : st === "actual" ? "▶ ahora" : "pendiente") + "</span></div></li>";
+    groups.forEach(function(g, gi){
+      if(groups.length > 1) html += '<div class="rv-chain">Ruta ' + (gi + 1) + "</div>";
+      html += '<ol class="rv-list">' + g.steps.map(function(st, i){
+        // ahora = sin terminar y con todo lo anterior de la ruta terminado
+        var cards = st.map(function(id){
+          var t = byId(p, id), ready = (g.prev[id] || []).every(isDone);
+          var cs = isDone(id) ? "hecho" : ready ? "actual" : "pendiente";
+          var meta = [TYPES[t.type] ? TYPES[t.type].label : "Sin tipo", LEVELS[t.level] ? LEVELS[t.level].label : "Sin estado"].join(" · ");
+          return { cs: cs, html: '<div class="rv-card ' + cs + (panelId === id ? " sel" : "") + '" data-id="' + id + '"><div class="rv-body"><div class="rv-t">' + esc(t.title) + "</div>" +
+            '<div class="rv-m"><span class="rv-dot"' + (TYPES[t.type] ? ' style="background:' + TYPES[t.type].color + '"' : "") + "></span>" + meta + "</div></div>" +
+            '<span class="rv-st">' + (cs === "hecho" ? "hecho" : cs === "actual" ? "▶ ahora" : "pendiente") + "</span></div>" };
+        });
+        var all = cards.every(function(c){ return c.cs === "hecho"; }), any = cards.some(function(c){ return c.cs === "actual"; });
+        return '<li class="rv-step' + (all ? " hecho" : any ? " actual" : "") + '"><span class="rv-n">' + (all ? "✓" : i + 1) + "</span>" +
+          '<div class="rv-cards">' + (cards.length > 1 ? '<div class="rv-par">' + cards.length + " en paralelo · en cualquier orden</div>" : "") +
+          cards.map(function(c){ return c.html; }).join("") + "</div></li>";
       }).join("") + "</ol>";
     });
     box.innerHTML = html + "</div>";
@@ -979,8 +1002,8 @@ function engine(root, api){
   }
   $("rv").addEventListener("click", function(e){
     if(e.target.closest('[data-rv="map"]')){ setRuta(false); return; }
-    var li = e.target.closest(".rv-step"); if(!li) return;
-    if(sideNotesOn()){ showPanel(li.dataset.id, false); renderRoute(); } else openNotes(li.dataset.id);
+    var c = e.target.closest(".rv-card[data-id]"); if(!c) return;
+    if(sideNotesOn()){ showPanel(c.dataset.id, false); renderRoute(); } else openNotes(c.dataset.id);
   });
   Array.prototype.forEach.call(root.querySelectorAll("#layers [data-layer]"), function(b){
     b.addEventListener("click", function(){
