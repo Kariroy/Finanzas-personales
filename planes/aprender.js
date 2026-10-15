@@ -713,12 +713,11 @@ function engine(root, api){
     }
     return Object.keys(out);
   }
-  // Entre dos cards puede haber varias líneas si son de distinto estilo (ej. composición y dependencia).
-  // Se rechaza la misma línea repetida, y los ciclos dentro de una misma capa.
+  // Entre dos cards puede haber todas las líneas que quieras (se dibujan corridas para que no se tapen).
+  // Lo único que se rechaza es un círculo de requisitos (guiones): A necesita B y B necesita A.
   function lineErr(p, from, to, style, skip){
-    if(findDep(p, from, to, style, skip) || findDep(p, to, from, style, skip)) return "Esa línea ya existe";
-    var layer = depLayer({ style: style });
-    if(reachesIn(p.deps.filter(function(d){ return d !== skip && depLayer(d) === layer; }), to, from)) return "Eso crearía un ciclo";
+    if(style !== "guiones") return "";
+    if(reachesIn(p.deps.filter(function(d){ return d !== skip && d.style === "guiones"; }), to, from)) return "Eso crearía un círculo de requisitos";
     return "";
   }
   function addDep(p, from, to){
@@ -866,15 +865,18 @@ function engine(root, api){
   // ---------- dibujo ----------
   var multi = [];          // selección múltiple de nodos (recuadro o Ctrl+click)
   function isSelNode(id){ return (sel && sel.node === id) || multi.indexOf(id) >= 0; }
-  function isSelDep(d, route){
-    return !!(sel && sel.dep && sel.dep.from === d.from && sel.dep.to === d.to && !!sel.dep.route === !!route &&
-      (route || (sel.dep.style || "continua") === (d.style || "continua")));
-  }
-  // La línea elegida: una de s.deps o una flecha de ruta.
+  // La línea elegida: una flecha de ruta, o una de s.deps por su posición (puede haber varias iguales).
   function selLine(p){
     if(!sel || !sel.dep || !p) return null;
-    return sel.dep.route ? findRoute(p, sel.dep.from, sel.dep.to) : findDep(p, sel.dep.from, sel.dep.to, sel.dep.style || "continua");
+    if(sel.dep.route) return findRoute(p, sel.dep.from, sel.dep.to);
+    var d = p.deps[sel.dep.i];
+    return d && d.from === sel.dep.from && d.to === sel.dep.to ? d : null;
   }
+  function isSelDep(d, route){
+    if(!sel || !sel.dep || !!sel.dep.route !== !!route) return false;
+    return route ? sel.dep.from === d.from && sel.dep.to === d.to : selLine(cur()) === d;
+  }
+  function selectDep(p, d){ sel = { dep: { from: d.from, to: d.to, i: p.deps.indexOf(d) } }; }
 
   function renderAll(){
     renderSkills();
@@ -1152,7 +1154,7 @@ function engine(root, api){
       p.deps.forEach(function(d){
         if(!layerOn(depLayer(d))) return;
         var path = depPath(p, d, offFor(d)); if(!path) return;
-        html += '<g class="wire' + (d.style ? " s-" + d.style : "") + (isSelDep(d) ? " selected" : "") + '" data-style="' + (d.style || "continua") + '" data-from="' + d.from + '" data-to="' + d.to + '"><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"/></g>';
+        html += '<g class="wire' + (d.style ? " s-" + d.style : "") + (isSelDep(d) ? " selected" : "") + '" data-i="' + p.deps.indexOf(d) + '" data-from="' + d.from + '" data-to="' + d.to + '"><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"/></g>';
       });
       if(layerOn("ruta")) (p.route || []).forEach(function(d){
         var off = offFor(d), path = depPath(p, d, off); if(!path) return;
@@ -1200,7 +1202,7 @@ function engine(root, api){
           var nd = Object.assign({ from: d.from, to: d.to }, keep);
           if(val !== "continua") nd.style = val;
           p.deps.push(nd);
-          sel = { dep: { from: d.from, to: d.to, style: val } };
+          selectDep(p, nd);
           showLayer(depLayer(nd));
         }
       });
@@ -1210,7 +1212,7 @@ function engine(root, api){
     if(key === "style"){ var e2 = lineErr(p, d.from, d.to, val, d); if(e2){ toast(e2); return; } }
     change(function(){
       if(val === def) delete d[key]; else d[key] = val;
-      if(key === "style" && !isRoute){ sel.dep.style = val; showLayer(depLayer(d)); }
+      if(key === "style" && !isRoute) showLayer(depLayer(d));
     });
   }
   Array.prototype.forEach.call(root.querySelectorAll("#wireBar .lk"), function(b){
@@ -1555,8 +1557,8 @@ function engine(root, api){
         sel = null;
       });
     } else if(sel.dep){
-      var d = sel.dep;
-      change(function(p){ if(d.route) removeRoute(p, d.from, d.to); else removeDep(p, d.from, d.to, d.style || "continua"); sel = null; });
+      var d = sel.dep, obj = selLine(cur());
+      change(function(p){ if(d.route) removeRoute(p, d.from, d.to); else p.deps = p.deps.filter(function(x){ return x !== obj; }); sel = null; });
       toast(d.route ? "Flecha de ruta borrada" : "Línea borrada");
     } else if(sel.sticky){
       var sid = sel.sticky;
@@ -1643,7 +1645,7 @@ function engine(root, api){
       if(!isSelNode(card.dataset.id) || multi.length) select({ node: card.dataset.id });
     } else if(wire){
       closeMenu();
-      select({ dep: { from: wire.dataset.from, to: wire.dataset.to, route: wire.dataset.route === "1", style: wire.dataset.style } });
+      select({ dep: { from: wire.dataset.from, to: wire.dataset.to, route: wire.dataset.route === "1", i: +wire.dataset.i } });
       return;
     } else if(mouse){
       // Mantener click y arrastrar sobre el fondo = recuadro de selección.
