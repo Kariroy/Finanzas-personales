@@ -240,38 +240,40 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .layers button.on svg { opacity: 1; }
 /* visor de rutas: los pasos de la ruta en orden */
 .rv { position: absolute; inset: 0; z-index: 5; background: var(--bg); overflow-y: auto; padding: 64px 16px 40px; }
-.rv-wrap { max-width: 980px; margin: 0 auto; }
+.rv-wrap { max-width: 1400px; margin: 0 auto; }
 .rv-head { display: flex; align-items: baseline; gap: 12px; margin: 6px 0 18px; }
 .rv-title { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rv-sub { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .rv-bar { height: 4px; border-radius: 2px; background: var(--line); margin: -10px 0 22px; overflow: hidden; }
 .rv-bar i { display: block; height: 100%; background: var(--ruta); border-radius: 2px; }
 .rv-chain { color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 22px 0 10px; }
-/* la ruta como diagrama de flujo: inicio, cards con flechas, fin */
-.rv-scroll { overflow-x: auto; padding-bottom: 6px; }
+/* la ruta como un proyecto: de izquierda a derecha, igual que el mapa de proyectos de Planes */
+.rv-scroll { overflow-x: auto; padding-bottom: 6px; cursor: grab; }
+.rv-scroll.panning { cursor: grabbing; user-select: none; }
 .rv-flow { position: relative; margin: 0 auto; }
 .rv-flow svg { position: absolute; left: 0; top: 0; overflow: visible; }
-.rf-edge { fill: none; stroke: var(--line-2); stroke-width: 2; }
-.rf-edge.done { stroke: var(--ruta); }
-.rf-arrow { fill: var(--line-2); }
-.rf-arrow.done { fill: var(--ruta); }
-.rf-term { position: absolute; display: grid; place-items: center; border: 1.5px solid var(--line-2); border-radius: 999px; color: var(--muted);
-  font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--bg); }
-.rf-term.done { border-color: var(--ruta); color: var(--ruta); }
-.rv-card { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 4px; background: var(--card); border: 1px solid var(--line);
-  border-left: 3px solid var(--teal); border-radius: 8px; padding: 8px 10px 8px 11px; cursor: pointer; overflow: hidden; }
+.rf-edge { fill: none; stroke: #3a4452; stroke-width: 1.6; }
+.rf-edge.done { stroke: #2f6f45; }
+.rf-port { fill: var(--bg); stroke: #4b5563; stroke-width: 1.4; }
+.rv-card { position: absolute; display: flex; flex-direction: column; justify-content: space-between; background: var(--card); border: 1px solid var(--line);
+  border-left: 3px solid var(--line-2); border-radius: 6px; padding: 8px 12px 6px; cursor: pointer; overflow: hidden; }
 .rv-card:hover { border-color: var(--line-2); }
-.rv-card.actual { border-color: rgba(126,231,135,.6); background: #121c17; box-shadow: 0 0 0 3px rgba(126,231,135,.12); }
-.rv-card.hecho { opacity: .78; }
-.rv-card.sel { border-color: var(--accent); }
-.rv-top { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--faint); }
-.rv-num { font-weight: 700; }
-.rv-st { margin-left: auto; white-space: nowrap; }
-.rv-card.hecho .rv-st { color: var(--ruta); }
-.rv-card.actual .rv-st { color: var(--ruta); font-weight: 700; }
-.rv-t { font-weight: 600; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
-.rv-card.hecho .rv-t { color: var(--muted); }
-.rv-m { color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-head2 { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.rv-ic { width: 16px; flex: none; text-align: center; font-size: 11px; line-height: 17px; color: var(--muted); }
+.rv-t { flex: 1; min-width: 0; font-weight: 600; font-size: 12px; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.rv-m { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--faint); height: 16px; }
+.rv-m .lv { margin-left: auto; color: var(--muted); }
+/* hecho: ✓, tachado y apagado */
+.rv-card.hecho { border-left-color: #3fb950; opacity: .55; }
+.rv-card.hecho .rv-ic { color: #3fb950; }
+.rv-card.hecho .rv-t { text-decoration: line-through; color: var(--muted); }
+/* ahora: lo que ya se puede hacer, en amarillo */
+.rv-card.actual { border-color: rgba(227,195,65,.55); border-left-color: #e3c341; box-shadow: 0 0 14px rgba(227,195,65,.10); }
+.rv-card.actual .rv-ic { color: #e3c341; }
+/* pendiente: bloqueado hasta terminar lo anterior */
+.rv-card.pendiente { opacity: .5; }
+.rv-card.pendiente .rv-t { color: var(--muted); }
+.rv-card.sel { border-color: var(--accent) !important; box-shadow: 0 0 0 2px rgba(88,166,255,.45) !important; opacity: 1; }
 .rv-empty { color: var(--muted); line-height: 1.7; max-width: 440px; margin: 12vh auto 0; text-align: center; }
 .rv-empty b { color: var(--text); }
 .rv-empty .btn { margin-top: 14px; }
@@ -589,7 +591,7 @@ var HTML = `<div class="layout" id="layoutEl">
       <li>Qué significa cada línea: <b>continua</b> = es parte de (composición) · <b>guiones</b> = requisito (dependencia) · <b style="color:var(--ruta)">punteado grande con flecha</b> = <b>ruta</b>, el orden en que vas a aprender. La ruta es una secuencia, no un requisito: va por su lado y no tiene que seguir las dependencias. A una card pueden llegar varias flechas de ruta (dos caminos que se juntan) o salir varias (un camino que se abre); lo único que no se puede es cerrar un círculo.</li>
       <li><b>➜ ruta</b> (abajo): prendido, las líneas que arrastres salen como flechas de ruta; apagado, como líneas comunes.</li>
       <li><b>Capas</b> (arriba): prendé o apagá Composición, Dependencia y Ruta para ver solo lo que te interesa.</li>
-      <li><b>➜ Ruta</b> (arriba): la ruta como diagrama de flujo, de <b>Inicio</b> a <b>Fin</b>, con su estado: <b>hecho</b> (oro o diamante), <b>ahora</b> (sin terminar y con todo lo anterior hecho) y pendiente. Las cards a las que llegan varios caminos van después de todos ellos; las del mismo paso salen juntas, en paralelo. Tocá un paso para ver sus notas.</li>
+      <li><b>➜ Ruta</b> (arriba): la ruta como un proyecto de aprendizaje, de izquierda a derecha como el mapa de proyectos, con su estado: <b>hecho</b> (oro o diamante, tachado), <b>ahora</b> (en amarillo: sin terminar y con todo lo anterior hecho) y pendiente (🔒 con cuántos pasos anteriores faltan). Las cards a las que llegan varios caminos van después de todos ellos; las del mismo paso salen juntas, en paralelo. Tocá un paso para ver sus notas.</li>
       <li><b>◉ Foco</b> (arriba): las cards como bolitas en 3D. Se ve una card en el centro y solo sus conexiones directas; tocá otra bolita para centrarla. <b>Ver mapa completo</b> muestra todo; tocando una bolita volvés al foco. Arrastrá para girar, rueda o dos dedos para el zoom. <b>Diagrama</b> vuelve a editar.</li>
       <li>Tocá una <b>card</b> = menú debajo para elegir <b style="color:var(--semantico)">semántico</b> / <b style="color:var(--procedimental)">procedimental</b>.</li>
       <li><b>Estado</b>: tocá el círculo al inicio de la card para subirlo. El nivel de cada card es independiente del de sus partes.</li>
@@ -1004,51 +1006,58 @@ function engine(root, api){
     box.innerHTML = html + "</div>";
     box.querySelector(".rv-title").textContent = "Ruta · " + p.name;
   }
-  // Diagrama de flujo de un grupo: de arriba hacia abajo, un paso por fila, inicio y fin como terminales.
+  // Un grupo de la ruta dibujado como el mapa de proyectos: de izquierda a derecha, una columna por paso.
   function flowHTML(p, g, isDone){
-    var mob = isMobile(), CW = mob ? 170 : 210, CH = 92, GX = mob ? 14 : 22, GY = 46, TH = 28, TW = 92;
-    var rows = g.steps.map(function(r){ return r.slice(); }), next = {}, pos = {};
+    var CW = 210, CH = 62, GX = 44, GY = 16, PAD = 8;
+    var cols = g.steps.map(function(r){ return r.slice(); }), next = {}, pos = {};
     Object.keys(g.prev).forEach(function(to){ g.prev[to].forEach(function(f){ (next[f] = next[f] || []).push(to); }); });
-    var maxN = Math.max.apply(null, rows.map(function(r){ return r.length; }));
-    var W = Math.max(TW, maxN * CW + (maxN - 1) * GX);
-    // Cada fila se ordena según dónde quedaron sus anteriores, para que las flechas se crucen lo menos posible.
-    rows.forEach(function(r, ri){
-      if(ri) r.sort(function(a, b){
-        function bar(id){ var ps = (g.prev[id] || []).filter(function(q){ return pos[q]; }); return ps.length ? ps.reduce(function(s, q){ return s + pos[q].x; }, 0) / ps.length : W / 2; }
+    var maxN = Math.max.apply(null, cols.map(function(c){ return c.length; }));
+    var H = maxN * CH + (maxN - 1) * GY + PAD * 2, W = cols.length * CW + (cols.length - 1) * GX + PAD * 2;
+    // Cada columna se ordena según dónde quedaron sus anteriores, para que las líneas se crucen lo menos posible.
+    cols.forEach(function(c, ci){
+      if(ci) c.sort(function(a, b){
+        function bar(id){ var ps = (g.prev[id] || []).filter(function(q){ return pos[q]; }); return ps.length ? ps.reduce(function(s, q){ return s + pos[q].y; }, 0) / ps.length : H / 2; }
         return bar(a) - bar(b);
       });
-      var rw = r.length * CW + (r.length - 1) * GX, x0 = (W - rw) / 2, y = TH + GY + ri * (CH + GY);
-      r.forEach(function(id, i){ pos[id] = { x: x0 + i * (CW + GX), y: y }; });
+      var ch = c.length * CH + (c.length - 1) * GY, y0 = (H - ch) / 2, x = PAD + ci * (CW + GX);
+      c.forEach(function(id, i){ pos[id] = { x: x, y: y0 + i * (CH + GY) }; });
     });
-    var endY = TH + GY + rows.length * (CH + GY), H = endY + TH;
     var svg = "", cards = "";
-    function edge(ax, ay, bx, by, ok){
-      var k = Math.max(18, (by - ay) / 2), tip = by - 1;
-      svg += '<path class="rf-edge' + (ok ? " done" : "") + '" d="M' + ax + "," + ay + " C" + ax + "," + (ay + k) + " " + bx + "," + (tip - 8 - k) + " " + bx + "," + (tip - 8) + '"/>' +
-        '<path class="rf-arrow' + (ok ? " done" : "") + '" d="M' + (bx - 6) + "," + (tip - 9) + " L" + (bx + 6) + "," + (tip - 9) + " L" + bx + "," + tip + ' Z"/>';
-    }
-    var cx = W / 2, allDone = true;
-    rows[0].forEach(function(id){ edge(cx, TH, pos[id].x + CW / 2, pos[id].y, true); });
-    rows.forEach(function(r){ r.forEach(function(id){
-      var a = pos[id];
-      (next[id] || []).forEach(function(to){ var b = pos[to]; if(b) edge(a.x + CW / 2, a.y + CH, b.x + CW / 2, b.y, isDone(id)); });
-      if(!(next[id] || []).length) edge(a.x + CW / 2, a.y + CH, cx, endY, isDone(id));
-      if(!isDone(id)) allDone = false;
+    cols.forEach(function(c){ c.forEach(function(id){
+      var a = pos[id], ax = a.x + CW, ay = a.y + CH / 2;
+      (next[id] || []).forEach(function(to){
+        var b = pos[to]; if(!b) return;
+        var bx = b.x, by = b.y + CH / 2, dx = Math.max(30, (bx - ax) / 2);
+        svg += '<path class="rf-edge' + (isDone(id) ? " done" : "") + '" d="M' + ax + "," + ay + " C" + (ax + dx) + "," + ay + " " + (bx - dx) + "," + by + " " + bx + "," + by + '"/>';
+      });
+      svg += '<circle class="rf-port" cx="' + a.x + '" cy="' + ay + '" r="4"/><circle class="rf-port" cx="' + ax + '" cy="' + ay + '" r="4"/>';
     }); });
-    rows.forEach(function(r, ri){ r.forEach(function(id){
-      var t = byId(p, id), a = pos[id], ready = (g.prev[id] || []).every(isDone);
-      var cs = isDone(id) ? "hecho" : ready ? "actual" : "pendiente";
-      var meta = [TYPES[t.type] ? TYPES[t.type].label : "Sin tipo", LEVELS[t.level] ? LEVELS[t.level].label : "Sin estado"].join(" · ");
-      cards += '<div class="rv-card ' + cs + (panelId === id ? " sel" : "") + '" data-id="' + id + '" style="left:' + a.x + "px;top:" + a.y + "px;width:" + CW + "px;height:" + CH + "px" +
-        (TYPES[t.type] ? ";border-left-color:" + TYPES[t.type].color : "") + '">' +
-        '<div class="rv-top"><span class="rv-num">' + (ri + 1) + (r.length > 1 ? " · en paralelo" : "") + '</span><span class="rv-st">' +
-        (cs === "hecho" ? "✓ hecho" : cs === "actual" ? "▶ ahora" : "pendiente") + "</span></div>" +
-        '<div class="rv-t">' + esc(t.title) + '</div><div class="rv-m">' + meta + "</div></div>";
+    cols.forEach(function(c){ c.forEach(function(id){
+      var t = byId(p, id), a = pos[id];
+      var pend = isDone(id) ? 0 : (g.prev[id] || []).filter(function(q){ return !isDone(q); }).length;
+      var cs = isDone(id) ? "hecho" : pend ? "pendiente" : "actual", kids = (next[id] || []).length;
+      cards += '<div class="rv-card ' + cs + (panelId === id ? " sel" : "") + '" data-id="' + id + '" style="left:' + a.x + "px;top:" + a.y + "px;width:" + CW + "px;height:" + CH + 'px">' +
+        '<div class="rv-head2"><span class="rv-ic">' + (cs === "hecho" ? "✓" : "○") + '</span><span class="rv-t">' + esc(t.title) + "</span></div>" +
+        '<div class="rv-m">' + (pend ? '<span title="Pasos anteriores sin terminar">🔒 ' + pend + "</span>" : kids ? '<span title="Pasos que siguen">→ ' + kids + "</span>" : "") +
+        '<span class="lv">' + (LEVELS[t.level] ? LEVELS[t.level].label : "") + "</span></div></div>";
     }); });
-    var term = function(y, txt, ok){ return '<div class="rf-term' + (ok ? " done" : "") + '" style="left:' + (cx - TW / 2) + "px;top:" + y + "px;width:" + TW + "px;height:" + TH + 'px">' + txt + "</div>"; };
-    return '<div class="rv-flow" style="width:' + W + "px;height:" + H + 'px"><svg width="' + W + '" height="' + H + '">' + svg + "</svg>" +
-      term(0, "Inicio", true) + cards + term(endY, "Fin", allDone) + "</div>";
+    return '<div class="rv-flow" style="width:' + W + "px;height:" + H + 'px"><svg width="' + W + '" height="' + H + '">' + svg + "</svg>" + cards + "</div>";
   }
+  // Arrastrar el fondo de la ruta = moverse a los costados (las rutas largas no entran en pantalla).
+  var rvPan = null;
+  $("rv").addEventListener("pointerdown", function(e){
+    var sc = e.target.closest(".rv-scroll");
+    if(!sc || e.target.closest(".rv-card") || e.pointerType !== "mouse" || sc.scrollWidth <= sc.clientWidth) return;
+    rvPan = { sc: sc, x: e.clientX, left: sc.scrollLeft, moved: false };
+  });
+  window.addEventListener("pointermove", function(e){
+    if(!rvPan) return;
+    var dx = e.clientX - rvPan.x;
+    if(!rvPan.moved && Math.abs(dx) < 4) return;
+    rvPan.moved = true; rvPan.sc.classList.add("panning");
+    rvPan.sc.scrollLeft = rvPan.left - dx;
+  });
+  window.addEventListener("pointerup", function(){ if(rvPan){ rvPan.sc.classList.remove("panning"); rvPan = null; } });
   $("rv").addEventListener("click", function(e){
     if(e.target.closest('[data-rv="map"]')){ setRuta(false); return; }
     var c = e.target.closest(".rv-card[data-id]"); if(!c) return;
