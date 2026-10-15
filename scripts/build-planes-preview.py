@@ -8,6 +8,7 @@ html = (root / "index.html").read_text(encoding="utf-8")
 css = (root / "planes.css").read_text(encoding="utf-8")
 js = (root / "planes.js").read_text(encoding="utf-8")
 apr = root / "aprender.js"
+foco = root / "aprender-foco.js"
 
 html = html.replace('<link rel="stylesheet" href="planes.css">', "<style>\n" + css + "</style>")
 # Sin Supabase, config ni service worker: modo local.
@@ -18,6 +19,9 @@ html = html.replace('<script src="planes.js"></script>', "<script>\n" + js.repla
 if apr.exists():
     html = html.replace('<script src="aprender.js"></script>',
                         "<script>\n" + apr.read_text(encoding="utf-8").replace("</script>", "<\\/script>") + "</script>")
+if foco.exists():
+    html = html.replace('<script src="aprender-foco.js"></script>',
+                        "<script>\n" + foco.read_text(encoding="utf-8").replace("</script>", "<\\/script>") + "</script>")
 html = re.sub(r'<link rel="(manifest|icon|apple-touch-icon)"[^>]*>\n?', "", html)
 
 out = root.parent / "preview" / "planes.html"
