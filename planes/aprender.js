@@ -8,13 +8,14 @@
 // ---------- datos ----------
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
-function newSkillObj(name){ return { id: uid(), name: name, updated: Date.now(), nodes: [], deps: [], stickies: [], view: { x: 60, y: 120, z: 1 } }; }
+function newSkillObj(name){ return { id: uid(), name: name, updated: Date.now(), nodes: [], deps: [], route: [], stickies: [], view: { x: 60, y: 120, z: 1 } }; }
 // Completa lo que falte (datos guardados con versiones anteriores o importados).
 function normSkill(s){
   s.id = s.id || uid(); s.name = s.name || "Sin nombre"; s.updated = s.updated || Date.now();
   s.nodes = Array.isArray(s.nodes) ? s.nodes : [];
   s.deps = Array.isArray(s.deps) ? s.deps : [];
   migrate(s);
+  normRoute(s);
   s.stickies = Array.isArray(s.stickies) ? s.stickies : [];
   s.view = s.view || { x: 60, y: 120, z: 1 };
   return s;
@@ -53,6 +54,28 @@ function migrate(s){
   });
 }
 
+// Ruta de aprendizaje: la secuencia en que se van a aprender las cards. Va aparte de las líneas (s.deps)
+// porque no es un requisito: puede ir entre dos cards que ya tienen otra línea y no sigue las dependencias.
+// Es una cadena: cada card tiene como mucho una flecha de ruta que sale y una que llega, sin círculos.
+function normRoute(s){
+  var out = {}, inn = {}, ok = [];
+  (Array.isArray(s.route) ? s.route : []).forEach(function(r){
+    if(!r || !r.from || !r.to || r.from === r.to || out[r.from] || inn[r.to]) return;
+    if(!SIDES[r.fs]) delete r.fs; if(!SIDES[r.ts]) delete r.ts;
+    if(!SHAPES[r.shape] || r.shape === "curva") delete r.shape;
+    delete r.style;
+    out[r.from] = r; inn[r.to] = r; ok.push(r);
+  });
+  // Lo que quedó en círculo (no se llega desde ningún comienzo) no es una ruta: se descarta.
+  var keep = {};
+  ok.forEach(function(r){
+    if(inn[r.from]) return;
+    var x = r.from, n = 0;
+    while(out[x] && n++ < 10000){ keep[x] = 1; x = out[x].to; }
+  });
+  s.route = ok.filter(function(r){ return keep[r.from]; });
+}
+
 function demo(){
   // list: [clave, título, x, y, tipo, nivel] · links: [desde, hasta, extra] · extra: notes {clave: texto}, stickies
   function sk(name, list, links, extra){
@@ -66,6 +89,7 @@ function demo(){
     });
     links.forEach(function(l){ s.deps.push(Object.assign({ from: by[l[0]].id, to: by[l[1]].id }, l[2] || {})); });
     (extra.stickies || []).forEach(function(n){ s.stickies.push(Object.assign({ id: uid() }, n)); });
+    (extra.route || []).forEach(function(r){ s.route.push(Object.assign({ from: by[r[0]].id, to: by[r[1]].id }, r[2] || {})); });
     return s;
   }
   var latte = sk("Latte art", [
@@ -77,7 +101,8 @@ function demo(){
       ["le","ve",{ fs: "b", ts: "t", shape: "escalon" }], ["al","co",{ fs: "b", ts: "t", style: "guiones" }]], {
     notes: { la: "Objetivo: corazón simétrico 8 de 10",
              tp: "Arriba de 65 °C la leche pierde dulzor y la espuma se rompe.\nTermómetro de clip en la jarra hasta que salga de memoria." },
-    stickies: [{ color: "rosa", text: "cuello: el chorro se corta", x: 840, y: 250, w: 170, h: 90 }]
+    stickies: [{ color: "rosa", text: "cuello: el chorro se corta", x: 840, y: 250, w: 170, h: 90 }],
+    route: [["tp","te",{ fs: "r", ts: "r" }], ["te","al",{ fs: "r", ts: "r" }], ["al","co",{ fs: "r", ts: "r" }]]
   });
   var dec = sk("Decidir con registro", [
     ["d", "Decidir con registro", 0, 60],
@@ -112,6 +137,7 @@ var CSS = `
   --accent: #58a6ff; --teal: #56d4c4; --danger: #f47067;
   --semantico: #c297ff; --procedimental: #f0883e;
   --bronce: #c98a5a; --plata: #c3ccd6; --oro: #e8c547; --diamante: #7fd8f5;
+  --ruta: #7ee787;
   --s-rosa: #f8b6cd; --s-amarillo: #fde68a; --s-azul: #a9d3ff; --s-verde: #b6ebc2; --s-ink: #1f2328;
   --card-w: 230px; --card-h: 56px;
   color-scheme: dark;
@@ -206,6 +232,45 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .vseg { display: flex; background: rgba(20,26,34,.94); border: 1px solid var(--line); border-radius: 7px; padding: 2px; gap: 2px; }
 .vseg button { background: none; border: 0; border-radius: 5px; padding: 5px 10px; cursor: pointer; color: var(--muted); white-space: nowrap; }
 .vseg button.on { background: var(--panel-2); color: var(--text); }
+/* capas del diagrama: mostrar u ocultar cada tipo de línea */
+.layers { display: flex; background: rgba(20,26,34,.94); border: 1px solid var(--line); border-radius: 7px; padding: 2px; gap: 2px; }
+.layers button { display: flex; align-items: center; gap: 6px; background: none; border: 0; border-radius: 5px; padding: 5px 9px; cursor: pointer; color: var(--faint); white-space: nowrap; }
+.layers button svg { display: block; flex: none; opacity: .45; }
+.layers button.on { color: var(--text); background: var(--panel-2); }
+.layers button.on svg { opacity: 1; }
+/* visor de rutas: los pasos de la ruta en orden */
+.rv { position: absolute; inset: 0; z-index: 5; background: var(--bg); overflow-y: auto; padding: 64px 16px 40px; }
+.rv-wrap { max-width: 620px; margin: 0 auto; }
+.rv-head { display: flex; align-items: baseline; gap: 12px; margin: 6px 0 18px; }
+.rv-title { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-sub { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.rv-bar { height: 4px; border-radius: 2px; background: var(--line); margin: -10px 0 22px; overflow: hidden; }
+.rv-bar i { display: block; height: 100%; background: var(--ruta); border-radius: 2px; }
+.rv-chain { color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin: 22px 0 10px; }
+.rv-list { list-style: none; margin: 0; padding: 0; }
+.rv-step { position: relative; display: flex; align-items: center; gap: 14px; padding: 0 0 14px; cursor: pointer; }
+/* el hilo que une los pasos */
+.rv-step:not(:last-child)::before { content: ""; position: absolute; left: 15px; top: 34px; bottom: 2px; border-left: 3px dotted var(--line-2); }
+.rv-step.hecho:not(:last-child)::before { border-left-color: var(--ruta); }
+.rv-n { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 12px;
+  border: 2px solid var(--line-2); color: var(--muted); background: var(--bg); position: relative; }
+.rv-step.hecho .rv-n { background: var(--ruta); border-color: var(--ruta); color: #0d1117; }
+.rv-step.actual .rv-n { border-color: var(--ruta); color: var(--ruta); box-shadow: 0 0 0 4px rgba(126,231,135,.15); }
+.rv-card { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.rv-step:hover .rv-card { border-color: var(--line-2); }
+.rv-step.actual .rv-card { border-color: rgba(126,231,135,.55); background: #121c17; }
+.rv-step.sel .rv-card { border-color: var(--accent); }
+.rv-step.hecho .rv-t { color: var(--muted); }
+.rv-body { flex: 1; min-width: 0; }
+.rv-t { font-weight: 600; overflow-wrap: anywhere; }
+.rv-m { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10.5px; margin-top: 3px; }
+.rv-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); flex: none; }
+.rv-st { flex: none; font-size: 10.5px; color: var(--faint); white-space: nowrap; }
+.rv-step.hecho .rv-st { color: var(--ruta); }
+.rv-step.actual .rv-st { color: var(--ruta); font-weight: 700; }
+.rv-empty { color: var(--muted); line-height: 1.7; max-width: 440px; margin: 12vh auto 0; text-align: center; }
+.rv-empty b { color: var(--text); }
+.rv-empty .btn { margin-top: 14px; }
 /* vista foco: lienzo 3D encima del diagrama */
 .foco { position: absolute; inset: 0; z-index: 5; background: #141518; overflow: hidden; }
 .fc-canvas { position: absolute; inset: 0; display: block; touch-action: none; cursor: grab; }
@@ -221,10 +286,18 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .wire.s-guiones .line { stroke-dasharray: 7 5; }
 .wire.s-puntos .line { stroke-dasharray: 0.1 5; stroke-linecap: round; stroke-width: 2.2; }
 .wire.s-puntos.selected .line { stroke-width: 3; }
+/* ruta de aprendizaje: punteado grande con flecha */
+.wire.s-ruta .line { stroke: var(--ruta); stroke-width: 4; stroke-dasharray: 0.1 11; stroke-linecap: round; opacity: .85; }
+.wire.s-ruta .arrow { fill: var(--ruta); opacity: .9; }
+.wire.s-ruta:hover .line { opacity: 1; }
+.wire.s-ruta.selected .line { stroke: var(--accent); stroke-width: 5; opacity: 1; }
+.wire.s-ruta.selected .arrow { fill: var(--accent); }
+.temp.ruta { stroke: var(--ruta); stroke-width: 4; stroke-dasharray: 0.1 11; stroke-linecap: round; }
 /* barra de la línea elegida: forma y estilo */
 .toolbar .lk { padding: 6px 9px; }
 .toolbar .lk svg { display: block; }
 .toolbar .lk.on { border-color: var(--accent); background: #142033; }
+.route-btn.on { border-color: var(--ruta); color: var(--ruta); background: #13221a; }
 .toolbar .sep { width: 1px; align-self: stretch; background: var(--line); margin: 2px 2px; }
 .temp { fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-dasharray: 5 4; }
 
@@ -377,6 +450,10 @@ button, select, input, textarea { font: inherit; color: inherit; }
   #wireBar { flex-wrap: wrap; justify-content: center; width: calc(100% - 16px); }
   #wireBar .sep { display: none; }
   .fc-bar { top: 64px; }
+  .topbar { flex-wrap: wrap; }
+  .layers .lbl { display: none; }
+  .layers button { padding: 8px 11px; }
+  .rv { padding-top: 64px; }
   .fc-hint { white-space: normal; width: calc(100% - 32px); text-align: center; }
   .skill .x { opacity: 1; font-size: 15px; padding: 4px 6px; }
   .skill { padding: 11px 10px; }
@@ -421,12 +498,19 @@ var HTML = `<div class="layout" id="layoutEl">
     <div class="topbar">
       <button class="icon-btn" id="openSide" aria-label="Mostrar u ocultar el panel" title="Mostrar / ocultar panel">☰</button>
       <div class="vseg" role="tablist" aria-label="Vista">
-        <button type="button" id="vMap" class="on" title="Diagrama para editar">Mapa</button>
+        <button type="button" id="vMap" class="on" title="Diagrama para editar">Diagrama</button>
         <button type="button" id="vFoco" title="Vista foco: una card y sus conexiones, en 3D">◉ Foco</button>
+        <button type="button" id="vRuta" title="Visor de rutas: los pasos de la ruta, en orden">➜ Ruta</button>
+      </div>
+      <div class="layers" id="layers" aria-label="Capas">
+        <button type="button" data-layer="comp" title="Composición: líneas continuas (es parte de)"><svg width="22" height="10" viewBox="0 0 22 10"><path d="M1 5 H21" fill="none" stroke="#9aa6b5" stroke-width="2"/></svg><span class="lbl">Composición</span></button>
+        <button type="button" data-layer="dep" title="Dependencia: líneas con guiones (requisito)"><svg width="22" height="10" viewBox="0 0 22 10"><path d="M1 5 H21" fill="none" stroke="#9aa6b5" stroke-width="2" stroke-dasharray="5 3"/></svg><span class="lbl">Dependencia</span></button>
+        <button type="button" data-layer="ruta" title="Ruta: punteado grande con flecha (secuencia de aprendizaje)"><svg width="22" height="10" viewBox="0 0 22 10"><path d="M2 5 H14" fill="none" stroke="#7ee787" stroke-width="3" stroke-dasharray="0.1 6" stroke-linecap="round"/><path d="M15 1.5 L21 5 L15 8.5 Z" fill="#7ee787"/></svg><span class="lbl">Ruta</span></button>
       </div>
       <button class="icon-btn help-btn only-mobile" data-help aria-label="Ayuda">?</button>
     </div>
     <div class="foco" id="foco" hidden></div>
+    <div class="rv" id="rv" hidden></div>
     <main class="canvas" id="canvas">
       <div class="world" id="world">
         <svg class="wires" id="wires" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -446,6 +530,7 @@ var HTML = `<div class="layout" id="layoutEl">
         <button class="btn sq" id="redo" title="Rehacer (Ctrl+Y)" aria-label="Rehacer">↷</button>
         <button class="btn" id="fit" title="Ver todo">⤢<span class="lbl"> centrar</span></button>
         <button class="btn" id="noteBtn" title="Nota adhesiva">▣ nota</button>
+        <button class="btn route-btn" id="routeBtn" title="Dibujar ruta: las líneas nuevas salen como flechas de ruta">➜<span class="lbl"> ruta</span></button>
       </div>
       <div class="sel-box" id="selBox" hidden></div>
       <div class="toolbar" id="wireBar" hidden>
@@ -456,6 +541,7 @@ var HTML = `<div class="layout" id="layoutEl">
         <button class="btn lk" data-style="continua" title="Continua" aria-label="Continua"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M2 7 H24" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
         <button class="btn lk" data-style="guiones" title="Guiones" aria-label="Guiones"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M2 7 H24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="4.5 3"/></svg></button>
         <button class="btn lk" data-style="puntos" title="Puntos" aria-label="Puntos"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M3 7 H24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="0.1 4" stroke-linecap="round" stroke-width="2.4"/></svg></button>
+        <button class="btn lk" data-style="ruta" title="Ruta: secuencia de aprendizaje" aria-label="Ruta"><svg width="26" height="14" viewBox="0 0 26 14"><path d="M3 7 H16" fill="none" stroke="#7ee787" stroke-width="3.2" stroke-dasharray="0.1 6.5" stroke-linecap="round"/><path d="M17 3 L24 7 L17 11 Z" fill="#7ee787"/></svg></button>
         <span class="sep"></span>
         <button class="btn primary" id="wireDel" title="Borrar la línea">× borrar</button>
         <button class="btn" id="wireCancel">listo</button>
@@ -495,8 +581,12 @@ var HTML = `<div class="layout" id="layoutEl">
     <ul class="help">
       <li>Cada <b>habilidad</b> del panel izquierdo es un diagrama. Tocala para verla.</li>
       <li><b>Líneas</b>: arrastrá un <b>●</b> de cualquiera de los cuatro lados de la card hasta otra card = conectarlas (llega al lado más cercano) · a un lugar vacío = nuevo nodo.</li>
-      <li>Tocá una <b>línea</b> = elegir su forma (recta, escalonada, curva) y su estilo (continua, guiones, puntos), o borrarla. Las líneas nuevas salen con la última forma y estilo que elegiste.</li>
-      <li><b>◉ Foco</b> (arriba): las cards como bolitas en 3D. Se ve una card en el centro y solo sus conexiones directas; tocá otra bolita para centrarla. <b>Ver mapa completo</b> muestra todo; tocando una bolita volvés al foco. Arrastrá para girar, rueda o dos dedos para el zoom. <b>Mapa</b> vuelve al diagrama.</li>
+      <li>Tocá una <b>línea</b> = elegir su forma (recta, escalonada, curva) y su estilo (continua, guiones, puntos, ruta), o borrarla. Las líneas nuevas salen con la última forma y estilo que elegiste.</li>
+      <li>Qué significa cada línea: <b>continua</b> = es parte de (composición) · <b>guiones</b> = requisito (dependencia) · <b style="color:var(--ruta)">punteado grande con flecha</b> = <b>ruta</b>, el orden en que vas a aprender. La ruta es una secuencia, no un requisito: va por su lado y no tiene que seguir las dependencias. Cada card tiene una sola flecha de ruta que sale y una que llega; si dibujás otra, reemplaza a la anterior.</li>
+      <li><b>➜ ruta</b> (abajo): prendido, las líneas que arrastres salen como flechas de ruta; apagado, como líneas comunes.</li>
+      <li><b>Capas</b> (arriba): prendé o apagá Composición, Dependencia y Ruta para ver solo lo que te interesa.</li>
+      <li><b>➜ Ruta</b> (arriba): los pasos de la ruta en orden, con su estado: <b>hecho</b> (oro o diamante), <b>ahora</b> (el primero sin terminar) y pendiente. Tocá un paso para ver sus notas.</li>
+      <li><b>◉ Foco</b> (arriba): las cards como bolitas en 3D. Se ve una card en el centro y solo sus conexiones directas; tocá otra bolita para centrarla. <b>Ver mapa completo</b> muestra todo; tocando una bolita volvés al foco. Arrastrá para girar, rueda o dos dedos para el zoom. <b>Diagrama</b> vuelve a editar.</li>
       <li>Tocá una <b>card</b> = menú debajo para elegir <b style="color:var(--semantico)">semántico</b> / <b style="color:var(--procedimental)">procedimental</b>.</li>
       <li><b>Estado</b>: tocá el círculo al inicio de la card para subirlo. El nivel de cada card es independiente del de sus partes.</li>
       <li><b>Notas</b>: el <b>puntito</b> de la card (lleno si tiene notas).</li>
@@ -635,8 +725,53 @@ function engine(root, api){
   function lineFor(d){
     var ld = state.lineDefault || {};
     if(ld.shape && ld.shape !== "curva") d.shape = ld.shape;
-    if(ld.style && ld.style !== "continua") d.style = ld.style;
+    if(ld.style && ld.style !== "continua" && ld.style !== "ruta") d.style = ld.style;
     return d;
+  }
+  function routeMode(){ return (state.lineDefault || {}).style === "ruta"; }
+
+  // ---------- ruta (secuencia de aprendizaje, aparte de las líneas) ----------
+  function findRoute(p, from, to){ return (p.route || []).filter(function(r){ return r.from === from && r.to === to; })[0] || null; }
+  function routeNext(p, id){ var r = (p.route || []).filter(function(x){ return x.from === id; })[0]; return r ? r.to : null; }
+  // Nueva flecha de ruta. Si «from» ya tenía una que sale o «to» una que llega, se reemplaza.
+  function addRoute(p, from, to, extra){
+    if(from === to) return false;
+    p.route = p.route || [];
+    if(findRoute(p, from, to)){ toast("Esa flecha de ruta ya existe"); return false; }
+    var x = to, n = 0;
+    while(x && n++ < 10000){ if(x === from){ toast("Eso cerraría la ruta en un círculo"); return false; } x = routeNext(p, x); }
+    var replaced = p.route.some(function(r){ return r.from === from || r.to === to; });
+    p.route = p.route.filter(function(r){ return r.from !== from && r.to !== to; });
+    var r = { from: from, to: to }, ld = state.lineDefault || {};
+    if(ld.shape && ld.shape !== "curva") r.shape = ld.shape;
+    Object.assign(r, extra || {});
+    p.route.push(r);
+    if(replaced) toast("Ruta: se reemplazó la flecha anterior");
+    return true;
+  }
+  function removeRoute(p, from, to){ p.route = (p.route || []).filter(function(r){ return !(r.from === from && r.to === to); }); }
+  // Al borrar cards que estaban en la ruta, la ruta sigue: la anterior pasa a apuntar a la siguiente.
+  function dropFromRoute(p, ids){
+    var gone = {}; ids.forEach(function(id){ gone[id] = 1; });
+    var prev = {}, next = {};
+    (p.route || []).forEach(function(r){ next[r.from] = r; prev[r.to] = r; });
+    var bridges = [];
+    (p.route || []).forEach(function(r){
+      if(gone[r.from] || !gone[r.to]) return;
+      var x = r.to, n = 0;
+      while(x && gone[x] && next[x] && n++ < 10000) x = next[x].to;
+      if(x && !gone[x] && x !== r.from) bridges.push({ from: r.from, to: x, fs: r.fs, ts: prev[x] ? prev[x].ts : r.ts, shape: r.shape });
+    });
+    p.route = (p.route || []).filter(function(r){ return !gone[r.from] && !gone[r.to]; });
+    bridges.forEach(function(b){ if(!b.fs) delete b.fs; if(!b.ts) delete b.ts; if(!b.shape) delete b.shape; p.route.push(b); });
+  }
+
+  // ---------- capas: mostrar u ocultar cada tipo de línea ----------
+  function layerOn(k){ var L = state.layers || {}; return L[k] !== false; }
+  function depLayer(d){ return d.style === "guiones" ? "dep" : "comp"; }
+  function showLayer(k){ if(layerOn(k)) return; state.layers = state.layers || {}; state.layers[k] = true; renderLayers(); }
+  function renderLayers(){
+    Array.prototype.forEach.call(root.querySelectorAll("#layers [data-layer]"), function(b){ b.classList.toggle("on", layerOn(b.dataset.layer)); });
   }
 
   function rank(l){ return Math.max(0, LEVEL_ORDER.indexOf(l || "")); }
@@ -715,7 +850,12 @@ function engine(root, api){
   // ---------- dibujo ----------
   var multi = [];          // selección múltiple de nodos (recuadro o Ctrl+click)
   function isSelNode(id){ return (sel && sel.node === id) || multi.indexOf(id) >= 0; }
-  function isSelDep(d){ return sel && sel.dep && sel.dep.from === d.from && sel.dep.to === d.to; }
+  function isSelDep(d, route){ return !!(sel && sel.dep && sel.dep.from === d.from && sel.dep.to === d.to && !!sel.dep.route === !!route); }
+  // La línea elegida: una de s.deps o una flecha de ruta.
+  function selLine(p){
+    if(!sel || !sel.dep || !p) return null;
+    return sel.dep.route ? findRoute(p, sel.dep.from, sel.dep.to) : findDep(p, sel.dep.from, sel.dep.to);
+  }
 
   function renderAll(){
     renderSkills();
@@ -732,6 +872,8 @@ function engine(root, api){
     renderMenu();
     renderPanel();
     if(focoOn) syncFoco();
+    if(rutaOn) renderRoute();
+    renderLayers();
   }
 
   // ---------- vista foco (3D, solo lectura) ----------
@@ -752,7 +894,8 @@ function engine(root, api){
     if(on && (!p || !p.nodes.length)){ toast("Esta habilidad todavía no tiene nodos"); on = false; }
     if(!window.AprenderFoco) on = false;
     focoOn = on;
-    $("vMap").classList.toggle("on", !on); $("vFoco").classList.toggle("on", on);
+    if(on && rutaOn){ rutaOn = false; $("rv").hidden = true; }
+    markView();
     $("foco").hidden = !on;
     if(!on){ if(foco) foco.close(); return; }
     // centro: la card elegida, la de las notas o la primera
@@ -767,8 +910,86 @@ function engine(root, api){
     if(!p || !p.nodes.length){ setFoco(false); return; }
     foco.update(focoGraph(p), panelId);
   }
-  $("vMap").addEventListener("click", function(){ setFoco(false); });
+  // Botón de la vista actual prendido; las capas solo tienen sentido en el diagrama.
+  function markView(){
+    $("vMap").classList.toggle("on", !focoOn && !rutaOn);
+    $("vFoco").classList.toggle("on", focoOn);
+    $("vRuta").classList.toggle("on", rutaOn);
+    $("layers").hidden = focoOn || rutaOn;
+  }
+  $("vMap").addEventListener("click", function(){ setFoco(false); setRuta(false); });
   $("vFoco").addEventListener("click", function(){ if(!focoOn) setFoco(true); });
+  $("vRuta").addEventListener("click", function(){ if(!rutaOn) setRuta(true); });
+
+  // ---------- visor de rutas (solo lectura) ----------
+  var rutaOn = false;
+  function setRuta(on){
+    if(on && focoOn) setFoco(false);
+    rutaOn = on;
+    $("rv").hidden = !on;
+    markView();
+    if(on){ closeMenu(); select(null); $("palette").hidden = true; renderRoute(); $("rv").scrollTop = 0; }
+  }
+  // Cadenas de la ruta: cada una arranca en una card sin flecha de ruta que le llegue.
+  function routeChains(p){
+    var next = {}, hasIn = {};
+    (p.route || []).forEach(function(r){ if(byId(p, r.from) && byId(p, r.to)){ next[r.from] = r.to; hasIn[r.to] = 1; } });
+    var chains = [];
+    Object.keys(next).forEach(function(id){
+      if(hasIn[id]) return;
+      var c = [id], seen = {}, x = next[id]; seen[id] = 1;
+      while(x && !seen[x]){ c.push(x); seen[x] = 1; x = next[x]; }
+      chains.push(c);
+    });
+    // la que empieza más arriba (y más a la izquierda) en el diagrama, primero
+    chains.sort(function(a, b){ var A = byId(p, a[0]), B = byId(p, b[0]); return (A.y - B.y) || (A.x - B.x); });
+    return chains;
+  }
+  function renderRoute(){
+    var box = $("rv"), p = cur();
+    if(!rutaOn) return;
+    if(!p){ box.innerHTML = '<div class="rv-empty">Todavía no hay habilidades.</div>'; return; }
+    var chains = routeChains(p);
+    if(!chains.length){
+      box.innerHTML = '<div class="rv-empty">Esta habilidad todavía no tiene ruta.<br>' +
+        'En el <b>Diagrama</b>, prendé <b style="color:var(--ruta)">➜ ruta</b> (abajo) y arrastrá el <b>●</b> de cada card a la que sigue, ' +
+        'en el orden en que las vas a aprender. También podés tocar una línea y elegir el estilo ruta.<br>' +
+        '<button type="button" class="btn" data-rv="map">ir al diagrama</button></div>';
+      return;
+    }
+    var total = 0, done = 0;
+    chains.forEach(function(c){ c.forEach(function(id){ total++; if(rank(byId(p, id).level) >= ORO) done++; }); });
+    var html = '<div class="rv-wrap"><div class="rv-head"><div class="rv-title"></div><div class="rv-sub">' + done + " de " + total + " paso" + (total === 1 ? "" : "s") + " hecho" + (total === 1 ? "" : "s") + '</div></div>' +
+      '<div class="rv-bar"><i style="width:' + (total ? Math.round(done / total * 100) : 0) + '%"></i></div>';
+    chains.forEach(function(c, ci){
+      if(chains.length > 1) html += '<div class="rv-chain">Ruta ' + (ci + 1) + "</div>";
+      var current = false;
+      html += '<ol class="rv-list">' + c.map(function(id, i){
+        var t = byId(p, id), st = rank(t.level) >= ORO ? "hecho" : current ? "pendiente" : "actual";
+        if(st === "actual") current = true;
+        var meta = [TYPES[t.type] ? TYPES[t.type].label : "Sin tipo", LEVELS[t.level] ? LEVELS[t.level].label : "Sin estado"].join(" · ");
+        return '<li class="rv-step ' + st + (panelId === id ? " sel" : "") + '" data-id="' + id + '">' +
+          '<span class="rv-n">' + (st === "hecho" ? "✓" : i + 1) + '</span><div class="rv-card"><div class="rv-body"><div class="rv-t">' + esc(t.title) + "</div>" +
+          '<div class="rv-m"><span class="rv-dot"' + (TYPES[t.type] ? ' style="background:' + TYPES[t.type].color + '"' : "") + "></span>" + meta + "</div></div>" +
+          '<span class="rv-st">' + (st === "hecho" ? "hecho" : st === "actual" ? "▶ ahora" : "pendiente") + "</span></div></li>";
+      }).join("") + "</ol>";
+    });
+    box.innerHTML = html + "</div>";
+    box.querySelector(".rv-title").textContent = "Ruta · " + p.name;
+  }
+  $("rv").addEventListener("click", function(e){
+    if(e.target.closest('[data-rv="map"]')){ setRuta(false); return; }
+    var li = e.target.closest(".rv-step"); if(!li) return;
+    if(sideNotesOn()){ showPanel(li.dataset.id, false); renderRoute(); } else openNotes(li.dataset.id);
+  });
+  Array.prototype.forEach.call(root.querySelectorAll("#layers [data-layer]"), function(b){
+    b.addEventListener("click", function(){
+      state.layers = state.layers || {};
+      state.layers[b.dataset.layer] = !layerOn(b.dataset.layer);
+      if(sel && sel.dep){ sel = null; }
+      save(); renderLayers(); renderWires(); renderBars();
+    });
+  });
 
   function levelTip(p, t, lv){
     var s = lv ? lv.label + ": " + criterion(t, t.level) : "Sin estado";
@@ -858,6 +1079,18 @@ function engine(root, api){
     var fs = d.fs || "r", ts = d.ts || "l";
     return linePath(anchor(a, fs), fs, anchor(b, ts), ts, d.shape);
   }
+  // Punta de flecha de la ruta: en la card de llegada, mirando hacia adentro.
+  function arrowPath(p, d){
+    var a = byId(p, d.from), b = byId(p, d.to);
+    if(!a || !b) return "";
+    var fs = d.fs || "r", ts = d.ts || "l", tip = anchor(b, ts), ux, uy;
+    if(d.shape === "recta"){
+      var from = anchor(a, fs), len = Math.hypot(tip.x - from.x, tip.y - from.y) || 1;
+      ux = (tip.x - from.x) / len; uy = (tip.y - from.y) / len;
+    } else { ux = -NORM[ts][0]; uy = -NORM[ts][1]; }
+    var L = 13, Wd = 7, bx = tip.x - ux * L, by = tip.y - uy * L;
+    return "M" + pt(tip) + " L" + pt({ x: bx - uy * Wd, y: by + ux * Wd }) + " L" + pt({ x: bx + uy * Wd, y: by - ux * Wd }) + " Z";
+  }
   // Lado de la card más cercano al punto (para saber por dónde llega una línea).
   function sideAt(t, w){
     var h = cardH(t.id), dx = (w.x - (t.x + W / 2)) / W, dy = (w.y - (t.y + h / 2)) / h;
@@ -867,34 +1100,64 @@ function engine(root, api){
     var p = cur(), html = "";
     if(p){
       p.deps.forEach(function(d){
+        if(!layerOn(depLayer(d))) return;
         var path = depPath(p, d); if(!path) return;
         html += '<g class="wire' + (d.style ? " s-" + d.style : "") + (isSelDep(d) ? " selected" : "") + '" data-from="' + d.from + '" data-to="' + d.to + '"><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"/></g>';
       });
+      if(layerOn("ruta")) (p.route || []).forEach(function(d){
+        var path = depPath(p, d); if(!path) return;
+        html += '<g class="wire s-ruta' + (isSelDep(d, true) ? " selected" : "") + '" data-route="1" data-from="' + d.from + '" data-to="' + d.to + '"><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"/><path class="arrow" d="' + arrowPath(p, d) + '"/></g>';
+      });
     }
-    if(tempWire) html += '<path class="temp" d="' + tempWire + '"/>';
+    if(tempWire) html += '<path class="temp' + (drag && drag.route ? " ruta" : "") + '" d="' + tempWire + '"/>';
     wiresEl.innerHTML = html;
   }
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return "&#" + c.charCodeAt(0) + ";"; }); }
   // Barra de abajo: normal · línea elegida (forma, estilo, borrar).
   function renderBars(){
-    var p0 = cur(), d = sel && sel.dep && p0 && findDep(p0, sel.dep.from, sel.dep.to);
+    var p0 = cur(), d = selLine(p0);
+    if(sel && sel.dep && !d) sel = null;
     if(p0) multi = multi.filter(function(id){ return byId(p0, id); });
     var line = !!d;
+    $("routeBtn").classList.toggle("on", routeMode());
     $("wireBar").hidden = !line;
     $("toolbar").hidden = line;
     if(line) $("palette").hidden = true;
     if(d) Array.prototype.forEach.call(root.querySelectorAll("#wireBar .lk"), function(b){
-      b.classList.toggle("on", b.dataset.shape ? (d.shape || "curva") === b.dataset.shape : (d.style || "continua") === b.dataset.style);
+      b.classList.toggle("on", b.dataset.shape ? (d.shape || "curva") === b.dataset.shape : (sel.dep.route ? "ruta" : d.style || "continua") === b.dataset.style);
     });
   }
   // Forma o estilo de la línea elegida; las próximas líneas salen igual.
   function setLine(key, val){
-    var p = cur(), d = sel && sel.dep && p && findDep(p, sel.dep.from, sel.dep.to); if(!d) return;
-    var def = key === "shape" ? "curva" : "continua";
+    var p = cur(), d = selLine(p); if(!d) return;
+    var isRoute = !!sel.dep.route, def = key === "shape" ? "curva" : "continua";
     state.lineDefault = state.lineDefault || {};
     state.lineDefault[key] = val;
+    if(key === "style" && (isRoute || val === "ruta")){
+      if(isRoute && val === "ruta"){ save(); return; }
+      // Pasar una línea a ruta o una flecha de ruta a línea: cambia de lista.
+      var keep = {}; ["fs", "ts", "shape"].forEach(function(k){ if(d[k]) keep[k] = d[k]; });
+      change(function(){
+        if(val === "ruta"){
+          if(!addRoute(p, d.from, d.to, keep)) return false;
+          removeDep(p, d.from, d.to);
+          sel = { dep: { from: d.from, to: d.to, route: true } };
+          showLayer("ruta");
+        } else {
+          if(findDep(p, d.from, d.to) || findDep(p, d.to, d.from)){ toast("Entre esas cards ya hay una línea"); return false; }
+          if(reaches(p, d.to, d.from)){ toast("Eso crearía un ciclo"); return false; }
+          removeRoute(p, d.from, d.to);
+          var nd = Object.assign({ from: d.from, to: d.to }, keep);
+          if(val !== "continua") nd.style = val;
+          p.deps.push(nd);
+          sel = { dep: { from: d.from, to: d.to } };
+          showLayer(depLayer(nd));
+        }
+      });
+      return;
+    }
     if((d[key] || def) === val){ save(); return; }
-    change(function(){ if(val === def) delete d[key]; else d[key] = val; });
+    change(function(){ if(val === def) delete d[key]; else d[key] = val; if(key === "style" && !isRoute) showLayer(depLayer(d)); });
   }
   Array.prototype.forEach.call(root.querySelectorAll("#wireBar .lk"), function(b){
     b.addEventListener("click", function(){ if(b.dataset.shape) setLine("shape", b.dataset.shape); else setLine("style", b.dataset.style); });
@@ -1208,6 +1471,7 @@ function engine(root, api){
     change(function(p){
       p.nodes = p.nodes.filter(function(t){ return ids.indexOf(t.id) < 0; });
       p.deps = p.deps.filter(function(d){ return ids.indexOf(d.from) < 0 && ids.indexOf(d.to) < 0; });
+      dropFromRoute(p, ids);
       multi = []; sel = null;
     });
     toast(ids.length + " cards borradas · Ctrl+Z para deshacer");
@@ -1233,12 +1497,13 @@ function engine(root, api){
       change(function(p){
         p.nodes = p.nodes.filter(function(t){ return t.id !== id; });
         p.deps = p.deps.filter(function(d){ return d.from !== id && d.to !== id; });
+        dropFromRoute(p, [id]);
         sel = null;
       });
     } else if(sel.dep){
       var d = sel.dep;
-      change(function(p){ removeDep(p, d.from, d.to); sel = null; });
-      toast("Línea borrada");
+      change(function(p){ if(d.route) removeRoute(p, d.from, d.to); else removeDep(p, d.from, d.to); sel = null; });
+      toast(d.route ? "Flecha de ruta borrada" : "Línea borrada");
     } else if(sel.sticky){
       var sid = sel.sticky;
       change(function(p){ p.stickies = p.stickies.filter(function(s){ return s.id !== sid; }); sel = null; });
@@ -1308,7 +1573,7 @@ function engine(root, api){
       else drag = Object.assign(base, { kind: "smove", s: s, x: s.x, y: s.y });
       if(!(sel && sel.sticky === s.id)) select({ sticky: s.id });
     } else if(port && card){
-      drag = Object.assign(base, { kind: "wire", from: card.dataset.id, fs: port.dataset.port });
+      drag = Object.assign(base, { kind: "wire", from: card.dataset.id, fs: port.dataset.port, route: routeMode() });
     } else if(card && (e.ctrlKey || e.metaKey)){
       // Ctrl/⌘ + click: sumar o sacar de la selección múltiple.
       var cid = card.dataset.id, cur0 = multi.length ? multi.slice() : (sel && sel.node ? [sel.node] : []);
@@ -1324,7 +1589,7 @@ function engine(root, api){
       if(!isSelNode(card.dataset.id) || multi.length) select({ node: card.dataset.id });
     } else if(wire){
       closeMenu();
-      select({ dep: { from: wire.dataset.from, to: wire.dataset.to } });
+      select({ dep: { from: wire.dataset.from, to: wire.dataset.to, route: wire.dataset.route === "1" } });
       return;
     } else if(mouse){
       // Mantener click y arrastrar sobre el fondo = recuadro de selección.
@@ -1434,8 +1699,14 @@ function engine(root, api){
       if(target){
         var tt = byId(p, target), ts = dropSide(e, tt, toWorld(e.clientX, e.clientY));
         change(function(){
+          if(d.route){
+            if(!addRoute(p, d.from, target, { fs: d.fs, ts: ts })) return false;
+            showLayer("ruta");
+            return;
+          }
           if(!addDep(p, d.from, target)) return false;
           var nd = findDep(p, d.from, target); nd.fs = d.fs; nd.ts = ts;
+          showLayer(depLayer(nd));
         });
         renderAll();
       } else if(d.moved){
@@ -1445,7 +1716,8 @@ function engine(root, api){
         var y = d.fs === "t" ? w.y - H : d.fs === "b" ? w.y : w.y - H / 2;
         change(function(){
           t = makeNode(p, x, y);
-          p.deps.push(lineFor({ from: d.from, to: t.id, fs: d.fs, ts: OPP[d.fs] }));
+          if(d.route){ addRoute(p, d.from, t.id, { fs: d.fs, ts: OPP[d.fs] }); showLayer("ruta"); }
+          else { var nd2 = lineFor({ from: d.from, to: t.id, fs: d.fs, ts: OPP[d.fs] }); p.deps.push(nd2); showLayer(depLayer(nd2)); }
           sel = { node: t.id };
         });
         startEdit(t.id);
@@ -1503,7 +1775,7 @@ function engine(root, api){
 
   // ---------- teclado ----------
   document.addEventListener("keydown", function(e){
-    if(!api.visible() || focoOn || (window.PlanesNotes && window.PlanesNotes.isOpen())) return;
+    if(!api.visible() || focoOn || rutaOn || (window.PlanesNotes && window.PlanesNotes.isOpen())) return;
     var tg = root.activeElement || e.target;
     if(!$("ask").hidden || !$("helpDlg").hidden || !$("notesDlg").hidden) return;
     if(editing || tg.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName)) return;
@@ -1601,6 +1873,13 @@ function engine(root, api){
   $("importBtn").addEventListener("click", function(){ closeSideMobile(); $("fileIn").click(); });
   $("fit").addEventListener("click", fit);
   $("wireDel").addEventListener("click", deleteSelected);
+  $("routeBtn").addEventListener("click", function(){
+    state.lineDefault = state.lineDefault || {};
+    var on = !routeMode();
+    state.lineDefault.style = on ? "ruta" : "continua";
+    if(on){ showLayer("ruta"); toast("Ruta: arrastrá el ● de cada card a la que sigue"); }
+    save(); renderBars();
+  });
   $("wireCancel").addEventListener("click", function(){ select(null); });
   Array.prototype.forEach.call(root.querySelectorAll("[data-help]"), function(b){
     b.addEventListener("click", function(){ closeSideMobile(); $("helpDlg").hidden = false; });
