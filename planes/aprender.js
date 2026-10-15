@@ -736,10 +736,12 @@ function engine(root, api){
 
   // ---------- vista foco (3D, solo lectura) ----------
   var focoOn = false, foco = null;
+  // Colores de las bolitas: los mismos de los tipos en el diagrama (sin tipo = turquesa, como el borde de las cards).
+  var FOCO_COLOR = { semantico: "#c297ff", procedimental: "#f0883e", none: "#56d4c4" };
   function focoGraph(p){
     return {
       nodes: p.nodes.map(function(t){
-        return { id: t.id, title: t.title, x: t.x, y: t.y,
+        return { id: t.id, title: t.title, x: t.x, y: t.y, color: FOCO_COLOR[t.type] || FOCO_COLOR.none,
                  typeLabel: TYPES[t.type] ? TYPES[t.type].label : "", levelLabel: LEVELS[t.level] ? LEVELS[t.level].label : "" };
       }),
       edges: p.deps.map(function(d){ return { from: d.from, to: d.to }; })

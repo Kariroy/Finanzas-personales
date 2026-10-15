@@ -7,13 +7,16 @@
 "use strict";
 
 var BG = "#141518";
-var PINK = "233,168,242";          // bolitas (como la imagen de referencia)
-var GREY = "120,122,128";          // nodos apagados y polvo del fondo
+var PINK = [233, 168, 242];        // color si la card no trae uno
+var GREY = [120, 122, 128];        // nodos de fondo (a más de un salto)
 var R_FOCUS = 230;                 // distancia de los vecinos al centro
 var DUR = 650;                     // duración de la transición (ms)
 
 function ease(t){ return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
 function lerp(a, b, t){ return a + (b - a) * t; }
+function rgb(hex){ var m = /^#?([0-9a-f]{6})$/i.exec(hex || ""); if(!m) return PINK; var n = parseInt(m[1], 16); return [n >> 16, n >> 8 & 255, n & 255]; }
+function mix(a, b, t){ return [Math.round(lerp(a[0], b[0], t)), Math.round(lerp(a[1], b[1], t)), Math.round(lerp(a[2], b[2], t))]; }
+function rgba(c, a){ return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + (+a).toFixed(3) + ")"; }
 // Pseudoaleatorio con semilla: el fondo y el mapa completo quedan siempre iguales.
 function rng(seed){ var s = seed % 2147483647; if(s <= 0) s += 2147483646; return function(){ s = s * 16807 % 2147483647; return (s - 1) / 2147483646; }; }
 function hash(str){ var h = 7; for(var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 2147483647; return h; }
@@ -49,13 +52,13 @@ function fullLayout(nodes, edges){
     var cool = 1 - it / 260;
     for(var i = 0; i < n; i++) for(var j = i + 1; j < n; j++){
       var a = P[ids[i]], b = P[ids[j]], dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
-      var d2 = Math.max(400, dx * dx + dy * dy + dz * dz), f = 42000 / d2, d = Math.sqrt(d2);
+      var d2 = Math.max(400, dx * dx + dy * dy + dz * dz), f = 110000 / d2, d = Math.sqrt(d2);
       dx /= d; dy /= d; dz /= d;
       a.vx += dx * f; a.vy += dy * f; a.vz += dz * f; b.vx -= dx * f; b.vy -= dy * f; b.vz -= dz * f;
     }
     edges.forEach(function(e){
       var a = P[e.from], b = P[e.to]; if(!a || !b) return;
-      var dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1, f = (d - 230) * .035;
+      var dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1, f = (d - 260) * .04;
       dx /= d; dy /= d; dz /= d;
       a.vx += dx * f; a.vy += dy * f; a.vz += dz * f; b.vx -= dx * f; b.vy -= dy * f; b.vz -= dz * f;
     });
@@ -86,18 +89,9 @@ function create(host, opts){
   var cam = { yaw: -.25, pitch: .18, dist: 820 };
   var W = 0, H = 0, dpr = 1, raf = 0;
 
-  var dust = (function(){
-    var r = rng(12345), out = [];
-    for(var i = 0; i < 170; i++){
-      var u = r() * 2 - 1, th = r() * Math.PI * 2, rad = 350 + r() * 900, q = Math.sqrt(1 - u * u);
-      out.push({ x: Math.cos(th) * q * rad, y: u * rad * .8, z: Math.sin(th) * q * rad, s: .6 + r() * 1.8, a: .08 + r() * .22 });
-    }
-    return out;
-  })();
-
   function setGraph(g){
     graph = g; byId = {}; adj = {}; full = null;
-    g.nodes.forEach(function(t){ byId[t.id] = t; adj[t.id] = []; });
+    g.nodes.forEach(function(t){ byId[t.id] = t; adj[t.id] = []; t.rgb = rgb(t.color); });
     g.edges.forEach(function(e){
       if(!byId[e.from] || !byId[e.to]) return;
       if(adj[e.from].indexOf(e.to) < 0) adj[e.from].push(e.to);
@@ -110,7 +104,7 @@ function create(host, opts){
   function fitFull(){
     var F = fullPos(), r = 0;
     Object.keys(F).forEach(function(id){ var p = F[id]; r = Math.max(r, Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)); });
-    cam.dist = Math.max(baseDist(), Math.min(3200, r * (W < 700 ? 1.9 : 2.4) + 300));
+    cam.dist = Math.max(baseDist(), Math.min(3200, r * (W < 700 ? 1.7 : 1.75) + 250));
   }
   function fullPos(){ if(!full) full = fullLayout(graph.nodes, graph.edges); return full; }
 
@@ -118,18 +112,37 @@ function create(host, opts){
   function targets(){
     var T = {}, F = fullPos();
     if(mode === "full"){
-      graph.nodes.forEach(function(t){ var p = F[t.id]; T[t.id] = { x: p.x, y: p.y, z: p.z, a: 1, s: t.id === center ? 15 : 10.5, lab: 1 }; });
+      graph.nodes.forEach(function(t){ var p = F[t.id]; T[t.id] = { x: p.x, y: p.y, z: p.z, a: 1, l: 1, s: t.id === center ? 17 : 12, lab: 1 }; });
       return T;
     }
     var near = adj[center] || [], ring = around(near.length, R_FOCUS), c = F[center];
-    T[center] = { x: 0, y: 0, z: 0, a: 1, s: 19, lab: 1 };
-    near.forEach(function(id, i){ T[id] = { x: ring[i].x, y: ring[i].y, z: ring[i].z, a: 1, s: 11, lab: 1 }; });
-    // El resto queda apagado, lejos, como puntos del fondo.
+    T[center] = { x: 0, y: 0, z: 0, a: 1, l: 1, s: 19, lab: 1 };
+    near.forEach(function(id, i){ T[id] = { x: ring[i].x, y: ring[i].y, z: ring[i].z, a: 1, l: 1, s: 11, lab: 1 }; });
+    // El resto son nodos de fondo, en gris: los que se alcanzan a más saltos quedan agrupados detrás
+    // de la conexión por la que se llega a ellos (hacia afuera); los sueltos, lejos.
+    var via = {}, depth = {}, queue = [center];
+    depth[center] = 0;
+    while(queue.length){
+      var x = queue.shift();
+      (adj[x] || []).forEach(function(y){
+        if(depth[y] !== undefined) return;
+        depth[y] = depth[x] + 1; via[y] = depth[x] === 0 ? y : via[x];
+        queue.push(y);
+      });
+    }
     graph.nodes.forEach(function(t){
       if(T[t.id]) return;
-      var p = F[t.id], dx = p.x - c.x, dy = p.y - c.y, dz = p.z - c.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
-      var k = Math.max(R_FOCUS * 2.1, d * 1.7) / d;
-      T[t.id] = { x: dx * k, y: dy * k, z: dz * k, a: .16, s: 5, lab: 0 };
+      var r = rng(hash(t.id + "f")), a = T[via[t.id]];
+      if(a){
+        var d = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z) || 1, out = 60 + 38 * Math.min(4, depth[t.id] - 2);
+        var u = r() * 2 - 1, th = r() * 6.283, q = Math.sqrt(1 - u * u), j = 30 + r() * 45;
+        T[t.id] = { x: a.x + a.x / d * out + Math.cos(th) * q * j, y: a.y + a.y / d * out + u * j, z: a.z + a.z / d * out + Math.sin(th) * q * j,
+                    a: .75, l: 0, s: 6.5, lab: 0 };
+      } else {
+        var p = F[t.id], dx = p.x - c.x, dy = p.y - c.y, dz = p.z - c.z, dd = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+        var k = Math.max(R_FOCUS * 2.1, dd * 1.7) / dd;
+        T[t.id] = { x: dx * k, y: dy * k, z: dz * k, a: .6, l: 0, s: 6, lab: 0 };
+      }
     });
     return T;
   }
@@ -138,8 +151,8 @@ function create(host, opts){
     graph.nodes.forEach(function(t){
       var it = items[t.id];
       // Las que aparecen salen desde el centro.
-      from[t.id] = it ? { x: it.x, y: it.y, z: it.z, a: it.a, s: it.s } : { x: 0, y: 0, z: 0, a: 0, s: 2 };
-      items[t.id] = items[t.id] || { x: 0, y: 0, z: 0, a: 0, s: 2 };
+      from[t.id] = it ? { x: it.x, y: it.y, z: it.z, a: it.a, l: it.l, s: it.s } : { x: 0, y: 0, z: 0, a: 0, l: T[t.id].l, s: 2 };
+      items[t.id] = items[t.id] || { x: 0, y: 0, z: 0, a: 0, l: T[t.id].l, s: 2 };
       items[t.id].lab = T[t.id].lab;
     });
     Object.keys(items).forEach(function(id){ if(!byId[id]) delete items[id]; });
@@ -152,7 +165,7 @@ function create(host, opts){
     var k = Math.min(1, (now - anim.t0) / DUR), e = ease(k);
     Object.keys(anim.to).forEach(function(id){
       var a = anim.from[id], b = anim.to[id], it = items[id]; if(!a || !it) return;
-      it.x = lerp(a.x, b.x, e); it.y = lerp(a.y, b.y, e); it.z = lerp(a.z, b.z, e); it.a = lerp(a.a, b.a, e); it.s = lerp(a.s, b.s, e);
+      it.x = lerp(a.x, b.x, e); it.y = lerp(a.y, b.y, e); it.z = lerp(a.z, b.z, e); it.a = lerp(a.a, b.a, e); it.l = lerp(a.l, b.l, e); it.s = lerp(a.s, b.s, e);
     });
     if(k >= 1) anim = null;
     return true;
@@ -175,12 +188,6 @@ function create(host, opts){
     vg.addColorStop(0, "rgba(255,255,255,0.018)"); vg.addColorStop(1, "rgba(0,0,0,0.35)");
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
 
-    dust.forEach(function(d){
-      var q = proj(d); if(!q) return;
-      ctx.fillStyle = "rgba(" + GREY + "," + Math.min(.4, d.a * q.k * 1.3).toFixed(3) + ")";
-      ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(.5, d.s * q.k), 0, 6.283); ctx.fill();
-    });
-
     var P = {};
     Object.keys(items).forEach(function(id){ P[id] = proj(items[id]); });
 
@@ -189,8 +196,8 @@ function create(host, opts){
     graph.edges.forEach(function(e){
       var a = items[e.from], b = items[e.to], pa = P[e.from], pb = P[e.to];
       if(!a || !b || !pa || !pb) return;
-      // solo entre bolitas encendidas (las apagadas no muestran sus líneas)
-      var al = Math.max(0, (Math.min(a.a, b.a) - .2) / .8); if(al < .02) return;
+      // entre las de color, la línea normal; si alguna es de fondo, apenas se ve
+      var al = Math.min(a.a, b.a) * (.28 + .72 * Math.min(a.l, b.l)); if(al < .02) return;
       var lw = Math.max(.6, 1.6 * (pa.k + pb.k) / 2);
       ctx.strokeStyle = "rgba(150,152,158," + (al * .42).toFixed(3) + ")"; ctx.lineWidth = lw;
       ctx.setLineDash([]);
@@ -205,25 +212,20 @@ function create(host, opts){
     var order = Object.keys(items).filter(function(id){ return P[id] && items[id].a > .01; })
       .sort(function(a, b){ return P[b].z - P[a].z; });
     order.forEach(function(id){
-      var it = items[id], q = P[id], r = Math.max(1.2, it.s * q.k), lit = it.a > .5;
-      var col = lit ? PINK : GREY, al = it.a, isC = mode === "focus" && id === center;
-      if(lit){
-        var gl = ctx.createRadialGradient(q.x, q.y, r * .6, q.x, q.y, r * (isC ? 3.4 : 2.6));
-        gl.addColorStop(0, "rgba(" + PINK + "," + ((isC ? .42 : .28) * al).toFixed(3) + ")");
-        gl.addColorStop(1, "rgba(" + PINK + ",0)");
-        ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(q.x, q.y, r * (isC ? 3.4 : 2.6), 0, 6.283); ctx.fill();
+      var it = items[id], q = P[id], r = Math.max(1.2, it.s * q.k), lit = it.l > .5;
+      var col = mix(GREY, byId[id].rgb, it.l), al = it.a, isC = mode === "focus" && id === center;
+      if(it.l > .05){
+        var gr = r * (isC ? 3.4 : 2.6), gl = ctx.createRadialGradient(q.x, q.y, r * .6, q.x, q.y, gr);
+        gl.addColorStop(0, rgba(col, (isC ? .42 : .28) * al * it.l));
+        gl.addColorStop(1, rgba(col, 0));
+        ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(q.x, q.y, gr, 0, 6.283); ctx.fill();
       }
       var g = ctx.createRadialGradient(q.x - r * .35, q.y - r * .38, r * .1, q.x, q.y, r);
-      if(lit){
-        g.addColorStop(0, "rgba(253,236,255," + al + ")");
-        g.addColorStop(.45, "rgba(" + col + "," + al + ")");
-        g.addColorStop(1, "rgba(196,128,214," + al + ")");
-      } else {
-        g.addColorStop(0, "rgba(160,162,168," + al + ")");
-        g.addColorStop(1, "rgba(" + col + "," + (al * .7) + ")");
-      }
+      g.addColorStop(0, rgba(mix(col, [255, 255, 255], .78), al));
+      g.addColorStop(.45, rgba(col, al));
+      g.addColorStop(1, rgba(mix(col, [0, 0, 0], .2), al));
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 6.283); ctx.fill();
-      if(hover === id && lit){ ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(q.x, q.y, r + 3, 0, 6.283); ctx.stroke(); }
+      if(hover === id){ ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(q.x, q.y, r + 3, 0, 6.283); ctx.stroke(); }
       if(it.lab && al > .3){
         var t = byId[id];
         ctx.font = "600 " + (isC ? 11 : 10) + "px 'JetBrains Mono', ui-monospace, monospace";
@@ -235,7 +237,7 @@ function create(host, opts){
 
     // Etiqueta abajo de la bolita señalada (o del centro): nombre + tipo · nivel
     var tagId = hover || (mode === "focus" ? center : null), tq = tagId && P[tagId], ti = tagId && items[tagId];
-    if(tq && ti && ti.a > .5){
+    if(tq && ti && ti.a > .3){
       var tn = byId[tagId], sub = [tn.typeLabel, tn.levelLabel].filter(Boolean).join(" · "), r2 = Math.max(1.2, ti.s * tq.k);
       ctx.font = "600 12px system-ui, -apple-system, Segoe UI, sans-serif";
       var w1 = ctx.measureText(tn.title).width;
@@ -284,7 +286,7 @@ function create(host, opts){
   function pick(x, y){
     var best = null, bz = Infinity;
     Object.keys(items).forEach(function(id){
-      var it = items[id]; if(it.a < .5) return;
+      var it = items[id]; if(it.a < .3) return;
       var q = proj(it); if(!q) return;
       var r = Math.max(8, it.s * q.k) + 6, d = Math.hypot(q.x - x, q.y - y);
       if(d <= r && q.z < bz){ best = id; bz = q.z; }
@@ -345,7 +347,7 @@ function create(host, opts){
   });
 
   return {
-    // graph: { nodes: [{ id, title, typeLabel, levelLabel, x, y }], edges: [{ from, to }] }
+    // graph: { nodes: [{ id, title, color, typeLabel, levelLabel, x, y }], edges: [{ from, to }] }
     open: function(g, centerId){
       setGraph(g);
       center = byId[centerId] ? centerId : (g.nodes[0] && g.nodes[0].id);
