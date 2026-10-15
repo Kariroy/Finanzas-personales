@@ -713,16 +713,27 @@ function engine(root, api){
     }
     return Object.keys(out);
   }
+  // Entre dos cards puede haber varias líneas si son de distinto estilo (ej. composición y dependencia).
+  // Se rechaza la misma línea repetida, y los ciclos dentro de una misma capa.
+  function lineErr(p, from, to, style, skip){
+    if(findDep(p, from, to, style, skip) || findDep(p, to, from, style, skip)) return "Esa línea ya existe";
+    var layer = depLayer({ style: style });
+    if(reachesIn(p.deps.filter(function(d){ return d !== skip && depLayer(d) === layer; }), to, from)) return "Eso crearía un ciclo";
+    return "";
+  }
   function addDep(p, from, to){
     if(from === to) return false;
-    if(findDep(p, from, to) || findDep(p, to, from)){ toast("Esa conexión ya existe"); return false; }
-    if(reaches(p, to, from)){ toast("Eso crearía un ciclo"); return false; }
-    p.deps.push(lineFor({ from: from, to: to }));
-    return true;
+    var nd = lineFor({ from: from, to: to }), err = lineErr(p, from, to, nd.style || "continua");
+    if(err){ toast(err); return false; }
+    p.deps.push(nd);
+    return nd;
   }
-  function removeDep(p, from, to){ p.deps = p.deps.filter(function(d){ return !(d.from === from && d.to === to); }); }
+  function removeDep(p, from, to, style){ var d = findDep(p, from, to, style); p.deps = p.deps.filter(function(x){ return x !== d; }); }
 
-  function findDep(p, from, to){ return p.deps.filter(function(d){ return d.from === from && d.to === to; })[0] || null; }
+  // style: si se da, solo una línea de ese estilo («continua» = sin estilo) · skip: una línea a ignorar
+  function findDep(p, from, to, style, skip){
+    return p.deps.filter(function(d){ return d !== skip && d.from === from && d.to === to && (!style || (d.style || "continua") === style); })[0] || null;
+  }
   // Forma y estilo de las líneas nuevas: los últimos que se eligieron.
   function lineFor(d){
     var ld = state.lineDefault || {};
@@ -855,11 +866,14 @@ function engine(root, api){
   // ---------- dibujo ----------
   var multi = [];          // selección múltiple de nodos (recuadro o Ctrl+click)
   function isSelNode(id){ return (sel && sel.node === id) || multi.indexOf(id) >= 0; }
-  function isSelDep(d, route){ return !!(sel && sel.dep && sel.dep.from === d.from && sel.dep.to === d.to && !!sel.dep.route === !!route); }
+  function isSelDep(d, route){
+    return !!(sel && sel.dep && sel.dep.from === d.from && sel.dep.to === d.to && !!sel.dep.route === !!route &&
+      (route || (sel.dep.style || "continua") === (d.style || "continua")));
+  }
   // La línea elegida: una de s.deps o una flecha de ruta.
   function selLine(p){
     if(!sel || !sel.dep || !p) return null;
-    return sel.dep.route ? findRoute(p, sel.dep.from, sel.dep.to) : findDep(p, sel.dep.from, sel.dep.to);
+    return sel.dep.route ? findRoute(p, sel.dep.from, sel.dep.to) : findDep(p, sel.dep.from, sel.dep.to, sel.dep.style || "continua");
   }
 
   function renderAll(){
@@ -1030,7 +1044,7 @@ function engine(root, api){
       : "Creá una habilidad con el + de Habilidades.";
     if(!p) return;
     p.nodes.forEach(function(t){
-      var kids = dependents(p, t.id).length;
+      var kids = dependents(p, t.id).filter(function(x, i, a){ return a.indexOf(x) === i; }).length;   // cards distintas
       var c = document.createElement("div");
       var ty = TYPES[t.type], lv = LEVELS[t.level];
       c.className = "card" + (ty ? " t-" + t.type : !prereqs(p, t.id).length && kids ? " root" : "") + (lv ? " lv-" + t.level : "") +
@@ -1096,19 +1110,25 @@ function engine(root, api){
     var c1 = { x: a.x + na[0] * k, y: a.y + na[1] * k }, c2 = nb ? { x: b.x + nb[0] * k, y: b.y + nb[1] * k } : b;
     return "M" + pt(a) + " C" + pt(c1) + " " + pt(c2) + " " + pt(b);
   }
-  function depPath(p, d){
+  // off: corrimiento a lo largo del lado, para que dos líneas entre las mismas cards no se tapen.
+  function anchorOff(t, side, off){
+    var q = anchor(t, side);
+    if(off){ if(side === "t" || side === "b") q.x += off; else q.y += off; }
+    return q;
+  }
+  function depPath(p, d, off){
     var a = byId(p, d.from), b = byId(p, d.to);
     if(!a || !b) return null;
     var fs = d.fs || "r", ts = d.ts || "l";
-    return linePath(anchor(a, fs), fs, anchor(b, ts), ts, d.shape);
+    return linePath(anchorOff(a, fs, off), fs, anchorOff(b, ts, off), ts, d.shape);
   }
   // Punta de flecha de la ruta: en la card de llegada, mirando hacia adentro.
-  function arrowPath(p, d){
+  function arrowPath(p, d, off){
     var a = byId(p, d.from), b = byId(p, d.to);
     if(!a || !b) return "";
-    var fs = d.fs || "r", ts = d.ts || "l", tip = anchor(b, ts), ux, uy;
+    var fs = d.fs || "r", ts = d.ts || "l", tip = anchorOff(b, ts, off), ux, uy;
     if(d.shape === "recta"){
-      var from = anchor(a, fs), len = Math.hypot(tip.x - from.x, tip.y - from.y) || 1;
+      var from = anchorOff(a, fs, off), len = Math.hypot(tip.x - from.x, tip.y - from.y) || 1;
       ux = (tip.x - from.x) / len; uy = (tip.y - from.y) / len;
     } else { ux = -NORM[ts][0]; uy = -NORM[ts][1]; }
     var L = 13, Wd = 7, bx = tip.x - ux * L, by = tip.y - uy * L;
@@ -1121,15 +1141,22 @@ function engine(root, api){
   }
   function renderWires(){
     var p = cur(), html = "";
+    // Líneas que salen y llegan por los mismos lados de las mismas cards: cada una un poco corrida.
+    var seen = {}, OFFS = [0, 14, -14, 28, -28];
+    function offFor(d){
+      var a = d.from + (d.fs || "r"), b = d.to + (d.ts || "l"), k = a < b ? a + "|" + b : b + "|" + a;
+      var i = seen[k] || 0; seen[k] = i + 1;
+      return OFFS[i % OFFS.length];
+    }
     if(p){
       p.deps.forEach(function(d){
         if(!layerOn(depLayer(d))) return;
-        var path = depPath(p, d); if(!path) return;
-        html += '<g class="wire' + (d.style ? " s-" + d.style : "") + (isSelDep(d) ? " selected" : "") + '" data-from="' + d.from + '" data-to="' + d.to + '"><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"/></g>';
+        var path = depPath(p, d, offFor(d)); if(!path) return;
+        html += '<g class="wire' + (d.style ? " s-" + d.style : "") + (isSelDep(d) ? " selected" : "") + '" data-style="' + (d.style || "continua") + '" data-from="' + d.from + '" data-to="' + d.to + '"><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"/></g>';
       });
       if(layerOn("ruta")) (p.route || []).forEach(function(d){
-        var path = depPath(p, d); if(!path) return;
-        html += '<g class="wire s-ruta' + (isSelDep(d, true) ? " selected" : "") + '" data-route="1" data-from="' + d.from + '" data-to="' + d.to + '"><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"/><path class="arrow" d="' + arrowPath(p, d) + '"/></g>';
+        var off = offFor(d), path = depPath(p, d, off); if(!path) return;
+        html += '<g class="wire s-ruta' + (isSelDep(d, true) ? " selected" : "") + '" data-route="1" data-from="' + d.from + '" data-to="' + d.to + '"><path class="hit" d="' + path + '"/><path class="line" d="' + path + '"/><path class="arrow" d="' + arrowPath(p, d, off) + '"/></g>';
       });
     }
     if(tempWire) html += '<path class="temp' + (drag && drag.route ? " ruta" : "") + '" d="' + tempWire + '"/>';
@@ -1163,24 +1190,28 @@ function engine(root, api){
       change(function(){
         if(val === "ruta"){
           if(!addRoute(p, d.from, d.to, keep)) return false;
-          removeDep(p, d.from, d.to);
+          p.deps = p.deps.filter(function(x){ return x !== d; });
           sel = { dep: { from: d.from, to: d.to, route: true } };
           showLayer("ruta");
         } else {
-          if(findDep(p, d.from, d.to) || findDep(p, d.to, d.from)){ toast("Entre esas cards ya hay una línea"); return false; }
-          if(reaches(p, d.to, d.from)){ toast("Eso crearía un ciclo"); return false; }
+          var err = lineErr(p, d.from, d.to, val);
+          if(err){ toast(err); return false; }
           removeRoute(p, d.from, d.to);
           var nd = Object.assign({ from: d.from, to: d.to }, keep);
           if(val !== "continua") nd.style = val;
           p.deps.push(nd);
-          sel = { dep: { from: d.from, to: d.to } };
+          sel = { dep: { from: d.from, to: d.to, style: val } };
           showLayer(depLayer(nd));
         }
       });
       return;
     }
     if((d[key] || def) === val){ save(); return; }
-    change(function(){ if(val === def) delete d[key]; else d[key] = val; if(key === "style" && !isRoute) showLayer(depLayer(d)); });
+    if(key === "style"){ var e2 = lineErr(p, d.from, d.to, val, d); if(e2){ toast(e2); return; } }
+    change(function(){
+      if(val === def) delete d[key]; else d[key] = val;
+      if(key === "style" && !isRoute){ sel.dep.style = val; showLayer(depLayer(d)); }
+    });
   }
   Array.prototype.forEach.call(root.querySelectorAll("#wireBar .lk"), function(b){
     b.addEventListener("click", function(){ if(b.dataset.shape) setLine("shape", b.dataset.shape); else setLine("style", b.dataset.style); });
@@ -1525,7 +1556,7 @@ function engine(root, api){
       });
     } else if(sel.dep){
       var d = sel.dep;
-      change(function(p){ if(d.route) removeRoute(p, d.from, d.to); else removeDep(p, d.from, d.to); sel = null; });
+      change(function(p){ if(d.route) removeRoute(p, d.from, d.to); else removeDep(p, d.from, d.to, d.style || "continua"); sel = null; });
       toast(d.route ? "Flecha de ruta borrada" : "Línea borrada");
     } else if(sel.sticky){
       var sid = sel.sticky;
@@ -1612,7 +1643,7 @@ function engine(root, api){
       if(!isSelNode(card.dataset.id) || multi.length) select({ node: card.dataset.id });
     } else if(wire){
       closeMenu();
-      select({ dep: { from: wire.dataset.from, to: wire.dataset.to, route: wire.dataset.route === "1" } });
+      select({ dep: { from: wire.dataset.from, to: wire.dataset.to, route: wire.dataset.route === "1", style: wire.dataset.style } });
       return;
     } else if(mouse){
       // Mantener click y arrastrar sobre el fondo = recuadro de selección.
@@ -1727,8 +1758,8 @@ function engine(root, api){
             showLayer("ruta");
             return;
           }
-          if(!addDep(p, d.from, target)) return false;
-          var nd = findDep(p, d.from, target); nd.fs = d.fs; nd.ts = ts;
+          var nd = addDep(p, d.from, target); if(!nd) return false;
+          nd.fs = d.fs; nd.ts = ts;
           showLayer(depLayer(nd));
         });
         renderAll();
