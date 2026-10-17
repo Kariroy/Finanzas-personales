@@ -6,22 +6,22 @@ import pathlib, re
 root = pathlib.Path(__file__).resolve().parent.parent / "planes"
 html = (root / "index.html").read_text(encoding="utf-8")
 css = (root / "planes.css").read_text(encoding="utf-8")
-js = (root / "planes.js").read_text(encoding="utf-8")
-apr = root / "aprender.js"
-foco = root / "aprender-foco.js"
-
 html = html.replace('<link rel="stylesheet" href="planes.css">', "<style>\n" + css + "</style>")
 # Sin Supabase, config ni service worker: modo local.
 html = re.sub(r'<script src="https://cdn\.jsdelivr\.net/[^"]+"></script>\n?', "", html)
 html = html.replace('<script src="../config.js"></script>', "")
 html = re.sub(r'<script>\s*if\("serviceWorker".*?</script>\n?', "", html, flags=re.S)
-html = html.replace('<script src="planes.js"></script>', "<script>\n" + js.replace("</script>", "<\\/script>") + "</script>")
-if apr.exists():
-    html = html.replace('<script src="aprender.js"></script>',
-                        "<script>\n" + apr.read_text(encoding="utf-8").replace("</script>", "<\\/script>") + "</script>")
-if foco.exists():
-    html = html.replace('<script src="aprender-foco.js"></script>',
-                        "<script>\n" + foco.read_text(encoding="utf-8").replace("</script>", "<\\/script>") + "</script>")
+
+
+# Todos los scripts propios de planes/ (planes.js, notas.js, aprender.js, …) van adentro.
+def inline(m):
+    f = root / m.group(1)
+    if not f.exists():
+        return m.group(0)
+    return "<script>\n" + f.read_text(encoding="utf-8").replace("</script>", "<\\/script>") + "</script>"
+
+
+html = re.sub(r'<script src="([\w.-]+\.js)"></script>', inline, html)
 html = re.sub(r'<link rel="(manifest|icon|apple-touch-icon)"[^>]*>\n?', "", html)
 
 out = root.parent / "preview" / "planes.html"

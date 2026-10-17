@@ -23,6 +23,9 @@
   <aside class="side" id="side">
     <div class="side-head">
       <button type="button" class="side-done" id="showDone" hidden></button>
+      <button class="icon-btn" id="exportBtn" aria-label="Exportar" title="Exportar: guardar una copia de tus programas y proyectos en JSON">⇩</button>
+      <button class="icon-btn" id="importBtn" aria-label="Importar" title="Importar: cargar programas y proyectos desde un JSON">⇧</button>
+      <input type="file" id="planesFile" accept="application/json,.json" hidden>
       <button class="icon-btn help-btn" data-help aria-label="Ayuda y reglas" title="Ayuda y reglas">?</button>
       <button class="icon-btn only-mobile" id="closeSide" aria-label="Cerrar panel">×</button>
     </div>
@@ -159,6 +162,8 @@
 <div class="ask" id="ask" hidden>
   <div class="ask-box" role="dialog" aria-modal="true" aria-labelledby="askTitle">
     <div class="ask-title" id="askTitle"></div>
+    <p class="ask-text" id="askText" hidden></p>
+    <textarea class="ask-area" id="askArea" readonly hidden></textarea>
     <input type="text" id="askInput" maxlength="120">
     <label class="ask-sel" id="askSelWrap" hidden><span id="askSelLabel"></span><select id="askSelect"></select></label>
     <div class="ask-btns">
@@ -348,6 +353,7 @@
         — <b>↻ Rutinas</b> = checklist diario: tocá una rutina para marcarla; Semana / Mes para ver tu avance<br>
         — <b>◎ Objetivos</b> = objetivos SMART: se miden con un número (anotás avances; revisión semanal o mensual) o con una rutina (se cuentan solos los días que la marcaste)<br>
         — <b>✎ Notas</b> = apuntes: buscalos y filtralos por categoría; «⇩ exportar» descarga las que se ven en un archivo<br>
+        — <b>⇩ / ⇧</b> (arriba del panel) = exportar / importar programas y proyectos en JSON<br>
         — Ctrl+Z / Ctrl+Y
       </p>
 

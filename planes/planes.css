@@ -774,3 +774,7 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 /* ---------- selección múltiple ---------- */
 .sel-box { position: absolute; z-index: 4; border: 1px solid var(--doing); background: rgba(88, 166, 255, .10); border-radius: 3px; pointer-events: none; }
 .sel-box[hidden] { display: none; }
+.ask-text { margin: 0; color: var(--muted); line-height: 1.5; }
+.ask-text[hidden], .ask-area[hidden] { display: none; }
+.ask-area { width: 100%; height: 220px; resize: vertical; background: #0b0f14; border: 1px solid var(--line-2); border-radius: 6px;
+  padding: 10px; font: 11px/1.4 "JetBrains Mono", ui-monospace, monospace; color: var(--text); }

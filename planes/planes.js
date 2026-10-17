@@ -1111,6 +1111,62 @@ document.addEventListener("keydown", function(e){
   else if(k === "escape"){ select(null); }
 });
 
+// ---------- exportar / importar (programas y proyectos) ----------
+// Igual que en Aprender: exportar descarga un JSON (o lo muestra para copiar si la página
+// está dentro de otra, como una vista previa); importar suma lo del archivo y reemplaza
+// lo que ya existe con el mismo id.
+function exportJSON(){
+  closeSideMobile();
+  var json = JSON.stringify({ app: "planes", version: 1, portfolios: state.portfolios, programs: state.programs, projects: state.projects }, null, 2);
+  var canDownload = true;
+  try { if(window.self !== window.top) canDownload = !!window.top.location.href; } catch(e){ canDownload = false; }
+  if(canDownload){
+    var url = URL.createObjectURL(new Blob([json], { type: "application/json" })), a = document.createElement("a");
+    a.href = url; a.download = "planes-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    toast("JSON exportado");
+    return;
+  }
+  ask({ title: "Exportar", text: "Copiá este texto y guardalo en un archivo .json.", area: json, ok: "copiar", cancel: "cerrar" }, function(){
+    if(navigator.clipboard) navigator.clipboard.writeText(json).then(function(){ toast("Copiado"); }, function(){ toast("Seleccioná el texto y copialo a mano"); });
+    else toast("Seleccioná el texto y copialo a mano");
+  });
+}
+$("exportBtn").addEventListener("click", exportJSON);
+$("importBtn").addEventListener("click", function(){ closeSideMobile(); $("planesFile").click(); });
+$("planesFile").addEventListener("change", function(e){
+  var f = e.target.files[0]; e.target.value = "";
+  if(!f) return;
+  f.text().then(function(txt){
+    var data;
+    try { data = JSON.parse(txt); if(!data || !Array.isArray(data.projects)) throw 0; }
+    catch(err){ toast("Ese archivo no es un JSON de Planes"); return; }
+    var isObj = function(o){ return o && typeof o === "object" && o.id; };
+    var projs = data.projects.filter(function(p){ return isObj(p) && Array.isArray(p.tasks); });
+    var progs = (Array.isArray(data.programs) ? data.programs : []).filter(isObj);
+    var ports = (Array.isArray(data.portfolios) ? data.portfolios : []).filter(isObj);
+    if(!projs.length && !progs.length){ toast("El archivo no trae proyectos"); return; }
+    var n = projs.length;
+    ask({ title: "Importar " + n + " proyecto" + (n === 1 ? "" : "s") + (progs.length ? " y " + progs.length + " programa" + (progs.length === 1 ? "" : "s") : ""),
+          text: "Se suman a los que tenés. Si alguno ya existe, se reemplaza por el del archivo.", ok: "importar" }, function(){
+      var merge = function(list, add){
+        var ids = {}; add.forEach(function(x){ ids[x.id] = 1; });
+        return list.filter(function(x){ return !ids[x.id]; }).concat(add);
+      };
+      change(function(){
+        state.portfolios = merge(state.portfolios, ports);
+        state.programs = merge(state.programs, progs);
+        state.projects = merge(state.projects, projs);
+        normalizeData();
+        if(projs[0]) state.current = projs[0].id;
+        sel = null; multi = [];
+      });
+      toast("Importado" + (n === 1 ? ": " + projs[0].name : "s " + n + " proyectos"));
+    });
+  });
+});
+
 // ---------- vista lista (árbol de tareas y subtareas) ----------
 // Cada tarea cuelga de su prerequisito: sus dependientes son sus subtareas.
 // Si depende de varias, cuelga de la última en el orden de las ramas y
@@ -1360,6 +1416,11 @@ function ask(o, onOk){
     selEl.innerHTML = o.select.options.map(function(x){ return '<option value="' + esc(x.value) + '">' + esc(x.label) + "</option>"; }).join("");
     selEl.value = o.select.value;
   }
+  $("askText").hidden = !o.text;
+  $("askText").textContent = o.text || "";
+  $("askArea").hidden = o.area === undefined;
+  $("askArea").value = o.area || "";
+  $("askCancel").textContent = o.cancel || "cancelar";
   $("askOk").textContent = o.ok || "aceptar";
   $("askOk").classList.toggle("danger", !!o.danger);
   box.hidden = false;
