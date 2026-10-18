@@ -1116,7 +1116,8 @@
     var now = currentYM();
     $("cards").innerHTML = cards.map(function(c){
       var bal = b[c.id], plans = installmentPlans(c.id);
-      var active = plans.filter(function(p){ return p.remaining > 0; });
+      // Siguen a la vista hasta el mes de su último pago (incluido).
+      var active = plans.filter(function(p){ return p.lastYM >= now; });
       // Mes por mes, desde este hasta la última cuota.
       var last = now;
       active.forEach(function(p){ if(p.lastYM > last) last = p.lastYM; });
