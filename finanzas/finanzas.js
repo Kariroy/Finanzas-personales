@@ -510,7 +510,9 @@
   });
   function showView(v){
     view = v;
-    document.querySelectorAll(".nav-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-view") === v); });
+    // El detalle de una tarjeta se abre desde Cuentas.
+    var navV = v === "tarjetas" ? "cuentas" : v;
+    document.querySelectorAll(".nav-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-view") === navV); });
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id === "view-" + v); });
     render();
   }
@@ -561,7 +563,11 @@
       btn.addEventListener("click", function(){ openAccount(accountById(btn.getAttribute("data-acc-edit"))); });
     });
     $("accountsTable").querySelectorAll("[data-acc-ledger]").forEach(function(btn){
-      btn.addEventListener("click", function(){ filters.account = btn.getAttribute("data-acc-ledger"); filters.month = "all"; filters.pending = false; showView("movimientos"); });
+      btn.addEventListener("click", function(){
+        var id = btn.getAttribute("data-acc-ledger"), a = accountById(id);
+        if(a && a.kind === "tarjeta"){ cardView = id; showView("tarjetas"); return; }
+        filters.account = id; filters.month = "all"; filters.pending = false; showView("movimientos");
+      });
     });
   }
 
@@ -888,13 +894,12 @@
   });
 
   // ---- Tarjetas ----
+  var cardView = null; // tarjeta abierta desde Cuentas
   function renderTarjetas(){
-    var cards = D.accounts.filter(function(a){ return a.kind === "tarjeta" && !a.archived; });
+    var cards = D.accounts.filter(function(a){ return a.kind === "tarjeta" && a.id === cardView; });
+    if(cards.length === 0){ showView("cuentas"); return; }
+    $("cardTitle").textContent = cards[0].name;
     var b = balances();
-    if(cards.length === 0){
-      $("cards").innerHTML = '<div class="card"><p class="empty">No tenés tarjetas. Creá una cuenta de tipo “Tarjeta de crédito” en Cuentas.</p></div>';
-      return;
-    }
     var now = currentYM();
     $("cards").innerHTML = cards.map(function(c){
       var bal = b[c.id], plans = installmentPlans(c.id);
@@ -917,7 +922,8 @@
       }
       var thisMonth = months[0] || {uyu:0, usd:0}, nextMonth = months[1] || {uyu:0, usd:0}, nextYM = addMonths(now, 1);
       function both(mo){ return esc(fmt(mo.uyu, "UYU")) + (mo.usd ? " + " + esc(fmt(mo.usd, "USD")) : ""); }
-      return '<div class="card"><div class="card-head"><h2>'+esc(c.name)+'</h2><div class="head-actions">' +
+      return '<div class="card"><div class="card-head"><h2>Compras y cuotas</h2><div class="head-actions">' +
+          '<button type="button" class="btn ghost small" data-card-mov="'+c.id+'">Movimientos</button>' +
           '<button type="button" class="btn ghost small" data-card-buy="'+c.id+'">＋ Compra</button>' +
           '<button type="button" class="btn small" data-pay-card="'+c.id+'">Pagar tarjeta</button></div></div>' +
         '<div class="kpis small four">' +
@@ -949,6 +955,9 @@
       btn.addEventListener("click", function(){
         openMovement("transferencia", null, {toAccountId: btn.getAttribute("data-pay-card"), description:"Pago de tarjeta"});
       });
+    });
+    $("cards").querySelectorAll("[data-card-mov]").forEach(function(btn){
+      btn.addEventListener("click", function(){ filters.account = btn.getAttribute("data-card-mov"); filters.month = "all"; filters.pending = false; showView("movimientos"); });
     });
     $("cards").querySelectorAll("[data-card-buy]").forEach(function(btn){
       btn.addEventListener("click", function(){ openMovement("gasto", null, {accountId: btn.getAttribute("data-card-buy")}); });
