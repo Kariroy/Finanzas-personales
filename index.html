@@ -33,10 +33,48 @@
     <section class="panel active" id="panel-nuevo">
       <div class="entry-switch" role="tablist">
         <button type="button" class="es-btn active" data-mode="gasto" role="tab" aria-selected="true">Nuevo gasto</button>
+        <button type="button" class="es-btn" data-mode="ingreso" role="tab" aria-selected="false" hidden>Ingreso</button>
         <button type="button" class="es-btn" data-mode="deuda" role="tab" aria-selected="false">Deudas</button>
       </div>
       <div id="newExpenseSlot"></div>
       <div id="newDebtSlot" hidden></div>
+      <div id="newIncomeSlot" hidden>
+        <div class="card">
+          <div class="form-grid">
+            <div class="row-2 keep-2">
+              <div class="field">
+                <label for="incAccount">Entra en</label>
+                <select id="incAccount"></select>
+              </div>
+              <div class="field">
+                <label for="incDate">Fecha</label>
+                <input type="date" id="incDate">
+              </div>
+            </div>
+            <div class="row-2 keep-2">
+              <div class="field">
+                <label for="incDesc">Descripción</label>
+                <input type="text" id="incDesc" placeholder="ej: Sueldo octubre" maxlength="200">
+              </div>
+              <div class="field">
+                <label for="incCategory">Categoría</label>
+                <select id="incCategory"></select>
+              </div>
+            </div>
+            <div class="row-2 keep-2 amount-row">
+              <div class="field amount-field">
+                <label for="incAmount">Cantidad</label>
+                <input type="number" id="incAmount" placeholder="0" step="0.01" min="0" inputmode="decimal" enterkeyhint="done">
+              </div>
+              <div class="field">
+                <label for="incCurrency">Moneda</label>
+                <select id="incCurrency"><option value="UYU">$</option><option value="USD">US$</option></select>
+              </div>
+            </div>
+            <button class="btn-primary" id="incSaveBtn" type="button">Guardar ingreso</button>
+          </div>
+        </div>
+      </div>
       <div id="todaySection">
         <h2 class="section-title">Cargados hoy</h2>
         <div class="card"><div id="todayList"></div></div>
@@ -291,6 +329,17 @@
             </div>
           </div>
 
+          <div class="row-2 keep-2" id="finPayRow" hidden>
+            <div class="field">
+              <label for="payAccount">Pagado con</label>
+              <select id="payAccount"></select>
+            </div>
+            <div class="field" id="payInstField" hidden>
+              <label for="payInst">Cuotas</label>
+              <select id="payInst"></select>
+            </div>
+          </div>
+
           <button type="button" id="splitSummaryRow">
             <span class="label-text" id="splitSummaryText">Pagaste vos, dividido a partes iguales</span>
             <span class="chevron">›</span>
@@ -368,6 +417,11 @@
           </div>
           <button class="btn-ghost" id="joinGroupBtn" type="button" style="margin-top:12px;width:100%;">Unirme</button>
         </div>
+      </div>
+      <div class="settings-section" id="finBox">
+        <h4>Finanzas personales</h4>
+        <label class="fin-toggle"><input type="checkbox" id="finEnabled"> <span>Registrar ingresos y de qué cuenta sale cada gasto</span></label>
+        <p class="hint">Es privado: tus cuentas e ingresos no los ve nadie de tus grupos. Los balances y el detalle están en la vista para computadora: <a href="finanzas/" id="finLink">abrir Finanzas</a>.</p>
       </div>
       <div class="settings-section" id="installBox" hidden>
         <h4>App en el celular</h4>

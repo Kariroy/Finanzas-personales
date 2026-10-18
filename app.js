@@ -138,8 +138,25 @@
       sb.from("group_members").select("id,group_id,user_id,name,created_at").order("created_at"),
       sb.from("expenses").select("*").order("date", {ascending:false}).order("created_at", {ascending:false}),
       sb.from("settlements").select("*").order("date").order("created_at"),
-      sb.from("debts").select("*").order("date", {ascending:false}).order("created_at", {ascending:false})
+      sb.from("debts").select("*").order("date", {ascending:false}).order("created_at", {ascending:false}),
+      sb.from("fin_settings").select("*").maybeSingle(),
+      sb.from("fin_accounts").select("id,name,kind,currency,archived,sort").order("sort").order("created_at"),
+      sb.from("fin_links").select("ref_kind,ref_id,account_id,installments").eq("ref_kind", "expense")
     ]).then(function(res){
+      // Finanzas es opcional: si falta correr supabase/10-finanzas.sql, sigue sin ella.
+      if(res[5].error || res[6].error || res[7].error){
+        console.warn("Finanzas no disponible:", res[5].error || res[6].error || res[7].error);
+      } else {
+        var fs = res[5].data;
+        fin = {
+          accounts: res[6].data,
+          links: res[7].data.reduce(function(m, r){ m["expense:" + r.ref_id] = {accountId:r.account_id, installments:r.installments}; return m; }, {}),
+          movements: [],
+          settings: fs ? {enabled:fs.enabled, usdRate:Number(fs.usd_rate), incomeCategories:fs.income_categories || INCOME_CATS}
+                       : {enabled:false, usdRate:40, incomeCategories:INCOME_CATS}
+        };
+      }
+      res = res.slice(0, 5);
       // Las deudas son opcionales: si la tabla todavía no existe (falta correr
       // supabase/5-deudas.sql), la app sigue funcionando sin ellas.
       if(res[4].error){
@@ -258,6 +275,21 @@
 
   var state = REMOTE ? emptyState() : load();
 
+  // ---------------- finanzas personales (privado; vista completa en finanzas/) ----------------
+  var FIN_LS = "libro-gastos:fin:v1";
+  var INCOME_CATS = ["Sueldo","Freelance","Aguinaldo","Ventas","Regalos","Otros"];
+  var fin = {accounts:[], links:{}, movements:[], settings:{enabled:false, usdRate:40, incomeCategories:INCOME_CATS}};
+  function loadFinLocal(){
+    try{
+      var f = JSON.parse(localStorage.getItem(FIN_LS));
+      if(f && f.accounts) fin = {accounts:f.accounts, links:f.links || {}, movements:f.movements || [], settings:f.settings || fin.settings};
+    }catch(e){}
+  }
+  function saveFinLocal(){ try{ localStorage.setItem(FIN_LS, JSON.stringify(fin)); }catch(e){} }
+  if(!REMOTE) loadFinLocal();
+  function finOn(){ return !!(fin.settings && fin.settings.enabled); }
+  function finAccounts(){ return fin.accounts.filter(function(a){ return !a.archived; }); }
+
   function memberName(id){
     var m = state.members.filter(function(x){return x.id===id;})[0];
     return m ? m.name : "—";
@@ -368,6 +400,144 @@
     return map;
   }
 
+  // ---------------- finanzas en el celular: ingreso, "Pagado con" y cuotas ----------------
+  var LAST_PAY_KEY = "libro-gastos:ultima-cuenta";
+  var payAccount = document.getElementById("payAccount");
+  var payInst = document.getElementById("payInst");
+  function finAccountById(id){ return fin.accounts.filter(function(a){ return a.id === id; })[0]; }
+  function iPayThisExpense(){ return !currentSplit || currentSplit.paidBy === "me"; }
+  function updatePayRow(){
+    var row = document.getElementById("finPayRow");
+    if(!row) return;
+    row.hidden = !(finOn() && finAccounts().length && iPayThisExpense());
+    var acc = finAccountById(payAccount.value);
+    document.getElementById("payInstField").hidden = !(acc && acc.kind === "tarjeta");
+    if(!acc || acc.kind !== "tarjeta") payInst.value = "1";
+  }
+  payAccount.addEventListener("change", function(){
+    try{ localStorage.setItem(LAST_PAY_KEY, payAccount.value); }catch(e){}
+    updatePayRow();
+  });
+  (function(){
+    var o = "";
+    for(var n = 1; n <= 24; n++) o += '<option value="'+n+'">'+(n === 1 ? "1 pago" : n + " cuotas")+'</option>';
+    payInst.innerHTML = o;
+  })();
+  function applyFinUI(){
+    var on = finOn();
+    var ib = document.querySelector('.es-btn[data-mode="ingreso"]');
+    ib.hidden = !on;
+    if(!on && entryMode === "ingreso") setEntryMode("gasto");
+    var accs = finAccounts();
+    var prev = payAccount.value;
+    var last = null;
+    try{ last = localStorage.getItem(LAST_PAY_KEY); }catch(e){}
+    payAccount.innerHTML = '<option value="">Sin indicar</option>' + accs.map(function(a){
+      return '<option value="'+esc(a.id)+'">'+esc(a.name)+'</option>';
+    }).join("");
+    var want = prev || last || "";
+    payAccount.value = finAccountById(want) ? want : "";
+    document.getElementById("incAccount").innerHTML = accs.length
+      ? accs.map(function(a){ return '<option value="'+esc(a.id)+'">'+esc(a.name)+'</option>'; }).join("")
+      : '<option value="">Creá una cuenta en Finanzas</option>';
+    document.getElementById("incCategory").innerHTML = (fin.settings.incomeCategories || INCOME_CATS).map(function(c){
+      return '<option value="'+esc(c)+'">'+esc(c)+'</option>';
+    }).join("");
+    syncIncomeCurrency();
+    updatePayRow();
+  }
+  // Guardar de qué cuenta salió un gasto (y en cuántas cuotas). Es privado.
+  function saveExpenseLink(exp){
+    if(!finOn() || document.getElementById("finPayRow").hidden) return;
+    var key = "expense:" + exp.id;
+    var accId = payAccount.value || null;
+    var inst = Number(payInst.value) || 1;
+    var had = !!fin.links[key];
+    if(!accId){
+      if(!had) return;
+      delete fin.links[key];
+      if(!REMOTE){ saveFinLocal(); return; }
+      persist(function(){ return sb.from("fin_links").delete().eq("ref_kind", "expense").eq("ref_id", exp.id); });
+      return;
+    }
+    fin.links[key] = {accountId:accId, installments:inst};
+    if(!REMOTE){ saveFinLocal(); return; }
+    persist(function(){
+      return sb.from("fin_links").upsert({user_id:session.user.id, ref_kind:"expense", ref_id:exp.id, account_id:accId, installments:inst},
+        {onConflict:"user_id,ref_kind,ref_id"});
+    });
+  }
+  function loadExpenseLink(e){
+    var l = fin.links["expense:" + e.id];
+    payAccount.value = l && finAccountById(l.accountId) ? l.accountId : "";
+    payInst.value = String((l && l.installments) || 1);
+    updatePayRow();
+  }
+
+  // ---- ingreso ----
+  var incAmount = document.getElementById("incAmount");
+  function syncIncomeCurrency(){
+    var acc = finAccountById(document.getElementById("incAccount").value);
+    var cur = document.getElementById("incCurrency");
+    if(acc && acc.currency !== "AMBAS") cur.value = acc.currency;
+    cur.disabled = !!(acc && acc.currency !== "AMBAS");
+  }
+  document.getElementById("incAccount").addEventListener("change", syncIncomeCurrency);
+  function resetIncomeForm(){
+    incAmount.value = "";
+    document.getElementById("incDesc").value = "";
+    document.getElementById("incDate").value = todayStr();
+    syncIncomeCurrency();
+  }
+  document.getElementById("incSaveBtn").addEventListener("click", function(){
+    var amount = parseFloat(incAmount.value);
+    if(!amount || amount <= 0){ showToast("Poné una cantidad válida"); return; }
+    var accId = document.getElementById("incAccount").value;
+    if(!finAccountById(accId)){ showToast("Primero creá una cuenta en Finanzas"); return; }
+    var m = {
+      id: uid(), kind:"ingreso", date: document.getElementById("incDate").value || todayStr(), amount: amount,
+      currency: document.getElementById("incCurrency").value, accountId: accId,
+      category: document.getElementById("incCategory").value, description: document.getElementById("incDesc").value.trim(), installments:1
+    };
+    if(REMOTE){
+      persist(function(){
+        return sb.from("fin_movements").insert({id:m.id, kind:m.kind, date:m.date, amount:m.amount, currency:m.currency,
+          account_id:m.accountId, category:m.category, description:m.description});
+      });
+    } else {
+      fin.movements.unshift(m);
+      saveFinLocal();
+    }
+    showToast("Ingreso guardado");
+    resetIncomeForm();
+    focusAmount();
+  });
+
+  // ---- interruptor en Configuración ----
+  var finEnabledBox = document.getElementById("finEnabled");
+  finEnabledBox.addEventListener("change", function(){
+    fin.settings.enabled = finEnabledBox.checked;
+    if(!REMOTE){
+      // En modo local (vista previa) se crean cuentas de ejemplo para poder probar.
+      if(fin.settings.enabled && fin.accounts.length === 0){
+        fin.accounts = [
+          {id:uid(), name:"BROU caja de ahorro", kind:"banco", currency:"UYU", initialUYU:0, initialUSD:0, archived:false, sort:0},
+          {id:uid(), name:"Efectivo", kind:"efectivo", currency:"UYU", initialUYU:0, initialUSD:0, archived:false, sort:1},
+          {id:uid(), name:"Visa", kind:"tarjeta", currency:"AMBAS", initialUYU:0, initialUSD:0, archived:false, sort:2}
+        ];
+      }
+      saveFinLocal();
+    } else {
+      persist(function(){
+        return sb.from("fin_settings").upsert({user_id:session.user.id, enabled:fin.settings.enabled, updated_at:new Date().toISOString()}, {onConflict:"user_id"});
+      });
+    }
+    applyFinUI();
+    showToast(fin.settings.enabled
+      ? (finAccounts().length ? "Finanzas activadas" : "Activadas. Creá tus cuentas en Finanzas (compu)")
+      : "Finanzas desactivadas");
+  });
+
   // ---------------- tabs ----------------
   var tabButtons = document.querySelectorAll(".tab-btn");
   var panels = {
@@ -453,6 +623,7 @@
       refreshMemberSelectsForGroup(val);
       updateSplitSummaryText();
     }
+    updatePayRow();
   }
   withSelect.addEventListener("change", onWithChange);
 
@@ -477,6 +648,7 @@
 
   function updateSplitSummaryText(){
     if(currentSplit) splitSummaryText.textContent = splitLabel(currentSplit);
+    updatePayRow();
   }
 
   fechaInput.value = todayStr();
@@ -573,6 +745,8 @@
     fechaInput.value = todayStr();
     withSelect.value = (groupId && groupById(groupId)) ? groupId : "individual";
     onWithChange();
+    payInst.value = "1";
+    updatePayRow();
   }
 
   // El mismo formulario se usa en la pestaña "Nuevo gasto" y en pantalla completa
@@ -634,6 +808,7 @@
         ? sb.from("expenses").update(expenseToRow(exp)).eq("id", exp.id)
         : sb.from("expenses").insert(Object.assign({id:exp.id}, expenseToRow(exp)));
     });
+    saveExpenseLink(exp);
     var wasEdit = !!editingId;
     if(isScreenOpen(expenseScreen)){
       goBack();
@@ -696,6 +871,7 @@
       updateSplitSummaryText();
     }
     editingId = e.id;
+    loadExpenseLink(e);
     saveBtn.textContent = "Guardar cambios";
     document.getElementById("expenseScreenTitle").textContent = "Editar gasto";
   }
@@ -2156,6 +2332,7 @@
 
   function openSettings(){
     meNameInput.value = memberName("me");
+    finEnabledBox.checked = finOn();
     document.getElementById("resetDataBtn").hidden = REMOTE;
     document.getElementById("signOutBtn").hidden = !REMOTE;
     document.getElementById("joinBox").hidden = !REMOTE;
@@ -2395,6 +2572,7 @@
       // Mantener lo que se esté cargando en el formulario.
       var prevWith = withSelect.value, prevSplit = currentSplit, prevCat = categoriaSel.value;
       populateFormSelects();
+      applyFinUI();
       if(prevCat) categoriaSel.value = prevCat;
       if(prevWith !== "individual" && groupById(prevWith)){
         withSelect.value = prevWith;
@@ -2424,7 +2602,7 @@
   function startRealtime(){
     stopRealtime();
     realtimeChannel = sb.channel("cambios-" + session.user.id);
-    ["expenses", "settlements", "group_members", "groups", "debts"].forEach(function(table){
+    ["expenses", "settlements", "group_members", "groups", "debts", "fin_settings", "fin_accounts", "fin_links"].forEach(function(table){
       realtimeChannel.on("postgres_changes", {event:"*", schema:"public", table:table}, scheduleRefresh);
     });
     realtimeChannel.subscribe(function(status){
@@ -2481,8 +2659,10 @@
     });
     document.getElementById("newExpenseSlot").hidden = mode !== "gasto";
     document.getElementById("newDebtSlot").hidden = mode !== "deuda";
+    document.getElementById("newIncomeSlot").hidden = mode !== "ingreso";
     document.getElementById("todaySection").hidden = mode !== "gasto";
     if(mode === "deuda"){ prepareDebtForm(null); mountDebtForm("panel"); }
+    if(mode === "ingreso") resetIncomeForm();
     focusAmount();
   }
   document.querySelectorAll(".es-btn").forEach(function(b){
@@ -2491,7 +2671,8 @@
   // Poner el cursor en Cantidad para escribir directo.
   function focusAmount(){
     if(currentTab !== "nuevo" || screenStack.length || !authScreen.hidden) return;
-    var el = entryMode === "deuda" ? document.getElementById("debtAmount") : cantidadInput;
+    var el = entryMode === "deuda" ? document.getElementById("debtAmount")
+      : entryMode === "ingreso" ? document.getElementById("incAmount") : cantidadInput;
     setTimeout(function(){ try{ el.focus({preventScroll:true}); }catch(e){} }, 60);
   }
 
@@ -2509,6 +2690,7 @@
   mountDebtForm("panel");
   updateFab();
   populateFormSelects();
+  applyFinUI();
   renderAll();
   focusAmount();
 

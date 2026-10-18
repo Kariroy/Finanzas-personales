@@ -1098,3 +1098,9 @@ nav.tabbar button{ font-size:0.7rem; }
 /* sin flechitas en los campos de número */
 input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button{ -webkit-appearance:none; margin:0; }
 input[type="number"]{ -moz-appearance:textfield; appearance:textfield; }
+
+/* finanzas personales en el celular */
+.fin-toggle{ display:flex; gap:10px; align-items:flex-start; font-size:0.92rem; cursor:pointer; }
+.fin-toggle input{ width:18px; height:18px; margin-top:2px; accent-color:var(--accent); flex-shrink:0; }
+#finBox a{ color:var(--accent); font-weight:600; }
+.amount-row{ grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) !important; align-items:end; }
