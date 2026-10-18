@@ -735,18 +735,22 @@
     var net = owed - owe, html = '<div class="debt-sheet">' + sheet("Me deben", owedRows, owed, "pos") + sheet("Debo", oweRows, owe, "neg") + '</div>' +
       '<div class="sheet-total"><span>Total</span><b class="'+(settled(net) ? "" : (net > 0 ? "pos" : "neg"))+'">'+esc(fmt(net, "UYU"))+'</b></div>';
 
-    // Detalle de la persona tocada: de dónde sale y sus deudas fuera de grupo, una por una.
+    // Detalle de la persona tocada: reemplaza la planilla dentro del mismo bloque.
     var p = openPerson && byKey[openPerson];
+    if(!p) openPerson = null;
     if(p){
       var mine = D.debts.filter(function(d){ return personKey(otherSide(d)) === p.key; })
         .sort(function(a, b){ return b.date.localeCompare(a.date); });
-      var parts = p.parts.filter(function(x){ return !settled(x.net); });
-      html += '<div class="person-detail"><div class="person-row"><strong>'+esc(p.side.name)+'</strong>' +
+      var parts = p.parts.filter(function(x){ return !settled(x.net) && x.name !== "Sin grupo"; });
+      html = '<button type="button" class="btn ghost small" id="debtBack">‹ Volver</button>' +
+        '<div class="person-detail"><div class="person-row"><strong>'+esc(p.side.name)+'</strong>' +
           (settled(p.debtNet) ? '' : '<button type="button" class="link small" id="debtPay">Anotar devolución</button>') + '</div>' +
         (parts.length ? '<div class="parts">'+parts.map(function(x){ return '<span class="part">'+esc(partText(x))+'</span>'; }).join("")+'</div>' : '') +
         (mine.length ? '<ul class="person-debts">' + mine.map(debtItem).join("") + '</ul>' : '') + '</div>';
     }
-    $("debtPeople").innerHTML = html + '<p class="muted small">Tocá un nombre para ver el detalle. Lo de los grupos se salda desde el celular.</p>';
+    $("debtPeople").innerHTML = html + (p ? '' : '<p class="muted small">Tocá un nombre para ver el detalle. Lo de los grupos se salda desde el celular.</p>');
+    var back = $("debtBack");
+    if(back) back.addEventListener("click", function(){ openPerson = null; render(); });
 
     $("debtPeople").querySelectorAll("[data-person]").forEach(function(btn){
       btn.addEventListener("click", function(){

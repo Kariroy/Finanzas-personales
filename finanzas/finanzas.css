@@ -216,7 +216,7 @@ button, input, select, textarea{ font-family:inherit; font-size:inherit; color:i
 .debt-sheet{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
 .tbl.sheet td, .tbl.sheet th{ padding:7px 8px; }
 .sheet-total{ display:flex; justify-content:space-between; margin-top:12px; padding:10px 8px; border-top:2px solid var(--border); font-weight:700; }
-.person-detail{ margin-top:14px; padding:12px; background:var(--bg); border-radius:12px; display:flex; flex-direction:column; gap:8px; }
+.person-detail{ margin-top:10px; padding:12px; background:var(--bg); border-radius:12px; display:flex; flex-direction:column; gap:8px; }
 .person-detail .person-debts{ padding:0; }
 .person-detail .person-debts li{ background:var(--surface); }
 .people{ display:flex; flex-direction:column; }
