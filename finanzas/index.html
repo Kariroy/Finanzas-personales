@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#F7F5F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111A15" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Finanzas personales: cuentas, ingresos, gastos y balances">
+<title>Finanzas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="finanzas.css">
+<link rel="icon" href="../icons/icon-192.png" type="image/png">
+</head>
+<body>
+<div class="layout">
+  <aside class="side">
+    <div class="brand">
+      <div class="brand-logo" aria-hidden="true">$</div>
+      <div>
+        <div class="brand-name">Finanzas</div>
+        <div class="brand-sub" id="whoami"></div>
+      </div>
+    </div>
+    <nav class="nav" aria-label="Secciones">
+      <button type="button" class="nav-btn active" data-view="resumen">Resumen</button>
+      <button type="button" class="nav-btn" data-view="cuentas">Cuentas</button>
+      <button type="button" class="nav-btn" data-view="movimientos">Movimientos <span class="badge" id="pendingBadge" hidden></span></button>
+      <button type="button" class="nav-btn" data-view="tarjetas">Tarjetas</button>
+      <button type="button" class="nav-btn" data-view="config">Configuración</button>
+    </nav>
+    <div class="side-foot">
+      <a class="side-link" href="../">← Libro de Gastos</a>
+      <div class="mode-note" id="modeNote"></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- RESUMEN -->
+    <section class="view active" id="view-resumen">
+      <header class="view-head">
+        <h1>Resumen</h1>
+        <div class="month-nav">
+          <button type="button" class="icon-btn" id="prevMonth" aria-label="Mes anterior">‹</button>
+          <span id="monthLabel"></span>
+          <button type="button" class="icon-btn" id="nextMonth" aria-label="Mes siguiente">›</button>
+        </div>
+        <div class="head-actions">
+          <button type="button" class="btn ghost" data-new="ingreso">＋ Ingreso</button>
+          <button type="button" class="btn ghost" data-new="gasto">＋ Gasto</button>
+          <button type="button" class="btn ghost" data-new="transferencia">⇄ Transferencia</button>
+        </div>
+      </header>
+      <div class="kpis" id="kpis"></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h2>Ingresos y gastos por mes</h2><div class="legend" id="ieLegend"></div></div>
+          <div id="ieChart"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Gastos del mes por categoría</h2></div>
+          <div id="catBars"></div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h2>Cuentas</h2><button type="button" class="link" data-goto="cuentas">Ver todas</button></div>
+          <div id="accountsMini"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Para revisar</h2></div>
+          <div id="todo"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CUENTAS -->
+    <section class="view" id="view-cuentas">
+      <header class="view-head">
+        <h1>Cuentas</h1>
+        <div class="head-actions">
+          <button type="button" class="btn" id="newAccountBtn">＋ Nueva cuenta</button>
+        </div>
+      </header>
+      <div class="kpis" id="worthKpis"></div>
+      <div class="card"><div id="accountsTable"></div></div>
+    </section>
+
+    <!-- MOVIMIENTOS -->
+    <section class="view" id="view-movimientos">
+      <header class="view-head">
+        <h1>Movimientos</h1>
+        <div class="head-actions">
+          <button type="button" class="btn ghost" data-new="ingreso">＋ Ingreso</button>
+          <button type="button" class="btn ghost" data-new="gasto">＋ Gasto</button>
+          <button type="button" class="btn ghost" data-new="transferencia">⇄ Transferencia</button>
+          <button type="button" class="btn ghost" data-new="ajuste">± Ajuste</button>
+        </div>
+      </header>
+      <div class="filters">
+        <label>Mes <select id="fMonth"></select></label>
+        <label>Tipo <select id="fType"></select></label>
+        <label>Cuenta <select id="fAccount"></select></label>
+        <label class="check"><input type="checkbox" id="fPending"> Solo sin cuenta</label>
+        <input type="search" id="fSearch" placeholder="Buscar…" aria-label="Buscar">
+      </div>
+      <div class="bulk" id="bulkBar" hidden></div>
+      <div class="card"><div id="ledger"></div></div>
+    </section>
+
+    <!-- TARJETAS -->
+    <section class="view" id="view-tarjetas">
+      <header class="view-head"><h1>Tarjetas</h1></header>
+      <div id="cards"></div>
+    </section>
+
+    <!-- CONFIGURACIÓN -->
+    <section class="view" id="view-config">
+      <header class="view-head"><h1>Configuración</h1></header>
+      <div class="card narrow">
+        <label class="switch-row">
+          <input type="checkbox" id="cfgEnabled">
+          <span><strong>Finanzas personales en el celular</strong><br>
+          <small>Suma "Ingreso" en Nuevo y te deja elegir de qué cuenta sale cada gasto.</small></span>
+        </label>
+        <div class="field">
+          <label for="cfgRate">Valor del dólar (pesos por US$ 1)</label>
+          <input type="number" id="cfgRate" step="0.01" min="0.01">
+          <small>Se usa para sumar pesos y dólares en los totales.</small>
+        </div>
+        <div class="field">
+          <label for="cfgIncomeCats">Categorías de ingreso (separadas por coma)</label>
+          <input type="text" id="cfgIncomeCats">
+        </div>
+        <button type="button" class="btn" id="cfgSave">Guardar</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Login -->
+<div class="overlay" id="loginOverlay" hidden>
+  <form class="dialog" id="loginForm" novalidate>
+    <h2>Entrá a tus finanzas</h2>
+    <p class="muted">Usá la misma cuenta que en el Libro de Gastos.</p>
+    <button type="button" class="btn ghost wide" id="loginGoogle" hidden>Continuar con Google</button>
+    <div class="field"><label for="loginEmail">Email</label><input type="email" id="loginEmail" autocomplete="email"></div>
+    <div class="field"><label for="loginPass">Contraseña</label><input type="password" id="loginPass" autocomplete="current-password"></div>
+    <p class="err" id="loginMsg"></p>
+    <button type="submit" class="btn wide">Entrar</button>
+  </form>
+</div>
+
+<!-- Movimiento -->
+<div class="overlay" id="movDialog" hidden>
+  <div class="dialog">
+    <h2 id="movTitle">Nuevo movimiento</h2>
+    <div class="seg" id="movKind">
+      <button type="button" data-kind="ingreso">Ingreso</button>
+      <button type="button" data-kind="gasto">Gasto</button>
+      <button type="button" data-kind="transferencia">Transferencia</button>
+      <button type="button" data-kind="ajuste">Ajuste</button>
+    </div>
+    <div class="row">
+      <div class="field"><label for="movDate">Fecha</label><input type="date" id="movDate"></div>
+      <div class="field"><label for="movAccount" id="movAccountLabel">Cuenta</label><select id="movAccount"></select></div>
+    </div>
+    <div class="row">
+      <div class="field"><label for="movAmount" id="movAmountLabel">Monto</label><input type="number" id="movAmount" step="0.01"></div>
+      <div class="field"><label for="movCurrency">Moneda</label><select id="movCurrency"><option value="UYU">$ Pesos</option><option value="USD">US$ Dólares</option></select></div>
+    </div>
+    <div class="row" id="movToRow">
+      <div class="field"><label for="movTo">Hacia la cuenta</label><select id="movTo"></select></div>
+      <div class="field"><label for="movToAmount">Monto que llega</label><input type="number" id="movToAmount" step="0.01"></div>
+      <div class="field"><label for="movToCurrency">Moneda</label><select id="movToCurrency"><option value="UYU">$</option><option value="USD">US$</option></select></div>
+    </div>
+    <p class="hint" id="movRateHint"></p>
+    <div class="row">
+      <div class="field" id="movCatField"><label for="movCategory">Categoría</label><select id="movCategory"></select></div>
+      <div class="field" id="movInstField"><label for="movInst">Cuotas</label><select id="movInst"></select></div>
+    </div>
+    <div class="field"><label for="movDesc">Descripción</label><input type="text" id="movDesc" maxlength="200"></div>
+    <p class="hint" id="movHint"></p>
+    <div class="dialog-actions">
+      <button type="button" class="btn danger-ghost" id="movDelete" hidden>Eliminar</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" data-close>Cancelar</button>
+      <button type="button" class="btn" id="movSave">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cuenta -->
+<div class="overlay" id="accDialog" hidden>
+  <div class="dialog">
+    <h2 id="accTitle">Nueva cuenta</h2>
+    <div class="field"><label for="accName">Nombre</label><input type="text" id="accName" maxlength="60" placeholder="ej: BROU caja de ahorro"></div>
+    <div class="row">
+      <div class="field"><label for="accKind">Tipo</label><select id="accKind"></select></div>
+      <div class="field"><label for="accCurrency">Moneda</label>
+        <select id="accCurrency"><option value="UYU">Pesos</option><option value="USD">Dólares</option><option value="AMBAS">Pesos y dólares</option></select></div>
+    </div>
+    <div class="row">
+      <div class="field" id="accInitUyuField"><label for="accInitUyu">Saldo inicial $</label><input type="number" id="accInitUyu" step="0.01"></div>
+      <div class="field" id="accInitUsdField"><label for="accInitUsd">Saldo inicial US$</label><input type="number" id="accInitUsd" step="0.01"></div>
+    </div>
+    <p class="hint" id="accHint">Lo que había en la cuenta antes del primer movimiento que cargues. En una tarjeta, lo que ya debías va en negativo.</p>
+    <label class="check" id="accArchivedRow"><input type="checkbox" id="accArchived"> Archivada (no se usa más)</label>
+    <div class="dialog-actions">
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" data-close>Cancelar</button>
+      <button type="button" class="btn" id="accSave">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<script src="finanzas.js"></script>
+</body>
+</html>

@@ -1,0 +1,1117 @@
+// Finanzas personales — vista de escritorio.
+// Lee los gastos, grupos y deudas del Libro de Gastos y les suma cuentas, ingresos,
+// transferencias y tarjetas (tablas fin_* en Supabase, privadas de cada usuario).
+// Sin Supabase configurado funciona en modo local (localStorage) con datos de ejemplo.
+(function(){
+  "use strict";
+
+  var CFG = window.APP_CONFIG || {};
+  var REMOTE = !!(CFG.supabaseUrl && CFG.supabaseAnonKey);
+  var sb = (REMOTE && window.supabase && window.supabase.createClient)
+    ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey) : null;
+  var session = null;
+
+  var LS_SHARED = "libro-gastos:v1";
+  var LS_FIN = "libro-gastos:fin:v1";
+  var CATEGORIES = [
+    {id:"cat-comida", name:"Comida"}, {id:"cat-disfrute", name:"Disfrute"}, {id:"cat-salud", name:"Salud"},
+    {id:"cat-transporte", name:"Transporte"}, {id:"cat-vivienda", name:"Vivienda"}, {id:"cat-otros", name:"Otros"}
+  ];
+  var ACCOUNT_KINDS = [
+    {id:"banco", name:"Banco"}, {id:"efectivo", name:"Efectivo"}, {id:"billetera", name:"Billetera virtual"},
+    {id:"tarjeta", name:"Tarjeta de crédito"}, {id:"ahorro", name:"Ahorro"}, {id:"inversion", name:"Inversión"}
+  ];
+  var MOV_KINDS = {ingreso:"Ingreso", gasto:"Gasto", transferencia:"Transferencia", ajuste:"Ajuste"};
+  var MONTHS = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  var MONTHS_ABBR = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+
+  // ---------------- utilidades ----------------
+  function $(id){ return document.getElementById(id); }
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function uid(){
+    if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c){
+      var r = Math.random()*16|0; return (c === "x" ? r : (r&0x3|0x8)).toString(16);
+    });
+  }
+  function pad(n){ return (n < 10 ? "0" : "") + n; }
+  function localDateStr(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); }
+  function todayStr(){ return localDateStr(new Date()); }
+  function ymOf(date){ return date.slice(0,7); }
+  function currentYM(){ return ymOf(todayStr()); }
+  function addMonths(ym, k){
+    var p = ym.split("-").map(Number);
+    var d = new Date(p[0], p[1] - 1 + k, 1);
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1);
+  }
+  function monthsBetween(a, b){ // b - a en meses
+    var pa = a.split("-").map(Number), pb = b.split("-").map(Number);
+    return (pb[0] - pa[0]) * 12 + (pb[1] - pa[1]);
+  }
+  function monthLabel(ym){
+    var p = ym.split("-").map(Number);
+    var s = MONTHS[p[1]-1] + " " + p[0];
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function shortMonth(ym){ var p = ym.split("-").map(Number); return MONTHS_ABBR[p[1]-1]; }
+  function dayLabel(d){ var p = d.split("-").map(Number); return p[2] + " " + MONTHS_ABBR[p[1]-1]; }
+  function fmt(v, cur){
+    v = Number(v) || 0;
+    var neg = v < 0; v = Math.abs(v);
+    var s = v.toLocaleString("es-UY", {minimumFractionDigits:0, maximumFractionDigits: cur === "USD" ? 2 : 0});
+    return (neg ? "−" : "") + (cur === "USD" ? "US$ " : "$ ") + s;
+  }
+  function fmtShort(v){
+    var a = Math.abs(v), sign = v < 0 ? "−" : "";
+    if(a >= 1000000) return sign + "$" + (a/1000000).toFixed(1).replace(".", ",") + "M";
+    if(a >= 1000) return sign + "$" + (a >= 10000 ? Math.round(a/1000) : (a/1000).toFixed(1).replace(".", ",")) + "k";
+    return sign + "$" + Math.round(a);
+  }
+  var toastTimer;
+  function toast(msg){
+    var t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
+
+  // ---------------- datos ----------------
+  // D: lo del Libro de Gastos (grupos, gastos, pagos, deudas) + lo de finanzas.
+  var D = null;
+
+  function emptyFin(){
+    return {accounts:[], movements:[], links:{}, settings:{enabled:false, usdRate:40,
+      incomeCategories:["Sueldo","Freelance","Aguinaldo","Ventas","Regalos","Otros"]}};
+  }
+  function categoryName(id){
+    var c = CATEGORIES.filter(function(x){ return x.id === id; })[0];
+    return c ? c.name : (id || "Otros");
+  }
+  function groupById(id){ return D.groups.filter(function(g){ return g.id === id; })[0]; }
+  function memberName(id){
+    if(id === "me") return "Vos";
+    var m = D.members.filter(function(x){ return x.id === id; })[0];
+    return m ? m.name : "—";
+  }
+  function accountById(id){ return D.accounts.filter(function(a){ return a.id === id; })[0]; }
+  function rate(){ return Number(D.settings.usdRate) || 1; }
+  function toUYU(v, cur){ return cur === "USD" ? v * rate() : v; }
+  function link(kind, id){ return D.links[kind + ":" + id]; }
+
+  // ---- lo que viene del Libro de Gastos ----
+  function myShareOf(e){
+    if(e.scope !== "compartido") return e.amount;
+    var g = groupById(e.groupId);
+    if(!g || g.memberIds.indexOf("me") === -1) return 0;
+    if(e.splitType === "completo") return e.owedBy === "me" ? e.amount : 0;
+    return e.amount / (g.memberIds.length || 1);
+  }
+  function paidByMe(e){ return e.scope === "personal" || e.paidBy === "me"; }
+  // Plata que entra (+) o sale (−) de tu bolsillo por una deuda o un pago de grupo.
+  function debtCash(d){
+    if(d.kind === "pago") return d.debtor.me ? -d.amount : (d.creditor.me ? d.amount : 0);
+    if(d.creditor.me) return -d.amount;            // pagaste algo de otro o prestaste
+    if(d.debtor.me && d.kind === "prestamo") return d.amount; // te prestaron
+    return 0;                                     // otro pagó algo tuyo: no movió tu plata
+  }
+  function settlementCash(s){
+    if(s.from === "me") return -s.amount;
+    if(s.to === "me") return s.amount;
+    return 0;
+  }
+  function debtEffect(d){ return d.amount * (d.creditor.me ? 1 : -1) * (d.kind === "pago" ? -1 : 1); }
+  function groupNetMe(g){
+    var b = {}; g.memberIds.forEach(function(id){ b[id] = 0; });
+    D.expenses.forEach(function(e){
+      if(e.scope !== "compartido" || e.groupId !== g.id) return;
+      b[e.paidBy] = (b[e.paidBy] || 0) + e.amount;
+      if(e.splitType === "completo") b[e.owedBy] = (b[e.owedBy] || 0) - e.amount;
+      else g.memberIds.forEach(function(id){ b[id] -= e.amount / (g.memberIds.length || 1); });
+    });
+    D.settlements.forEach(function(s){
+      if(s.groupId !== g.id) return;
+      b[s.from] = (b[s.from] || 0) + s.amount;
+      b[s.to] = (b[s.to] || 0) - s.amount;
+    });
+    return b.me || 0;
+  }
+  // Lo que te deben (+) o debés (−) a otros, sumando grupos y deudas.
+  function receivablesNet(){
+    var v = 0;
+    D.groups.forEach(function(g){ v += groupNetMe(g); });
+    D.debts.forEach(function(d){ v += debtEffect(d); });
+    return v;
+  }
+
+  // ---------------- motor: costos, ingresos, saldos ----------------
+  // Reparte un monto en n cuotas mensuales desde el mes de la fecha.
+  function spread(date, amount, n){
+    n = Math.max(1, n || 1);
+    var out = [], ym = ymOf(date);
+    for(var i = 0; i < n; i++) out.push({ym: addMonths(ym, i), amount: amount / n});
+    return out;
+  }
+  // Todo lo que te cuesta (en $): tus gastos, tu parte de los compartidos, lo que otro
+  // pagó por vos y los gastos propios de finanzas (ej. en dólares). Las cuotas se reparten.
+  function costItems(){
+    var items = [];
+    D.expenses.forEach(function(e){
+      var mine = myShareOf(e);
+      if(!(mine > 0)) return;
+      var l = link("expense", e.id);
+      var g = e.scope === "compartido" ? groupById(e.groupId) : null;
+      items.push({date:e.date, amount:mine, n:(l && l.installments) || 1, category:categoryName(e.categoryId),
+        desc:e.description || categoryName(e.categoryId), where: g ? g.name : "Personal"});
+    });
+    D.debts.forEach(function(d){
+      if(d.kind === "gasto" && d.debtor.me){
+        items.push({date:d.date, amount:d.amount, n:1, category:categoryName(d.categoryId),
+          desc:d.description || "Pagó " + (d.creditor.name || "otro"), where:"Deuda"});
+      }
+    });
+    D.movements.forEach(function(m){
+      if(m.kind !== "gasto") return;
+      items.push({date:m.date, amount:toUYU(m.amount, m.currency), n:m.installments || 1,
+        category:categoryName(m.category), desc:m.description || categoryName(m.category), where:"Finanzas"});
+    });
+    return items;
+  }
+  function costByMonth(){
+    var map = {};
+    costItems().forEach(function(it){
+      spread(it.date, it.amount, it.n).forEach(function(p){ map[p.ym] = (map[p.ym] || 0) + p.amount; });
+    });
+    return map;
+  }
+  function costByCategory(ym){
+    var map = {};
+    costItems().forEach(function(it){
+      spread(it.date, it.amount, it.n).forEach(function(p){
+        if(p.ym === ym) map[it.category] = (map[it.category] || 0) + p.amount;
+      });
+    });
+    return map;
+  }
+  function incomeByMonth(){
+    var map = {};
+    D.movements.forEach(function(m){
+      if(m.kind === "ingreso") map[ymOf(m.date)] = (map[ymOf(m.date)] || 0) + toUYU(m.amount, m.currency);
+    });
+    return map;
+  }
+
+  // Saldos por cuenta y moneda.
+  function balances(){
+    var b = {};
+    D.accounts.forEach(function(a){ b[a.id] = {UYU: Number(a.initialUYU) || 0, USD: Number(a.initialUSD) || 0}; });
+    function add(acc, cur, v){ if(acc && b[acc]) b[acc][cur] += v; }
+    D.movements.forEach(function(m){
+      if(m.kind === "ingreso") add(m.accountId, m.currency, m.amount);
+      else if(m.kind === "gasto") add(m.accountId, m.currency, -m.amount);
+      else if(m.kind === "ajuste") add(m.accountId, m.currency, m.amount);
+      else if(m.kind === "transferencia"){
+        add(m.accountId, m.currency, -m.amount);
+        add(m.toAccountId, m.toCurrency, m.toAmount);
+      }
+    });
+    D.expenses.forEach(function(e){
+      var l = link("expense", e.id);
+      if(l && l.accountId && paidByMe(e)) add(l.accountId, "UYU", -e.amount);
+    });
+    D.settlements.forEach(function(s){
+      var l = link("settlement", s.id);
+      if(l && l.accountId) add(l.accountId, "UYU", settlementCash(s));
+    });
+    D.debts.forEach(function(d){
+      var l = link("debt", d.id);
+      if(l && l.accountId) add(l.accountId, "UYU", debtCash(d));
+    });
+    return b;
+  }
+  function accountTotalUYU(bal){ return bal.UYU + bal.USD * rate(); }
+  function netWorth(){
+    var b = balances(), t = 0;
+    D.accounts.forEach(function(a){ if(b[a.id]) t += accountTotalUYU(b[a.id]); });
+    return {accounts:t, receivables:receivablesNet(), total:t + receivablesNet()};
+  }
+
+  // Compras en cuotas de cada tarjeta.
+  function installmentPlans(cardId){
+    var plans = [];
+    D.expenses.forEach(function(e){
+      var l = link("expense", e.id);
+      if(l && l.accountId === cardId && (l.installments || 1) > 1 && paidByMe(e)){
+        plans.push({date:e.date, desc:e.description || categoryName(e.categoryId), total:e.amount, currency:"UYU", n:l.installments});
+      }
+    });
+    D.movements.forEach(function(m){
+      if(m.kind === "gasto" && m.accountId === cardId && (m.installments || 1) > 1){
+        plans.push({date:m.date, desc:m.description || categoryName(m.category), total:m.amount, currency:m.currency, n:m.installments});
+      }
+    });
+    var now = currentYM();
+    plans.forEach(function(p){
+      p.cuota = p.total / p.n;
+      p.paid = Math.min(p.n, Math.max(0, monthsBetween(ymOf(p.date), now) + 1));
+      p.remaining = p.n - p.paid;
+    });
+    return plans.sort(function(a, b){ return b.date.localeCompare(a.date); });
+  }
+
+  // ---------------- libro mayor: todas las filas que mueven plata o te cuestan ----------------
+  function ledgerRows(){
+    var rows = [];
+    D.movements.forEach(function(m){
+      var acc = accountById(m.accountId), to = accountById(m.toAccountId);
+      var sign = m.kind === "ingreso" ? 1 : (m.kind === "ajuste" ? 1 : -1);
+      rows.push({
+        key:"m:" + m.id, ref:{type:"movement", id:m.id}, date:m.date, type:m.kind,
+        typeLabel: MOV_KINDS[m.kind] + (m.kind === "gasto" && m.installments > 1 ? " · " + m.installments + " cuotas" : ""),
+        desc: m.description || (m.kind === "transferencia" ? (acc ? acc.name : "?") + " → " + (to ? to.name : "?") : (m.category ? (m.kind === "ingreso" ? m.category : categoryName(m.category)) : "")),
+        category: m.kind === "ingreso" ? (m.category || "") : (m.kind === "gasto" ? categoryName(m.category) : ""),
+        accountId: m.accountId, accountLabel: m.kind === "transferencia" ? (acc ? acc.name : "—") + " → " + (to ? to.name : "—") : (acc ? acc.name : "Sin cuenta"),
+        amount: m.kind === "transferencia" ? m.amount : sign * m.amount, currency: m.currency,
+        extra: m.kind === "transferencia" && (m.toCurrency !== m.currency) ? "llegan " + fmt(m.toAmount, m.toCurrency) : "",
+        pending: !m.accountId, editable:true
+      });
+    });
+    D.expenses.forEach(function(e){
+      var share = myShareOf(e);
+      var mine = paidByMe(e);
+      if(!mine && !(share > 0)) return;
+      var l = link("expense", e.id);
+      var g = e.scope === "compartido" ? groupById(e.groupId) : null;
+      rows.push({
+        key:"e:" + e.id, ref:{type:"expense", id:e.id}, date:e.date, type:"gasto_app",
+        typeLabel: (g ? "Gasto · " + g.name : "Gasto") + (l && l.installments > 1 ? " · " + l.installments + " cuotas" : ""),
+        desc: e.description || categoryName(e.categoryId), category: categoryName(e.categoryId),
+        accountId: l ? l.accountId : null, assignable: mine, installmentsAllowed: mine,
+        installments: l ? l.installments : 1,
+        accountLabel: mine ? null : "Pagó " + memberName(e.paidBy),
+        amount: mine ? -e.amount : 0, currency:"UYU",
+        extra: g ? "tu parte " + fmt(share, "UYU") : "",
+        pending: mine && !(l && l.accountId)
+      });
+    });
+    D.settlements.forEach(function(s){
+      var cash = settlementCash(s);
+      if(!cash) return;
+      var l = link("settlement", s.id), g = groupById(s.groupId);
+      rows.push({
+        key:"s:" + s.id, ref:{type:"settlement", id:s.id}, date:s.date, type:"pago_grupo",
+        typeLabel:"Pago de grupo" + (g ? " · " + g.name : ""),
+        desc: cash < 0 ? "Le pagaste a " + memberName(s.to) : memberName(s.from) + " te pagó",
+        category:"", accountId: l ? l.accountId : null, assignable:true,
+        amount: cash, currency:"UYU", pending: !(l && l.accountId)
+      });
+    });
+    D.debts.forEach(function(d){
+      var cash = debtCash(d);
+      if(!cash) return;
+      var l = link("debt", d.id);
+      var other = d.creditor.me ? d.debtor.name : d.creditor.name;
+      var desc = d.kind === "pago" ? (cash < 0 ? "Le pagaste a " + other : other + " te pagó")
+        : d.kind === "prestamo" ? (cash < 0 ? "Le prestaste a " + other : other + " te prestó")
+        : "Pagaste algo de " + other;
+      rows.push({
+        key:"d:" + d.id, ref:{type:"debt", id:d.id}, date:d.date, type:"deuda",
+        typeLabel:"Deuda", desc: (d.description ? d.description + " · " : "") + desc, category:"",
+        accountId: l ? l.accountId : null, assignable:true,
+        amount: cash, currency:"UYU", pending: !(l && l.accountId)
+      });
+    });
+    return rows.sort(function(a, b){ return b.date.localeCompare(a.date); });
+  }
+
+  // ---------------- carga: Supabase o local ----------------
+  function load(){
+    if(!REMOTE) return Promise.resolve(loadLocal());
+    return fetchRemote();
+  }
+
+  function loadLocal(){
+    var shared = null, fin = null;
+    try{ shared = JSON.parse(localStorage.getItem(LS_SHARED)); }catch(e){}
+    try{ fin = JSON.parse(localStorage.getItem(LS_FIN)); }catch(e){}
+    if(!shared || !shared.members){ shared = demoShared(); try{ localStorage.setItem(LS_SHARED, JSON.stringify(shared)); }catch(e){} }
+    if(!fin || !fin.accounts){ fin = demoFin(shared); saveLocalFin(fin); }
+    D = {
+      me:"Vos", members:shared.members || [], groups:shared.groups || [], expenses:shared.expenses || [],
+      settlements:shared.settlements || [], debts:shared.debts || [],
+      accounts:fin.accounts, movements:fin.movements, links:fin.links || {}, settings:fin.settings || emptyFin().settings
+    };
+  }
+  function saveLocalFin(fin){
+    fin = fin || {accounts:D.accounts, movements:D.movements, links:D.links, settings:D.settings};
+    try{ localStorage.setItem(LS_FIN, JSON.stringify(fin)); }catch(e){}
+  }
+
+  function fetchRemote(){
+    var user = session.user;
+    return Promise.all([
+      sb.from("groups").select("id,name").order("created_at"),
+      sb.from("group_members").select("id,group_id,user_id,name"),
+      sb.from("expenses").select("*"),
+      sb.from("settlements").select("*"),
+      sb.from("debts").select("*"),
+      sb.from("fin_accounts").select("*").order("sort").order("created_at"),
+      sb.from("fin_movements").select("*").order("date", {ascending:false}),
+      sb.from("fin_links").select("*"),
+      sb.from("fin_settings").select("*").maybeSingle()
+    ]).then(function(res){
+      // Deudas y finanzas son opcionales (si falta correr su SQL, se sigue sin ellas).
+      [4,5,6,7,8].forEach(function(i){ if(res[i].error){ console.warn(res[i].error); res[i] = {data: i === 8 ? null : []}; } });
+      [0,1,2,3].forEach(function(i){ if(res[i].error) throw res[i].error; });
+      var memberRows = res[1].data, mine = {};
+      memberRows.forEach(function(m){ if(m.user_id === user.id) mine[m.id] = true; });
+      function loc(id){ return id && mine[id] ? "me" : id; }
+      function side(userId, name){ return userId === user.id ? {me:true} : {user:userId, name:name || "—"}; }
+      var meta = user.user_metadata || {};
+      var fs = res[8].data;
+      D = {
+        me: meta.name || meta.full_name || (user.email || "").split("@")[0],
+        members: memberRows.filter(function(m){ return !mine[m.id]; }).map(function(m){ return {id:m.id, name:m.name}; }),
+        groups: res[0].data.map(function(g){
+          return {id:g.id, name:g.name, memberIds: memberRows.filter(function(m){ return m.group_id === g.id; }).map(function(m){ return loc(m.id); })};
+        }),
+        expenses: res[2].data.map(function(r){
+          var shared = !!r.group_id;
+          return {id:r.id, date:r.date, amount:Number(r.amount), description:r.description || "", categoryId:r.category_id,
+            scope: shared ? "compartido" : "personal", paidBy: shared ? loc(r.paid_by) : "me",
+            groupId:r.group_id, splitType:r.split_type, owedBy: loc(r.owed_by)};
+        }),
+        settlements: res[3].data.map(function(r){
+          return {id:r.id, groupId:r.group_id, from:loc(r.from_member), to:loc(r.to_member), amount:Number(r.amount), date:r.date};
+        }),
+        debts: res[4].data.map(function(r){
+          return {id:r.id, kind:r.kind, date:r.date, amount:Number(r.amount), description:r.description || "", categoryId:r.category_id,
+            creditor: side(r.creditor_user, r.creditor_name), debtor: side(r.debtor_user, r.debtor_name)};
+        }),
+        accounts: res[5].data.map(function(r){
+          return {id:r.id, name:r.name, kind:r.kind, currency:r.currency, initialUYU:Number(r.initial_uyu), initialUSD:Number(r.initial_usd), archived:r.archived, sort:r.sort};
+        }),
+        movements: res[6].data.map(movFromRow),
+        links: res[7].data.reduce(function(m, r){ m[r.ref_kind + ":" + r.ref_id] = {accountId:r.account_id, installments:r.installments}; return m; }, {}),
+        settings: fs ? {enabled:fs.enabled, usdRate:Number(fs.usd_rate), incomeCategories:fs.income_categories || []} : emptyFin().settings
+      };
+    });
+  }
+  function movFromRow(r){
+    return {id:r.id, kind:r.kind, date:r.date, amount:Number(r.amount), currency:r.currency, accountId:r.account_id,
+      toAccountId:r.to_account_id, toAmount:r.to_amount == null ? null : Number(r.to_amount), toCurrency:r.to_currency,
+      category:r.category, description:r.description || "", installments:r.installments || 1};
+  }
+  function movToRow(m){
+    return {kind:m.kind, date:m.date, amount:m.amount, currency:m.currency, account_id:m.accountId || null,
+      to_account_id:m.toAccountId || null, to_amount:m.kind === "transferencia" ? m.toAmount : null,
+      to_currency:m.kind === "transferencia" ? m.toCurrency : null, category:m.category || null,
+      description:m.description || "", installments:m.installments || 1};
+  }
+
+  // ---------------- guardar ----------------
+  function run(op){
+    if(!REMOTE){ saveLocalFin(); return Promise.resolve(true); }
+    return Promise.resolve().then(op).then(function(r){
+      if(r && r.error) throw r.error;
+      return true;
+    }).catch(function(err){
+      console.error(err);
+      toast("No se pudo guardar. Revisá tu conexión.");
+      refresh();
+      return false;
+    });
+  }
+  function saveAccount(a, isNew){
+    if(isNew) D.accounts.push(a);
+    return run(function(){
+      var row = {name:a.name, kind:a.kind, currency:a.currency, initial_uyu:a.initialUYU || 0, initial_usd:a.initialUSD || 0, archived:!!a.archived, sort:a.sort || 0};
+      return isNew ? sb.from("fin_accounts").insert(Object.assign({id:a.id}, row)) : sb.from("fin_accounts").update(row).eq("id", a.id);
+    });
+  }
+  function saveMovement(m, isNew){
+    if(isNew) D.movements.unshift(m);
+    else D.movements = D.movements.map(function(x){ return x.id === m.id ? m : x; });
+    return run(function(){
+      return isNew ? sb.from("fin_movements").insert(Object.assign({id:m.id}, movToRow(m))) : sb.from("fin_movements").update(movToRow(m)).eq("id", m.id);
+    });
+  }
+  function deleteMovement(id){
+    D.movements = D.movements.filter(function(m){ return m.id !== id; });
+    return run(function(){ return sb.from("fin_movements").delete().eq("id", id); });
+  }
+  function setLink(kind, id, accountId, installments){
+    var key = kind + ":" + id;
+    if(!accountId && (!installments || installments === 1)){
+      delete D.links[key];
+      return run(function(){ return sb.from("fin_links").delete().eq("ref_kind", kind).eq("ref_id", id); });
+    }
+    D.links[key] = {accountId:accountId || null, installments:installments || 1};
+    return run(function(){
+      return sb.from("fin_links").upsert({ref_kind:kind, ref_id:id, account_id:accountId || null, installments:installments || 1, user_id:session.user.id},
+        {onConflict:"user_id,ref_kind,ref_id"});
+    });
+  }
+  function saveSettings(){
+    return run(function(){
+      return sb.from("fin_settings").upsert({user_id:session.user.id, enabled:!!D.settings.enabled, usd_rate:D.settings.usdRate,
+        income_categories:D.settings.incomeCategories, updated_at:new Date().toISOString()}, {onConflict:"user_id"});
+    });
+  }
+
+  // ---------------- vistas ----------------
+  var view = "resumen";
+  var selYM = currentYM();
+  document.querySelectorAll(".nav-btn").forEach(function(b){
+    b.addEventListener("click", function(){ showView(b.getAttribute("data-view")); });
+  });
+  document.querySelectorAll("[data-goto]").forEach(function(b){
+    b.addEventListener("click", function(){ showView(b.getAttribute("data-goto")); });
+  });
+  function showView(v){
+    view = v;
+    document.querySelectorAll(".nav-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-view") === v); });
+    document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id === "view-" + v); });
+    render();
+  }
+  $("prevMonth").addEventListener("click", function(){ selYM = addMonths(selYM, -1); render(); });
+  $("nextMonth").addEventListener("click", function(){ selYM = addMonths(selYM, 1); render(); });
+
+  function render(){
+    if(!D) return;
+    $("whoami").textContent = D.me || "";
+    var pending = ledgerRows().filter(function(r){ return r.pending && ymOf(r.date) === currentYM(); }).length;
+    $("pendingBadge").hidden = !pending;
+    $("pendingBadge").textContent = pending;
+    if(view === "resumen") renderResumen();
+    if(view === "cuentas") renderCuentas();
+    if(view === "movimientos") renderMovimientos();
+    if(view === "tarjetas") renderTarjetas();
+    if(view === "config") renderConfig();
+  }
+
+  // ---- Resumen ----
+  function kpi(label, value, sub, cls){
+    return '<div class="kpi"><div class="kpi-label">'+esc(label)+'</div><div class="kpi-value '+(cls || "")+'">'+value+'</div>' +
+      (sub ? '<div class="kpi-sub">'+sub+'</div>' : '') + '</div>';
+  }
+  function renderResumen(){
+    $("monthLabel").textContent = monthLabel(selYM);
+    var inc = incomeByMonth(), cost = costByMonth();
+    var i = inc[selYM] || 0, c = cost[selYM] || 0, saved = i - c;
+    var nw = netWorth();
+    $("kpis").innerHTML =
+      kpi("Ingresos", esc(fmt(i, "UYU")), "en " + esc(MONTHS[Number(selYM.slice(5)) - 1])) +
+      kpi("Gastos", esc(fmt(c, "UYU")), "lo que te costó el mes") +
+      kpi("Ahorro", esc(fmt(saved, "UYU")), i > 0 ? Math.round(saved / i * 100) + "% de lo que ganaste" : "sin ingresos cargados", saved >= 0 ? "pos" : "neg") +
+      kpi("Patrimonio", esc(fmt(nw.total, "UYU")), "cuentas " + esc(fmt(nw.accounts, "UYU")) + " · " + (nw.receivables >= 0 ? "te deben " : "debés ") + esc(fmt(Math.abs(nw.receivables), "UYU")));
+
+    renderIEChart(inc, cost);
+    renderCatBars();
+    renderAccountsMini();
+    renderTodo();
+  }
+
+  function renderIEChart(inc, cost){
+    var months = [];
+    for(var k = 11; k >= 0; k--) months.push(addMonths(selYM, -k));
+    $("ieLegend").innerHTML = '<span><i class="sw inc"></i>Ingresos</span><span><i class="sw exp"></i>Gastos</span>';
+    var W = 640, H = 240, padL = 48, padR = 8, padT = 16, padB = 26;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var max = 0;
+    months.forEach(function(m){ max = Math.max(max, inc[m] || 0, cost[m] || 0); });
+    var top = niceMax(max);
+    var y = function(v){ return padT + plotH - v / top * plotH; };
+    var step = plotW / months.length, bw = Math.min(16, (step - 8) / 2);
+    var grid = "";
+    for(var g = 0; g <= 4; g++){
+      var gv = top * g / 4;
+      grid += '<line x1="'+padL+'" x2="'+(W - padR)+'" y1="'+y(gv)+'" y2="'+y(gv)+'" class="grid'+(g === 0 ? " base" : "")+'"/>' +
+        '<text x="'+(padL - 6)+'" y="'+(y(gv) + 3.5)+'" class="axis" text-anchor="end">'+fmtShort(gv)+'</text>';
+    }
+    var bars = months.map(function(m, i){
+      var cx = padL + i * step + step / 2;
+      var vi = inc[m] || 0, vc = cost[m] || 0;
+      return '<g class="col'+(m === selYM ? " sel" : "")+'" data-ym="'+m+'" tabindex="0" role="button" aria-label="'+esc(monthLabel(m) + ": ingresos " + fmt(vi, "UYU") + ", gastos " + fmt(vc, "UYU"))+'">' +
+        '<rect class="hit" x="'+(padL + i * step)+'" y="'+padT+'" width="'+step+'" height="'+(plotH + padB)+'"/>' +
+        barPath(cx - bw - 1, bw, y(vi), padT + plotH, "inc") +
+        barPath(cx + 1, bw, y(vc), padT + plotH, "exp") +
+        '<text x="'+cx+'" y="'+(H - 8)+'" class="axis" text-anchor="middle">'+shortMonth(m)+'</text>' +
+      '</g>';
+    }).join("");
+    $("ieChart").innerHTML = '<div class="chart-wrap"><svg viewBox="0 0 '+W+' '+H+'" class="chart" role="img" aria-label="Ingresos y gastos por mes">' +
+      grid + bars + '</svg><div class="tip" hidden></div></div>';
+    var tip = $("ieChart").querySelector(".tip"), wrap = $("ieChart").querySelector(".chart-wrap");
+    $("ieChart").querySelectorAll(".col").forEach(function(col){
+      var m = col.getAttribute("data-ym");
+      function show(){
+        var vi = inc[m] || 0, vc = cost[m] || 0;
+        tip.innerHTML = '<b>'+esc(monthLabel(m))+'</b><div><i class="sw inc"></i>Ingresos '+esc(fmt(vi, "UYU"))+'</div>' +
+          '<div><i class="sw exp"></i>Gastos '+esc(fmt(vc, "UYU"))+'</div><div class="muted">Ahorro '+esc(fmt(vi - vc, "UYU"))+'</div>';
+        tip.hidden = false;
+        var r = col.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+        tip.style.left = Math.max(0, Math.min(r.left - wr.left + r.width / 2 - tip.offsetWidth / 2, wr.width - tip.offsetWidth)) + "px";
+      }
+      function hide(){ tip.hidden = true; }
+      col.addEventListener("mouseenter", show); col.addEventListener("focus", show);
+      col.addEventListener("mouseleave", hide); col.addEventListener("blur", hide);
+      col.addEventListener("click", function(){ selYM = m; render(); });
+    });
+  }
+  function barPath(x, w, top, base, cls){
+    var h = base - top;
+    if(h <= 0.5) return "";
+    var r = Math.min(4, w / 2, h);
+    return '<path class="bar '+cls+'" d="M'+x+' '+base+' V'+(top + r)+' Q'+x+' '+top+' '+(x + r)+' '+top+' H'+(x + w - r)+' Q'+(x + w)+' '+top+' '+(x + w)+' '+(top + r)+' V'+base+' Z"/>';
+  }
+  function niceMax(v){
+    if(v <= 0) return 1000;
+    var p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+  }
+
+  function renderCatBars(){
+    var map = costByCategory(selYM);
+    var cats = Object.keys(map).sort(function(a, b){ return map[b] - map[a]; });
+    var max = cats.length ? map[cats[0]] : 1, total = cats.reduce(function(s, c){ return s + map[c]; }, 0);
+    $("catBars").innerHTML = cats.length === 0 ? '<p class="empty">Sin gastos en ' + esc(monthLabel(selYM)) + '.</p>' :
+      cats.map(function(c){
+        return '<div class="hbar"><span class="hbar-name">'+esc(c)+'</span>' +
+          '<span class="hbar-track"><span style="width:'+Math.max(2, map[c] / max * 100)+'%"></span></span>' +
+          '<span class="hbar-val">'+esc(fmt(map[c], "UYU"))+'</span><span class="hbar-pct">'+Math.round(map[c] / total * 100)+'%</span></div>';
+      }).join("");
+  }
+
+  function balanceCells(a, bal){
+    var parts = [];
+    if(a.currency !== "USD") parts.push(fmt(bal.UYU, "UYU"));
+    if(a.currency !== "UYU") parts.push(fmt(bal.USD, "USD"));
+    return parts;
+  }
+  function renderAccountsMini(){
+    var b = balances();
+    var accs = D.accounts.filter(function(a){ return !a.archived; });
+    $("accountsMini").innerHTML = accs.length === 0
+      ? '<p class="empty">Todavía no tenés cuentas. <button type="button" class="link" id="miniNewAcc">Crear la primera</button></p>'
+      : '<table class="tbl"><tbody>' + accs.map(function(a){
+          var bal = b[a.id];
+          return '<tr><td><b>'+esc(a.name)+'</b><div class="muted">'+esc(kindName(a.kind))+'</div></td>' +
+            '<td class="num">'+balanceCells(a, bal).map(function(s){ return '<div class="'+(s.indexOf("−") === 0 ? "neg" : "")+'">'+esc(s)+'</div>'; }).join("")+'</td></tr>';
+        }).join("") + '</tbody></table>';
+    var n = $("miniNewAcc"); if(n) n.addEventListener("click", function(){ openAccount(null); });
+  }
+  function kindName(k){ var x = ACCOUNT_KINDS.filter(function(o){ return o.id === k; })[0]; return x ? x.name : k; }
+
+  function renderTodo(){
+    var rows = ledgerRows().filter(function(r){ return r.pending; });
+    var month = rows.filter(function(r){ return ymOf(r.date) === selYM; });
+    var items = [];
+    if(D.accounts.length === 0) items.push('Creá tus <b>cuentas</b> (banco, efectivo, tarjeta, ahorro en dólares) para seguir los saldos.');
+    if(month.length) items.push('<b>'+month.length+' movimiento'+(month.length === 1 ? "" : "s")+'</b> de '+esc(monthLabel(selYM))+' sin cuenta asignada. <button type="button" class="link" id="todoPending">Asignar</button>');
+    else if(rows.length) items.push(rows.length + ' movimientos anteriores sin cuenta. <button type="button" class="link" id="todoPendingAll">Ver</button>');
+    if(!incomeByMonth()[selYM]) items.push('No cargaste <b>ingresos</b> en '+esc(monthLabel(selYM))+'. <button type="button" class="link" data-new="ingreso">Cargar</button>');
+    $("todo").innerHTML = items.length ? '<ul class="todo">' + items.map(function(t){ return '<li>'+t+'</li>'; }).join("") + '</ul>' : '<p class="empty">Todo en orden ✓</p>';
+    var tp = $("todoPending"); if(tp) tp.addEventListener("click", function(){ filters.month = selYM; filters.pending = true; showView("movimientos"); });
+    var ta = $("todoPendingAll"); if(ta) ta.addEventListener("click", function(){ filters.month = "all"; filters.pending = true; showView("movimientos"); });
+    bindNewButtons($("todo"));
+  }
+
+  // ---- Cuentas ----
+  function renderCuentas(){
+    var b = balances(), nw = netWorth();
+    var uyu = 0, usd = 0;
+    D.accounts.forEach(function(a){ if(b[a.id]){ uyu += b[a.id].UYU; usd += b[a.id].USD; } });
+    $("worthKpis").innerHTML =
+      kpi("En pesos", esc(fmt(uyu, "UYU"))) +
+      kpi("En dólares", esc(fmt(usd, "USD")), "≈ " + esc(fmt(usd * rate(), "UYU")) + " a $ " + rate()) +
+      kpi(nw.receivables >= 0 ? "Te deben" : "Debés", esc(fmt(Math.abs(nw.receivables), "UYU")), "grupos y deudas") +
+      kpi("Patrimonio", esc(fmt(nw.total, "UYU")), "todo sumado en pesos", nw.total >= 0 ? "pos" : "neg");
+    var accs = D.accounts.slice().sort(function(a, b2){ return (a.archived - b2.archived) || (a.sort - b2.sort); });
+    $("accountsTable").innerHTML = accs.length === 0 ? '<p class="empty">Creá tu primera cuenta con “＋ Nueva cuenta”.</p>' :
+      '<table class="tbl"><thead><tr><th>Cuenta</th><th>Tipo</th><th class="num">Saldo $</th><th class="num">Saldo US$</th><th class="num">Total en $</th><th></th></tr></thead><tbody>' +
+      accs.map(function(a){
+        var bal = b[a.id];
+        return '<tr class="'+(a.archived ? "archived" : "")+'"><td><button type="button" class="link strong" data-acc-ledger="'+a.id+'">'+esc(a.name)+'</button>'+(a.archived ? ' <span class="muted">(archivada)</span>' : '')+'</td>' +
+          '<td>'+esc(kindName(a.kind))+'</td>' +
+          '<td class="num '+(bal.UYU < 0 ? "neg" : "")+'">'+(a.currency !== "USD" ? esc(fmt(bal.UYU, "UYU")) : "—")+'</td>' +
+          '<td class="num '+(bal.USD < 0 ? "neg" : "")+'">'+(a.currency !== "UYU" ? esc(fmt(bal.USD, "USD")) : "—")+'</td>' +
+          '<td class="num">'+esc(fmt(accountTotalUYU(bal), "UYU"))+'</td>' +
+          '<td class="num"><button type="button" class="link" data-acc-edit="'+a.id+'">Editar</button></td></tr>';
+      }).join("") + '</tbody></table>';
+    $("accountsTable").querySelectorAll("[data-acc-edit]").forEach(function(btn){
+      btn.addEventListener("click", function(){ openAccount(accountById(btn.getAttribute("data-acc-edit"))); });
+    });
+    $("accountsTable").querySelectorAll("[data-acc-ledger]").forEach(function(btn){
+      btn.addEventListener("click", function(){ filters.account = btn.getAttribute("data-acc-ledger"); filters.month = "all"; filters.pending = false; showView("movimientos"); });
+    });
+  }
+
+  // ---- Movimientos ----
+  var filters = {month:null, type:"all", account:"all", pending:false, q:""};
+  var TYPE_OPTS = [["all","Todos"],["ingreso","Ingresos"],["gasto","Gastos"],["transferencia","Transferencias"],["ajuste","Ajustes"],["pago_grupo","Pagos de grupo"],["deuda","Deudas"]];
+  function fillSelect(sel, opts, value){
+    sel.innerHTML = opts.map(function(o){ return '<option value="'+esc(o[0])+'">'+esc(o[1])+'</option>'; }).join("");
+    if(value != null) sel.value = value;
+  }
+  function accountOptions(withNone, allowArchived){
+    var opts = withNone ? [["", withNone]] : [];
+    return opts.concat(D.accounts.filter(function(a){ return allowArchived || !a.archived; }).map(function(a){ return [a.id, a.name]; }));
+  }
+  function renderMovimientos(){
+    var rows = ledgerRows();
+    if(!filters.month) filters.month = currentYM();
+    var months = {}; rows.forEach(function(r){ months[ymOf(r.date)] = true; }); months[currentYM()] = true;
+    fillSelect($("fMonth"), [["all","Todos"]].concat(Object.keys(months).sort().reverse().map(function(m){ return [m, monthLabel(m)]; })), filters.month);
+    fillSelect($("fType"), TYPE_OPTS, filters.type);
+    fillSelect($("fAccount"), [["all","Todas"]].concat(accountOptions(null, true)).concat([["none","Sin cuenta"]]), filters.account);
+    $("fPending").checked = filters.pending;
+    $("fSearch").value = filters.q;
+
+    var q = filters.q.trim().toLowerCase();
+    var shown = rows.filter(function(r){
+      if(filters.month !== "all" && ymOf(r.date) !== filters.month) return false;
+      if(filters.type !== "all"){
+        var t = r.type === "gasto_app" ? "gasto" : r.type;
+        if(t !== filters.type) return false;
+      }
+      if(filters.account === "none" && r.accountId) return false;
+      if(filters.account !== "all" && filters.account !== "none" && r.accountId !== filters.account &&
+        !(r.ref.type === "movement" && (accountTouched(r.ref.id, filters.account)))) return false;
+      if(filters.pending && !r.pending) return false;
+      if(q && (r.desc + " " + r.category + " " + r.typeLabel).toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+
+    var pend = shown.filter(function(r){ return r.pending && r.assignable; });
+    $("bulkBar").hidden = pend.length < 2 || D.accounts.length === 0;
+    if(!$("bulkBar").hidden){
+      $("bulkBar").innerHTML = '<span>'+pend.length+' movimientos de esta lista sin cuenta.</span> Asignarlos todos a ' +
+        '<select id="bulkAcc">'+accountOptions(null).map(function(o){ return '<option value="'+o[0]+'">'+esc(o[1])+'</option>'; }).join("")+'</select>' +
+        ' <button type="button" class="btn small" id="bulkApply">Asignar</button>';
+      $("bulkApply").addEventListener("click", function(){
+        var acc = $("bulkAcc").value;
+        pend.forEach(function(r){ setLink(r.ref.type, r.ref.id, acc, (link(r.ref.type, r.ref.id) || {}).installments || 1); });
+        toast(pend.length + " movimientos asignados");
+        render();
+      });
+    }
+
+    var totalIn = 0, totalOut = 0;
+    shown.forEach(function(r){
+      var v = toUYU(r.amount, r.currency);
+      if(r.type === "transferencia") return;
+      if(v > 0) totalIn += v; else totalOut += -v;
+    });
+    var accOpts = accountOptions("Sin cuenta");
+    $("ledger").innerHTML = shown.length === 0 ? '<p class="empty">Nada para mostrar con estos filtros.</p>' :
+      '<table class="tbl ledger"><thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Categoría</th><th>Cuenta</th><th class="num">Monto</th><th></th></tr></thead><tbody>' +
+      shown.map(function(r){
+        var accCell;
+        if(r.ref.type === "movement") accCell = esc(r.accountLabel);
+        else if(r.assignable){
+          accCell = '<select class="inline-acc'+(r.pending ? " pending" : "")+'" data-ref="'+r.ref.type+':'+r.ref.id+'">' +
+            accOpts.map(function(o){ return '<option value="'+o[0]+'"'+((r.accountId || "") === o[0] ? " selected" : "")+'>'+esc(o[1])+'</option>'; }).join("") + '</select>';
+          var acc = accountById(r.accountId);
+          if(r.installmentsAllowed && acc && acc.kind === "tarjeta"){
+            accCell += ' <select class="inline-inst" data-ref="'+r.ref.type+':'+r.ref.id+'" title="Cuotas">' +
+              instOptions().map(function(n){ return '<option value="'+n+'"'+(n === (r.installments || 1) ? " selected" : "")+'>'+(n === 1 ? "1 pago" : n + " cuotas")+'</option>'; }).join("") + '</select>';
+          }
+        } else accCell = '<span class="muted">'+esc(r.accountLabel || "—")+'</span>';
+        var amtCls = r.type === "transferencia" ? "" : (r.amount > 0 ? "pos" : (r.amount < 0 ? "neg" : "muted"));
+        return '<tr class="'+(r.pending ? "is-pending" : "")+'">' +
+          '<td class="nowrap">'+dayLabel(r.date)+'</td>' +
+          '<td class="muted">'+esc(r.typeLabel)+'</td>' +
+          '<td>'+esc(r.desc)+(r.extra ? '<div class="muted small">'+esc(r.extra)+'</div>' : '')+'</td>' +
+          '<td>'+esc(r.category)+'</td>' +
+          '<td>'+accCell+'</td>' +
+          '<td class="num '+amtCls+'">'+(r.amount ? esc(fmt(r.type === "transferencia" ? r.amount : r.amount, r.currency)) : '<span class="muted">sin plata</span>')+'</td>' +
+          '<td class="num">'+(r.editable ? '<button type="button" class="link" data-edit-mov="'+r.ref.id+'">Editar</button>' : '')+'</td>' +
+        '</tr>';
+      }).join("") + '</tbody><tfoot><tr><td colspan="5">'+shown.length+' movimientos · entra '+esc(fmt(totalIn, "UYU"))+' · sale '+esc(fmt(totalOut, "UYU"))+'</td>' +
+      '<td class="num">'+esc(fmt(totalIn - totalOut, "UYU"))+'</td><td></td></tr></tfoot></table>';
+
+    $("ledger").querySelectorAll(".inline-acc").forEach(function(sel){
+      sel.addEventListener("change", function(){
+        var p = sel.getAttribute("data-ref").split(":");
+        var cur = link(p[0], p[1]) || {};
+        var acc = accountById(sel.value);
+        setLink(p[0], p[1], sel.value || null, acc && acc.kind === "tarjeta" ? (cur.installments || 1) : 1);
+        render();
+      });
+    });
+    $("ledger").querySelectorAll(".inline-inst").forEach(function(sel){
+      sel.addEventListener("change", function(){
+        var p = sel.getAttribute("data-ref").split(":");
+        var cur = link(p[0], p[1]) || {};
+        setLink(p[0], p[1], cur.accountId || null, Number(sel.value));
+        render();
+      });
+    });
+    $("ledger").querySelectorAll("[data-edit-mov]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var m = D.movements.filter(function(x){ return x.id === btn.getAttribute("data-edit-mov"); })[0];
+        if(m) openMovement(m.kind, m);
+      });
+    });
+  }
+  function accountTouched(movId, acc){
+    var m = D.movements.filter(function(x){ return x.id === movId; })[0];
+    return m && (m.accountId === acc || m.toAccountId === acc);
+  }
+  [["fMonth","month"],["fType","type"],["fAccount","account"]].forEach(function(p){
+    $(p[0]).addEventListener("change", function(){ filters[p[1]] = $(p[0]).value; renderMovimientos(); });
+  });
+  $("fPending").addEventListener("change", function(){ filters.pending = $("fPending").checked; renderMovimientos(); });
+  $("fSearch").addEventListener("input", function(){ filters.q = $("fSearch").value; renderMovimientos(); });
+  function instOptions(){ var o = []; for(var n = 1; n <= 24; n++) o.push(n); return o.concat([30, 36, 48]); }
+
+  // ---- Tarjetas ----
+  function renderTarjetas(){
+    var cards = D.accounts.filter(function(a){ return a.kind === "tarjeta" && !a.archived; });
+    var b = balances();
+    if(cards.length === 0){
+      $("cards").innerHTML = '<div class="card"><p class="empty">No tenés tarjetas. Creá una cuenta de tipo “Tarjeta de crédito” en Cuentas.</p></div>';
+      return;
+    }
+    $("cards").innerHTML = cards.map(function(c){
+      var bal = b[c.id], plans = installmentPlans(c.id);
+      var active = plans.filter(function(p){ return p.remaining > 0; });
+      var next = [];
+      for(var k = 1; k <= 6; k++){
+        var ym = addMonths(currentYM(), k), uyu = 0, usd = 0;
+        active.forEach(function(p){
+          var idx = monthsBetween(ymOf(p.date), ym);
+          if(idx >= 0 && idx < p.n){ if(p.currency === "USD") usd += p.cuota; else uyu += p.cuota; }
+        });
+        next.push({ym:ym, uyu:uyu, usd:usd});
+      }
+      var pendingUYU = 0, pendingUSD = 0;
+      active.forEach(function(p){ if(p.currency === "USD") pendingUSD += p.cuota * p.remaining; else pendingUYU += p.cuota * p.remaining; });
+      return '<div class="card"><div class="card-head"><h2>'+esc(c.name)+'</h2>' +
+          '<button type="button" class="btn small" data-pay-card="'+c.id+'">Pagar tarjeta</button></div>' +
+        '<div class="kpis small">' +
+          kpi("Deuda en $", esc(fmt(-bal.UYU, "UYU")), "", bal.UYU < 0 ? "neg" : "") +
+          kpi("Deuda en US$", esc(fmt(-bal.USD, "USD")), "", bal.USD < 0 ? "neg" : "") +
+          kpi("Cuotas que faltan", esc(fmt(pendingUYU, "UYU")) + (pendingUSD ? " + " + esc(fmt(pendingUSD, "USD")) : ""), active.length + " compra" + (active.length === 1 ? "" : "s") + " en cuotas") +
+        '</div>' +
+        (active.length ? '<h3>Compras en cuotas</h3><table class="tbl"><thead><tr><th>Compra</th><th>Fecha</th><th class="num">Total</th><th class="num">Cuota</th><th class="num">Pagadas</th><th class="num">Faltan</th></tr></thead><tbody>' +
+          active.map(function(p){
+            return '<tr><td>'+esc(p.desc)+'</td><td>'+dayLabel(p.date)+'</td><td class="num">'+esc(fmt(p.total, p.currency))+'</td>' +
+              '<td class="num">'+esc(fmt(p.cuota, p.currency))+'</td><td class="num">'+p.paid+' de '+p.n+'</td><td class="num">'+p.remaining+'</td></tr>';
+          }).join("") + '</tbody></table>' +
+          '<h3>Cuotas de los próximos meses</h3><div class="next-months">' + next.map(function(n){
+            return '<div><span class="muted">'+esc(monthLabel(n.ym))+'</span><b>'+esc(fmt(n.uyu, "UYU"))+'</b>'+(n.usd ? '<b>'+esc(fmt(n.usd, "USD"))+'</b>' : '')+'</div>';
+          }).join("") + '</div>' : '<p class="empty">Sin compras en cuotas pendientes.</p>') +
+      '</div>';
+    }).join("");
+    $("cards").querySelectorAll("[data-pay-card]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        openMovement("transferencia", null, {toAccountId: btn.getAttribute("data-pay-card"), description:"Pago de tarjeta"});
+      });
+    });
+  }
+
+  // ---- Configuración ----
+  function renderConfig(){
+    $("cfgEnabled").checked = !!D.settings.enabled;
+    $("cfgRate").value = D.settings.usdRate;
+    $("cfgIncomeCats").value = (D.settings.incomeCategories || []).join(", ");
+  }
+  $("cfgSave").addEventListener("click", function(){
+    var r = parseFloat($("cfgRate").value);
+    if(!(r > 0)){ toast("Poné un valor del dólar válido"); return; }
+    D.settings.enabled = $("cfgEnabled").checked;
+    D.settings.usdRate = r;
+    D.settings.incomeCategories = $("cfgIncomeCats").value.split(",").map(function(s){ return s.trim(); }).filter(Boolean);
+    saveSettings().then(function(ok){ if(ok) toast("Guardado"); });
+    render();
+  });
+
+  // ---------------- diálogo: movimiento ----------------
+  var movDialog = $("movDialog"), editingMov = null, movKind = "ingreso";
+  function openDialog(el){ el.hidden = false; var f = el.querySelector("input:not([type=hidden]), select"); if(f) setTimeout(function(){ try{ f.focus(); }catch(e){} }, 30); }
+  function closeDialog(el){ el.hidden = true; }
+  document.querySelectorAll(".overlay [data-close]").forEach(function(b){
+    b.addEventListener("click", function(){ closeDialog(b.closest(".overlay")); });
+  });
+  document.querySelectorAll(".overlay").forEach(function(o){
+    o.addEventListener("click", function(ev){ if(ev.target === o && o.id !== "loginOverlay") closeDialog(o); });
+  });
+  document.addEventListener("keydown", function(ev){
+    if(ev.key === "Escape") document.querySelectorAll(".overlay").forEach(function(o){ if(o.id !== "loginOverlay") o.hidden = true; });
+  });
+  function bindNewButtons(root){
+    (root || document).querySelectorAll("[data-new]").forEach(function(b){
+      if(b._bound) return; b._bound = true;
+      b.addEventListener("click", function(){ openMovement(b.getAttribute("data-new"), null); });
+    });
+  }
+  bindNewButtons();
+  $("movKind").querySelectorAll("button").forEach(function(b){
+    b.addEventListener("click", function(){ setMovKind(b.getAttribute("data-kind")); });
+  });
+
+  function setMovKind(kind){
+    movKind = kind;
+    $("movKind").querySelectorAll("button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-kind") === kind); });
+    var transfer = kind === "transferencia";
+    $("movToRow").hidden = !transfer;
+    $("movCatField").hidden = transfer || kind === "ajuste";
+    $("movAccountLabel").textContent = transfer ? "Desde la cuenta" : (kind === "ingreso" ? "Entra en" : (kind === "gasto" ? "Sale de" : "Cuenta"));
+    $("movAmountLabel").textContent = transfer ? "Monto que sale" : (kind === "ajuste" ? "Monto (+ suma, − resta)" : "Monto");
+    var cats = kind === "ingreso"
+      ? (D.settings.incomeCategories || []).map(function(c){ return [c, c]; })
+      : CATEGORIES.map(function(c){ return [c.id, c.name]; });
+    var prev = $("movCategory").value;
+    fillSelect($("movCategory"), cats);
+    if(prev && cats.some(function(c){ return c[0] === prev; })) $("movCategory").value = prev;
+    $("movHint").textContent = kind === "gasto"
+      ? "Para gastos del día a día usá la app del celular; acá conviene cargar los que son en dólares o que no querés en el Libro de Gastos."
+      : kind === "ajuste" ? "Para corregir un saldo que no coincide con el banco." : "";
+    updateInstField();
+    updateRateHint();
+  }
+  function updateInstField(){
+    var acc = accountById($("movAccount").value);
+    var show = movKind === "gasto" && acc && acc.kind === "tarjeta";
+    $("movInstField").hidden = !show;
+    if(!show) $("movInst").value = "1";
+  }
+  function updateRateHint(){
+    if(movKind !== "transferencia"){ $("movRateHint").textContent = ""; return; }
+    var a = parseFloat($("movAmount").value), b = parseFloat($("movToAmount").value);
+    var ca = $("movCurrency").value, cb = $("movToCurrency").value;
+    $("movRateHint").textContent = (a > 0 && b > 0 && ca !== cb)
+      ? "Tipo de cambio: $ " + (ca === "UYU" ? (a / b) : (b / a)).toFixed(2) + " por US$ 1" : "";
+  }
+  function syncCurrency(selAcc, selCur){
+    var acc = accountById(selAcc.value);
+    if(acc && acc.currency !== "AMBAS") selCur.value = acc.currency;
+  }
+  $("movAccount").addEventListener("change", function(){ syncCurrency($("movAccount"), $("movCurrency")); updateInstField(); });
+  $("movTo").addEventListener("change", function(){ syncCurrency($("movTo"), $("movToCurrency")); autoToAmount(); });
+  $("movAmount").addEventListener("input", function(){ autoToAmount(); updateRateHint(); });
+  $("movToAmount").addEventListener("input", updateRateHint);
+  $("movCurrency").addEventListener("change", function(){ autoToAmount(); updateRateHint(); });
+  $("movToCurrency").addEventListener("change", function(){ autoToAmount(); updateRateHint(); });
+  var toAmountTouched = false;
+  $("movToAmount").addEventListener("keydown", function(){ toAmountTouched = true; });
+  function autoToAmount(){
+    if(movKind !== "transferencia" || toAmountTouched) return;
+    var a = parseFloat($("movAmount").value);
+    if(!(a > 0)) return;
+    var ca = $("movCurrency").value, cb = $("movToCurrency").value;
+    $("movToAmount").value = ca === cb ? a : (ca === "UYU" ? (a / rate()).toFixed(2) : (a * rate()).toFixed(2));
+    updateRateHint();
+  }
+
+  function openMovement(kind, m, preset){
+    if(D.accounts.length === 0 && kind !== "gasto"){
+      toast("Primero creá una cuenta");
+      showView("cuentas");
+      openAccount(null);
+      return;
+    }
+    editingMov = m;
+    toAmountTouched = !!m;
+    $("movTitle").textContent = m ? "Editar " + MOV_KINDS[m.kind].toLowerCase() : "Nuevo movimiento";
+    $("movKind").hidden = !!m;
+    var accOpts = accountOptions(kind === "gasto" ? "Sin cuenta" : null);
+    fillSelect($("movAccount"), accOpts);
+    fillSelect($("movTo"), accountOptions(null));
+    fillSelect($("movInst"), instOptions().map(function(n){ return [String(n), n === 1 ? "1 pago" : n + " cuotas"]; }));
+    setMovKind(kind);
+    preset = preset || {};
+    $("movDate").value = m ? m.date : todayStr();
+    $("movAmount").value = m ? Math.abs(m.amount) * (m.kind === "ajuste" && m.amount < 0 ? -1 : 1) : "";
+    if(m){
+      $("movAccount").value = m.accountId || "";
+      $("movCurrency").value = m.currency;
+      $("movTo").value = m.toAccountId || "";
+      $("movToAmount").value = m.toAmount || "";
+      $("movToCurrency").value = m.toCurrency || "UYU";
+      if(m.category) $("movCategory").value = m.category;
+      $("movInst").value = String(m.installments || 1);
+      $("movDesc").value = m.description || "";
+    } else {
+      $("movDesc").value = preset.description || "";
+      $("movToAmount").value = "";
+      if(preset.toAccountId){
+        $("movTo").value = preset.toAccountId;
+        var from = D.accounts.filter(function(a){ return a.kind === "banco" && !a.archived; })[0];
+        if(from) $("movAccount").value = from.id;
+      }
+      syncCurrency($("movAccount"), $("movCurrency"));
+      syncCurrency($("movTo"), $("movToCurrency"));
+    }
+    updateInstField();
+    updateRateHint();
+    $("movDelete").hidden = !m;
+    openDialog(movDialog);
+    setTimeout(function(){ try{ $("movAmount").focus(); }catch(e){} }, 40);
+  }
+  $("movSave").addEventListener("click", function(){
+    var amount = parseFloat($("movAmount").value);
+    if(!amount || (movKind !== "ajuste" && amount <= 0)){ toast("Poné un monto válido"); return; }
+    var acc = $("movAccount").value || null;
+    if(movKind !== "gasto" && !acc){ toast("Elegí la cuenta"); return; }
+    var m = {
+      id: editingMov ? editingMov.id : uid(), kind: movKind, date: $("movDate").value || todayStr(),
+      amount: amount, currency: $("movCurrency").value, accountId: acc,
+      category: (movKind === "ingreso" || movKind === "gasto") ? $("movCategory").value : null,
+      description: $("movDesc").value.trim(), installments: movKind === "gasto" ? Number($("movInst").value || 1) : 1
+    };
+    if(movKind === "transferencia"){
+      var to = $("movTo").value, toAmount = parseFloat($("movToAmount").value);
+      if(!to || to === acc){ toast("Elegí una cuenta de destino distinta"); return; }
+      if(!(toAmount > 0)){ toast("Poné el monto que llega"); return; }
+      m.toAccountId = to; m.toAmount = toAmount; m.toCurrency = $("movToCurrency").value;
+    }
+    saveMovement(m, !editingMov).then(function(ok){ if(ok) toast("Guardado"); });
+    closeDialog(movDialog);
+    render();
+  });
+  $("movDelete").addEventListener("click", function(){
+    if(!editingMov || !window.confirm("¿Eliminar este movimiento?")) return;
+    deleteMovement(editingMov.id).then(function(ok){ if(ok) toast("Eliminado"); });
+    closeDialog(movDialog);
+    render();
+  });
+
+  // ---------------- diálogo: cuenta ----------------
+  var accDialog = $("accDialog"), editingAcc = null;
+  fillSelect($("accKind"), ACCOUNT_KINDS.map(function(k){ return [k.id, k.name]; }));
+  function syncAccFields(){
+    var cur = $("accCurrency").value;
+    $("accInitUyuField").hidden = cur === "USD";
+    $("accInitUsdField").hidden = cur === "UYU";
+  }
+  $("accCurrency").addEventListener("change", syncAccFields);
+  $("accKind").addEventListener("change", function(){ if($("accKind").value === "tarjeta" && !editingAcc) $("accCurrency").value = "AMBAS"; syncAccFields(); });
+  function openAccount(a){
+    editingAcc = a;
+    $("accTitle").textContent = a ? "Editar cuenta" : "Nueva cuenta";
+    $("accName").value = a ? a.name : "";
+    $("accKind").value = a ? a.kind : "banco";
+    $("accCurrency").value = a ? a.currency : "UYU";
+    $("accInitUyu").value = a ? a.initialUYU : "";
+    $("accInitUsd").value = a ? a.initialUSD : "";
+    $("accArchived").checked = a ? !!a.archived : false;
+    $("accArchivedRow").hidden = !a;
+    syncAccFields();
+    openDialog(accDialog);
+  }
+  $("newAccountBtn").addEventListener("click", function(){ openAccount(null); });
+  $("accSave").addEventListener("click", function(){
+    var name = $("accName").value.trim();
+    if(!name){ toast("Poné un nombre"); return; }
+    var a = editingAcc || {id:uid(), sort:D.accounts.length};
+    a.name = name; a.kind = $("accKind").value; a.currency = $("accCurrency").value;
+    a.initialUYU = a.currency === "USD" ? 0 : (parseFloat($("accInitUyu").value) || 0);
+    a.initialUSD = a.currency === "UYU" ? 0 : (parseFloat($("accInitUsd").value) || 0);
+    a.archived = $("accArchived").checked;
+    saveAccount(a, !editingAcc).then(function(ok){ if(ok) toast("Cuenta guardada"); });
+    closeDialog(accDialog);
+    render();
+  });
+
+  // ---------------- datos de ejemplo (modo local) ----------------
+  function monthsAgo(m, day){ var d = new Date(); return localDateStr(new Date(d.getFullYear(), d.getMonth() - m, day)); }
+  function demoShared(){
+    var exps = [], sets = [];
+    for(var m = 0; m <= 5; m++){
+      exps.push(
+        {id:uid(), date:monthsAgo(m, 3), amount:30000, categoryId:"cat-vivienda", description:"Alquiler", scope:"compartido", groupId:"g-casa", paidBy:"partner", splitType:"equitativo"},
+        {id:uid(), date:monthsAgo(m, 9), amount:9800 + m * 450, categoryId:"cat-comida", description:"Supermercado", scope:"compartido", groupId:"g-casa", paidBy:"me", splitType:"equitativo"},
+        {id:uid(), date:monthsAgo(m, 12), amount:2600 + m * 90, categoryId:"cat-transporte", description:"Nafta", scope:"personal", paidBy:"me"},
+        {id:uid(), date:monthsAgo(m, 18), amount:3200 - m * 150, categoryId:"cat-disfrute", description:"Salida", scope:"personal", paidBy:"me"},
+        {id:uid(), date:monthsAgo(m, 22), amount:1400 + m * 120, categoryId:"cat-salud", description:"Farmacia", scope:"personal", paidBy:"me"}
+      );
+      if(m > 0) sets.push({id:uid(), groupId:"g-casa", from:"me", to:"partner", amount:15000 - (9800 + m * 450) / 2, date:monthsAgo(m, 27)});
+    }
+    return {
+      members:[{id:"me", name:"Vos"}, {id:"partner", name:"Ana"}],
+      groups:[{id:"g-casa", name:"Casa", memberIds:["me","partner"]}],
+      expenses:exps, settlements:sets,
+      debts:[{id:uid(), kind:"prestamo", date:monthsAgo(1, 5), amount:500, description:"", categoryId:null, creditor:{me:true}, debtor:{name:"Papá"}}]
+    };
+  }
+  function demoFin(shared){
+    var brou = uid(), cash = uid(), usd = uid(), visa = uid(), mp = uid();
+    var accounts = [
+      {id:brou, name:"BROU caja de ahorro", kind:"banco", currency:"UYU", initialUYU:42000, initialUSD:0, archived:false, sort:0},
+      {id:cash, name:"Efectivo", kind:"efectivo", currency:"UYU", initialUYU:3500, initialUSD:0, archived:false, sort:1},
+      {id:mp, name:"Mercado Pago", kind:"billetera", currency:"UYU", initialUYU:18000, initialUSD:0, archived:false, sort:2},
+      {id:usd, name:"Ahorro en dólares", kind:"ahorro", currency:"USD", initialUYU:0, initialUSD:1500, archived:false, sort:3},
+      {id:visa, name:"Visa", kind:"tarjeta", currency:"AMBAS", initialUYU:0, initialUSD:0, archived:false, sort:4}
+    ];
+    var mv = [];
+    for(var m = 0; m <= 5; m++){
+      mv.push({id:uid(), kind:"ingreso", date:monthsAgo(m, 1), amount:68000, currency:"UYU", accountId:brou, category:"Sueldo", description:"Sueldo", installments:1});
+      if(m % 2 === 0) mv.push({id:uid(), kind:"ingreso", date:monthsAgo(m, 15), amount:300, currency:"USD", accountId:usd, category:"Freelance", description:"Proyecto web", installments:1});
+      mv.push({id:uid(), kind:"gasto", date:monthsAgo(m, 6), amount:15.99, currency:"USD", accountId:visa, category:"cat-disfrute", description:"Netflix", installments:1});
+      if(m > 0) mv.push({id:uid(), kind:"transferencia", date:monthsAgo(m, 10), amount:15000, currency:"UYU", accountId:brou, toAccountId:visa, toAmount:15000, toCurrency:"UYU", category:null, description:"Pago de tarjeta", installments:1});
+    }
+    mv.push({id:uid(), kind:"gasto", date:monthsAgo(2, 14), amount:30000, currency:"UYU", accountId:visa, category:"cat-vivienda", description:"Televisor", installments:6});
+    mv.push({id:uid(), kind:"transferencia", date:monthsAgo(1, 20), amount:20500, currency:"UYU", accountId:brou, toAccountId:usd, toAmount:500, toCurrency:"USD", category:null, description:"Compra de dólares", installments:1});
+    var links = {};
+    (shared.expenses || []).forEach(function(e, i){
+      if(e.paidBy !== "me") return;
+      if(e.date.slice(0,7) === currentYM() && i % 3 === 0) return; // algunos sin asignar, para revisar
+      links["expense:" + e.id] = {accountId: e.categoryId === "cat-comida" ? visa : (e.categoryId === "cat-transporte" ? mp : brou), installments:1};
+    });
+    (shared.settlements || []).forEach(function(s){ links["settlement:" + s.id] = {accountId:brou, installments:1}; });
+    return {accounts:accounts, movements:mv, links:links, settings:{enabled:true, usdRate:41, incomeCategories:["Sueldo","Freelance","Aguinaldo","Ventas","Regalos","Otros"]}};
+  }
+
+  // ---------------- inicio y login ----------------
+  function refresh(){
+    return load().then(render).catch(function(err){ console.error(err); toast("No se pudieron cargar los datos"); });
+  }
+  var refreshTimer;
+  function scheduleRefresh(){ clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 400); }
+
+  function setLoginMsg(t){ $("loginMsg").textContent = t || ""; }
+  $("loginForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    setLoginMsg("Entrando…");
+    sb.auth.signInWithPassword({email:$("loginEmail").value.trim(), password:$("loginPass").value}).then(function(r){
+      if(r.error) setLoginMsg(/invalid login/i.test(r.error.message) ? "Email o contraseña incorrectos." : "No se pudo entrar.");
+    });
+  });
+  $("loginGoogle").addEventListener("click", function(){
+    sb.auth.signInWithOAuth({provider:"google", options:{redirectTo: location.origin + location.pathname}});
+  });
+
+  if(!REMOTE){
+    $("modeNote").textContent = "Modo local — datos de ejemplo en este navegador.";
+    refresh();
+  } else if(!sb){
+    $("modeNote").textContent = "No se pudo cargar Supabase.";
+  } else {
+    fetch(CFG.supabaseUrl + "/auth/v1/settings", {headers:{apikey:CFG.supabaseAnonKey}})
+      .then(function(r){ return r.json(); })
+      .then(function(st){ $("loginGoogle").hidden = !(st && st.external && st.external.google); })
+      .catch(function(){});
+    var currentUser;
+    sb.auth.onAuthStateChange(function(event, s){
+      var id = s ? s.user.id : null;
+      if(id === currentUser){ session = s || session; return; }
+      currentUser = id;
+      setTimeout(function(){
+        session = s;
+        $("loginOverlay").hidden = !!s;
+        if(!s){ D = null; return; }
+        $("modeNote").textContent = "Conectado · " + s.user.email;
+        refresh();
+        var ch = sb.channel("fin-" + s.user.id);
+        ["expenses","settlements","debts","groups","group_members","fin_accounts","fin_movements","fin_links","fin_settings"].forEach(function(t){
+          ch.on("postgres_changes", {event:"*", schema:"public", table:t}, scheduleRefresh);
+        });
+        ch.subscribe();
+      }, 0);
+    });
+    document.addEventListener("visibilitychange", function(){ if(document.visibilityState === "visible" && session) scheduleRefresh(); });
+  }
+})();
