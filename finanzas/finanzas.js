@@ -320,19 +320,20 @@
   }
 
   // Compras en cuotas de cada tarjeta.
-  // Compras en cuotas de una tarjeta, con cada cuota en su mes. "billed" = cuotas que ya
-  // vinieron hasta este mes (incluido); "remaining" = las que faltan.
+  // Compras de una tarjeta (en cuotas o en 1 pago), con cada pago en su mes. "billed" = pagos
+  // que ya vinieron hasta este mes (incluido); "remaining" = los que faltan.
+  // Lo cargado desde el celular no tiene mes de pago: va al resumen del mes siguiente a la compra.
   function installmentPlans(cardId){
     var plans = [];
     D.expenses.forEach(function(e){
       var l = link("expense", e.id);
-      if(l && l.accountId === cardId && (l.installments || 1) > 1 && paidByMe(e)){
+      if(l && l.accountId === cardId && paidByMe(e)){
         plans.push(Object.assign({date:e.date, desc:e.description || categoryName(e.categoryId), total:e.amount, currency:"UYU"},
-          cuotaPlan({date:e.date, total:e.amount, n:l.installments})));
+          cuotaPlan({date:e.date, total:e.amount, n:l.installments, start:addMonths(ymOf(e.date), 1)})));
       }
     });
     D.movements.forEach(function(m){
-      if(m.kind === "gasto" && m.accountId === cardId && ((m.installments || 1) > 1 || (m.instFrom || 1) > 1)){
+      if(m.kind === "gasto" && m.accountId === cardId){
         plans.push(Object.assign({date:m.date, desc:m.description || categoryName(m.category), total:m.amount, currency:m.currency, movId:m.id}, movPlan(m)));
       }
     });
@@ -1131,25 +1132,22 @@
         });
         months.push(row);
       }
-      var pendingUYU = 0, pendingUSD = 0;
-      active.forEach(function(p){
-        p.items.forEach(function(q){ if(q.ym > now){ if(p.currency === "USD") pendingUSD += q.amount; else pendingUYU += q.amount; } });
-      });
-      var thisMonth = months[0] || {uyu:0, usd:0};
+      var thisMonth = months[0] || {uyu:0, usd:0}, nextMonth = months[1] || {uyu:0, usd:0}, nextYM = addMonths(now, 1);
+      function both(mo){ return esc(fmt(mo.uyu, "UYU")) + (mo.usd ? " + " + esc(fmt(mo.usd, "USD")) : ""); }
       return '<div class="card"><div class="card-head"><h2>'+esc(c.name)+'</h2><div class="head-actions">' +
           '<button type="button" class="btn ghost small" data-card-buy="'+c.id+'">＋ Compra</button>' +
           '<button type="button" class="btn small" data-pay-card="'+c.id+'">Pagar tarjeta</button></div></div>' +
         '<div class="kpis small four">' +
           kpi("Deuda en $", esc(fmt(-bal.UYU, "UYU")), "", bal.UYU < 0 ? "neg" : "") +
           kpi("Deuda en US$", esc(fmt(-bal.USD, "USD")), "", bal.USD < 0 ? "neg" : "") +
-          kpi("Cuotas de " + MONTHS[Number(now.slice(5)) - 1], esc(fmt(thisMonth.uyu, "UYU")) + (thisMonth.usd ? " + " + esc(fmt(thisMonth.usd, "USD")) : ""), "lo que viene este mes") +
-          kpi("Cuotas que faltan", esc(fmt(pendingUYU, "UYU")) + (pendingUSD ? " + " + esc(fmt(pendingUSD, "USD")) : ""), "de los meses siguientes") +
+          kpi("Resumen de " + MONTHS[Number(now.slice(5)) - 1], both(thisMonth), "este mes") +
+          kpi("Próximo resumen", both(nextMonth), MONTHS[Number(nextYM.slice(5)) - 1] + ": cuotas y compras en 1 pago") +
         '</div>' +
-        (active.length ? '<h3>Compras en cuotas</h3><table class="tbl"><thead><tr><th>Compra</th><th>Fecha</th><th class="num">Cuota</th><th class="num">Este mes</th><th class="num">Faltan</th><th>Termina</th><th class="num">Resta pagar</th><th></th></tr></thead><tbody>' +
+        (active.length ? '<h3>Compras por pagar</h3><table class="tbl"><thead><tr><th>Compra</th><th>Fecha</th><th class="num">Cuota</th><th class="num">Este mes</th><th class="num">Faltan</th><th>Termina</th><th class="num">Resta pagar</th><th></th></tr></thead><tbody>' +
           active.map(function(p){
             return '<tr><td>'+esc(p.desc)+'</td><td>'+dayLabel(p.date)+'</td>' +
-              '<td class="num">'+esc(fmt(p.cuota, p.currency))+'</td>' +
-              '<td class="num">'+(p.current ? p.current + ' de ' + p.n : '<span class="muted">—</span>')+'</td>' +
+              '<td class="num">'+esc(fmt(p.cuota, p.currency))+(p.n === 1 ? ' <span class="muted small">1 pago</span>' : '')+'</td>' +
+              '<td class="num">'+(p.current ? (p.n === 1 ? 'se paga' : p.current + ' de ' + p.n) : '<span class="muted">—</span>')+'</td>' +
               '<td class="num">'+p.remaining+'</td><td>'+esc(monthLabel(p.lastYM))+'</td>' +
               '<td class="num">'+esc(fmt(p.cuota * p.remaining, p.currency))+'</td>' +
               '<td class="num">'+(p.movId ? '<button type="button" class="link" data-edit-mov="'+p.movId+'">Editar</button>' : '<span class="muted small">celular</span>')+'</td></tr>';
@@ -1158,10 +1156,10 @@
             return '<details'+(mo.ym === now ? ' open' : '')+'><summary><span>'+esc(monthLabel(mo.ym))+(mo.ym === now ? ' <span class="muted small">(este mes)</span>' : '')+'</span>' +
               '<b>'+esc(fmt(mo.uyu, "UYU"))+(mo.usd ? ' + '+esc(fmt(mo.usd, "USD")) : '')+'</b></summary>' +
               (mo.items.length ? '<ul>' + mo.items.map(function(it){
-                return '<li><span>'+esc(it.desc)+' <span class="muted">· cuota '+it.num+' de '+it.n+(it.final ? ' (última)' : '')+'</span></span><span>'+esc(fmt(it.amount, it.currency))+'</span></li>';
+                return '<li><span>'+esc(it.desc)+' <span class="muted">· '+(it.n === 1 ? '1 pago' : 'cuota '+it.num+' de '+it.n+(it.final ? ' (última)' : ''))+'</span></span><span>'+esc(fmt(it.amount, it.currency))+'</span></li>';
               }).join("") + '</ul>' : '<p class="empty small">Sin cuotas este mes.</p>') +
             '</details>';
-          }).join("") + '</div>' : '<p class="empty">Sin compras en cuotas pendientes. Anotalas con “＋ Compra”.</p>') +
+          }).join("") + '</div>' : '<p class="empty">Sin compras por pagar. Anotalas con “＋ Compra”.</p>') +
       '</div>';
     }).join("");
     $("cards").querySelectorAll("[data-pay-card]").forEach(function(btn){
@@ -1245,7 +1243,11 @@
     var show = movKind === "gasto" && acc && acc.kind === "tarjeta";
     $("movInstField").hidden = !show;
     if(!show) $("movInst").value = "1";
-    $("movPlanBox").hidden = !(show && Number($("movInst").value) > 1);
+    var multi = Number($("movInst").value) > 1;
+    $("movPlanBox").hidden = !show;
+    $("movAmtModeField").hidden = !multi;
+    $("movInstFromField").hidden = !multi;
+    $("movInstStartLabel").textContent = multi ? "Esa cuota se paga en" : "Se paga en";
     $("movSaveAnother").hidden = !(show && !editingMov);
     if(movKind === "gasto") $("movHint").textContent = show ? "" :
       "Para gastos del día a día usá la app del celular; acá conviene cargar los que son en dólares o que no querés en el Libro de Gastos.";
@@ -1263,6 +1265,7 @@
   });
   function draftPlan(){
     var n = Number($("movInst").value) || 1, a = parseFloat($("movAmount").value) || 0;
+    if(n === 1) return cuotaPlan({date:$("movDate").value || todayStr(), total:a, n:1, start:($("movInstStart").value || ymOf($("movDate").value || todayStr())) + "-01"});
     var from = Math.min(n, Math.max(1, parseInt($("movInstFrom").value, 10) || 1));
     var start = $("movInstStart").value || ymOf($("movDate").value || todayStr());
     return cuotaPlan({date:$("movDate").value || todayStr(), total: amtMode === "cuota" ? a * n : a, n:n, from:from, start:start + "-01"});
@@ -1272,6 +1275,7 @@
     var p = draftPlan(), cur = $("movCurrency").value;
     if(!(p.cuota > 0)){ $("movPlanHint").textContent = ""; return; }
     var first = p.items[0], last = p.items[p.items.length - 1];
+    if(p.n === 1){ $("movPlanHint").textContent = "1 pago de " + fmt(p.cuota, cur) + " en el resumen de " + monthLabel(first.ym) + " · suma a la deuda " + fmt(p.tracked, cur) + "."; return; }
     $("movPlanHint").textContent = p.n + " cuotas de " + fmt(p.cuota, cur) + " (total " + fmt(p.cuota * p.n, cur) + "). " +
       (p.from > 1 ? "Faltan " + p.items.length + ": " : "") +
       "de " + monthLabel(first.ym) + " a " + monthLabel(last.ym) + " · suma a la deuda " + fmt(p.tracked, cur) + ".";

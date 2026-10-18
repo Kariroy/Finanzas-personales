@@ -206,10 +206,10 @@
     </div>
     <div id="movPlanBox" hidden>
       <div class="row">
-        <div class="field"><label>El monto es</label>
+        <div class="field" id="movAmtModeField"><label>El monto es</label>
           <div class="seg" id="movAmtMode"><button type="button" data-mode="cuota">Por cuota</button><button type="button" data-mode="total">Total</button></div></div>
-        <div class="field"><label for="movInstFrom">Va por la cuota</label><input type="number" id="movInstFrom" min="1" step="1" value="1"></div>
-        <div class="field"><label for="movInstStart">Esa cuota se paga en</label><input type="month" id="movInstStart"></div>
+        <div class="field" id="movInstFromField"><label for="movInstFrom">Va por la cuota</label><input type="number" id="movInstFrom" min="1" step="1" value="1"></div>
+        <div class="field"><label for="movInstStart" id="movInstStartLabel">Esa cuota se paga en</label><input type="month" id="movInstStart"></div>
       </div>
       <p class="hint plan-hint" id="movPlanHint"></p>
     </div>
