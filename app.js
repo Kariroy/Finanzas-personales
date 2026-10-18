@@ -893,7 +893,8 @@
       }
       var row = debtToRow(d);
       return send(row).then(function(r){
-        if(r.error && /note|settles_id/.test(r.error.message || "")){
+        // Falta correr la parte 12 (columna inexistente o sin permiso para editarla): guardar sin ellas.
+        if(r.error && (/note|settles_id/.test(r.error.message || "") || r.error.code === "42501")){
           if(row.note || row.settles_id) showToast("Falta correr supabase/12-deudas-detalle.sql: se guardó sin comentario ni vínculo");
           delete row.note; delete row.settles_id; return send(row);
         }

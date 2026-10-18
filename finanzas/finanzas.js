@@ -1033,7 +1033,10 @@
           function send(r){ return isNew ? sb.from("debts").insert(Object.assign({id:d.id}, r)) : sb.from("debts").update(r).eq("id", d.id); }
           // Si falta correr la parte 12, guarda sin comentario.
           return send(row).then(function(res){
-            if(res.error && /note|settles_id/.test(res.error.message || "")){ delete row.note; delete row.settles_id; return send(row); }
+            if(res.error && (/note|settles_id/.test(res.error.message || "") || res.error.code === "42501")){
+              if(row.note || row.settles_id) toast("Falta correr supabase/12-deudas-detalle.sql: se guardó sin comentario");
+              delete row.note; delete row.settles_id; return send(row);
+            }
             return res;
           });
         })
