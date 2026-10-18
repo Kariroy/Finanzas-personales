@@ -204,12 +204,22 @@
       <div class="field" id="movCatField"><label for="movCategory">Categoría</label><select id="movCategory"></select></div>
       <div class="field" id="movInstField"><label for="movInst">Cuotas</label><select id="movInst"></select></div>
     </div>
+    <div id="movPlanBox" hidden>
+      <div class="row">
+        <div class="field"><label>El monto es</label>
+          <div class="seg" id="movAmtMode"><button type="button" data-mode="cuota">Por cuota</button><button type="button" data-mode="total">Total</button></div></div>
+        <div class="field"><label for="movInstFrom">Va por la cuota</label><input type="number" id="movInstFrom" min="1" step="1" value="1"></div>
+        <div class="field"><label for="movInstStart">Esa cuota se paga en</label><input type="month" id="movInstStart"></div>
+      </div>
+      <p class="hint plan-hint" id="movPlanHint"></p>
+    </div>
     <div class="field"><label for="movDesc">Descripción</label><input type="text" id="movDesc" maxlength="200"></div>
     <p class="hint" id="movHint"></p>
     <div class="dialog-actions">
       <button type="button" class="btn danger-ghost" id="movDelete" hidden>Eliminar</button>
       <span class="spacer"></span>
       <button type="button" class="btn ghost" data-close>Cancelar</button>
+      <button type="button" class="btn ghost" id="movSaveAnother" hidden>Guardar y anotar otra</button>
       <button type="button" class="btn" id="movSave">Guardar</button>
     </div>
   </div>

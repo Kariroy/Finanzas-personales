@@ -211,6 +211,16 @@
     for(var i = 0; i < n; i++) out.push({ym: addMonths(ym, i), amount: amount / n});
     return out;
   }
+  // Cuotas de una compra: de la cuota "from" a la "n", una por mes desde "start"
+  // (por defecto, el mes de la compra). Las anteriores a "from" ya estaban pagas.
+  function cuotaPlan(src){
+    var n = Math.max(1, src.n || 1), from = Math.min(n, Math.max(1, src.from || 1));
+    var start = src.start ? ymOf(src.start) : ymOf(src.date), cuota = src.total / n, items = [];
+    for(var k = from; k <= n; k++) items.push({num:k, ym:addMonths(start, k - from), amount:cuota});
+    return {n:n, from:from, cuota:cuota, items:items, tracked:cuota * items.length};
+  }
+  function movPlan(m){ return cuotaPlan({date:m.date, total:m.amount, n:m.installments, from:m.instFrom, start:m.instStart}); }
+
   // Todo lo que te cuesta (en $): tus gastos, tu parte de los compartidos, lo que otro
   // pagó por vos y los gastos propios de finanzas (ej. en dólares). Las cuotas se reparten.
   function costItems(){
@@ -231,7 +241,9 @@
     });
     D.movements.forEach(function(m){
       if(m.kind !== "gasto") return;
-      items.push({date:m.date, amount:toUYU(m.amount, m.currency), n:m.installments || 1,
+      var plan = movPlan(m);
+      items.push({date:m.date, amount:toUYU(plan.tracked, m.currency), n:m.installments || 1,
+        sched: plan.items.map(function(c){ return {ym:c.ym, amount:toUYU(c.amount, m.currency)}; }),
         category:categoryName(m.category), desc:m.description || categoryName(m.category), where:"Finanzas"});
     });
     return items;
@@ -239,14 +251,14 @@
   function costByMonth(){
     var map = {};
     costItems().forEach(function(it){
-      spread(it.date, it.amount, it.n).forEach(function(p){ map[p.ym] = (map[p.ym] || 0) + p.amount; });
+      (it.sched || spread(it.date, it.amount, it.n)).forEach(function(p){ map[p.ym] = (map[p.ym] || 0) + p.amount; });
     });
     return map;
   }
   function costByCategory(ym){
     var map = {};
     costItems().forEach(function(it){
-      spread(it.date, it.amount, it.n).forEach(function(p){
+      (it.sched || spread(it.date, it.amount, it.n)).forEach(function(p){
         if(p.ym === ym) map[it.category] = (map[it.category] || 0) + p.amount;
       });
     });
@@ -276,7 +288,10 @@
     function add(acc, cur, v, item){ if(acc && b[acc] && countsForBalance(acc, item)) b[acc][cur] += v; }
     D.movements.forEach(function(m){
       if(m.kind === "ingreso") add(m.accountId, m.currency, m.amount, m);
-      else if(m.kind === "gasto") add(m.accountId, m.currency, -m.amount, m);
+      else if(m.kind === "gasto"){
+        var plan = movPlan(m);
+        add(m.accountId, m.currency, -plan.tracked, plan.from > 1 && m.createdAt ? {date:localDateStr(new Date(m.createdAt)), createdAt:m.createdAt} : m);
+      }
       else if(m.kind === "ajuste") add(m.accountId, m.currency, m.amount, m);
       else if(m.kind === "transferencia"){
         add(m.accountId, m.currency, -m.amount, m);
@@ -305,24 +320,30 @@
   }
 
   // Compras en cuotas de cada tarjeta.
+  // Compras en cuotas de una tarjeta, con cada cuota en su mes. "billed" = cuotas que ya
+  // vinieron hasta este mes (incluido); "remaining" = las que faltan.
   function installmentPlans(cardId){
     var plans = [];
     D.expenses.forEach(function(e){
       var l = link("expense", e.id);
       if(l && l.accountId === cardId && (l.installments || 1) > 1 && paidByMe(e)){
-        plans.push({date:e.date, desc:e.description || categoryName(e.categoryId), total:e.amount, currency:"UYU", n:l.installments});
+        plans.push(Object.assign({date:e.date, desc:e.description || categoryName(e.categoryId), total:e.amount, currency:"UYU"},
+          cuotaPlan({date:e.date, total:e.amount, n:l.installments})));
       }
     });
     D.movements.forEach(function(m){
-      if(m.kind === "gasto" && m.accountId === cardId && (m.installments || 1) > 1){
-        plans.push({date:m.date, desc:m.description || categoryName(m.category), total:m.amount, currency:m.currency, n:m.installments});
+      if(m.kind === "gasto" && m.accountId === cardId && ((m.installments || 1) > 1 || (m.instFrom || 1) > 1)){
+        plans.push(Object.assign({date:m.date, desc:m.description || categoryName(m.category), total:m.amount, currency:m.currency, movId:m.id}, movPlan(m)));
       }
     });
     var now = currentYM();
     plans.forEach(function(p){
-      p.cuota = p.total / p.n;
-      p.paid = Math.min(p.n, Math.max(0, monthsBetween(ymOf(p.date), now) + 1));
-      p.remaining = p.n - p.paid;
+      var done = p.items.filter(function(c){ return c.ym <= now; }).length;
+      p.billed = p.from - 1 + done;
+      p.remaining = p.n - p.billed;
+      p.lastYM = p.items.length ? p.items[p.items.length - 1].ym : now;
+      var cur = p.items.filter(function(c){ return c.ym === now; })[0];
+      p.current = cur ? cur.num : null;
     });
     return plans.sort(function(a, b){ return b.date.localeCompare(a.date); });
   }
@@ -335,11 +356,12 @@
       var sign = m.kind === "ingreso" ? 1 : (m.kind === "ajuste" ? 1 : -1);
       rows.push({
         key:"m:" + m.id, ref:{type:"movement", id:m.id}, date:m.date, type:m.kind,
-        typeLabel: MOV_KINDS[m.kind] + (m.kind === "gasto" && m.installments > 1 ? " · " + m.installments + " cuotas" : ""),
+        typeLabel: MOV_KINDS[m.kind] + (m.kind === "gasto" && m.installments > 1
+          ? ((m.instFrom || 1) > 1 ? " · cuotas " + m.instFrom + "–" + m.installments + " de " + m.installments : " · " + m.installments + " cuotas") : ""),
         desc: m.description || (m.kind === "transferencia" ? (acc ? acc.name : "?") + " → " + (to ? to.name : "?") : (m.category ? (m.kind === "ingreso" ? m.category : categoryName(m.category)) : "")),
         category: m.kind === "ingreso" ? (m.category || "") : (m.kind === "gasto" ? categoryName(m.category) : ""),
         accountId: m.accountId, accountLabel: m.kind === "transferencia" ? (acc ? acc.name : "—") + " → " + (to ? to.name : "—") : (acc ? acc.name : "Sin cuenta"),
-        amount: m.kind === "transferencia" ? m.amount : sign * m.amount, currency: m.currency,
+        amount: m.kind === "transferencia" ? m.amount : (m.kind === "gasto" ? -movPlan(m).tracked : sign * m.amount), currency: m.currency,
         extra: m.kind === "transferencia" && (m.toCurrency !== m.currency) ? "llegan " + fmt(m.toAmount, m.toCurrency) : "",
         pending: !m.accountId, editable:true
       });
@@ -479,13 +501,20 @@
   function movFromRow(r){
     return {id:r.id, kind:r.kind, date:r.date, amount:Number(r.amount), currency:r.currency, accountId:r.account_id,
       toAccountId:r.to_account_id, toAmount:r.to_amount == null ? null : Number(r.to_amount), toCurrency:r.to_currency,
-      category:r.category, description:r.description || "", installments:r.installments || 1, createdAt:r.created_at};
+      category:r.category, description:r.description || "", installments:r.installments || 1, createdAt:r.created_at,
+      instFrom:r.inst_from || 1, instStart:r.inst_start || null};
   }
   function movToRow(m){
     return {kind:m.kind, date:m.date, amount:m.amount, currency:m.currency, account_id:m.accountId || null,
       to_account_id:m.toAccountId || null, to_amount:m.kind === "transferencia" ? m.toAmount : null,
       to_currency:m.kind === "transferencia" ? m.toCurrency : null, category:m.category || null,
       description:m.description || "", installments:m.installments || 1};
+  }
+  // inst_from / inst_start solo viajan si se usan (así no rompe si falta correr la parte 14).
+  function movRow(m){
+    var row = movToRow(m);
+    if((m.instFrom || 1) > 1 || m.instStart || m.hadPlan){ row.inst_from = m.instFrom || 1; row.inst_start = m.instStart || null; }
+    return row;
   }
 
   // ---------------- guardar ----------------
@@ -523,7 +552,15 @@
     if(isNew) D.movements.unshift(m);
     else D.movements = D.movements.map(function(x){ return x.id === m.id ? m : x; });
     return run(function(){
-      return isNew ? sb.from("fin_movements").insert(Object.assign({id:m.id}, movToRow(m))) : sb.from("fin_movements").update(movToRow(m)).eq("id", m.id);
+      var row = movRow(m);
+      function send(r){ return isNew ? sb.from("fin_movements").insert(Object.assign({id:m.id}, r)) : sb.from("fin_movements").update(r).eq("id", m.id); }
+      return send(row).then(function(res){
+        if(res.error && "inst_from" in row && /inst_/.test(res.error.message || "")){
+          toast("Falta correr supabase/14-cuotas.sql: se guardó como compra nueva en cuotas");
+          delete row.inst_from; delete row.inst_start; return send(row);
+        }
+        return res;
+      });
     });
   }
   function deleteMovement(id){
@@ -1075,40 +1112,70 @@
       $("cards").innerHTML = '<div class="card"><p class="empty">No tenés tarjetas. Creá una cuenta de tipo “Tarjeta de crédito” en Cuentas.</p></div>';
       return;
     }
+    var now = currentYM();
     $("cards").innerHTML = cards.map(function(c){
       var bal = b[c.id], plans = installmentPlans(c.id);
       var active = plans.filter(function(p){ return p.remaining > 0; });
-      var next = [];
-      for(var k = 1; k <= 6; k++){
-        var ym = addMonths(currentYM(), k), uyu = 0, usd = 0;
+      // Mes por mes, desde este hasta la última cuota.
+      var last = now;
+      active.forEach(function(p){ if(p.lastYM > last) last = p.lastYM; });
+      var months = [];
+      for(var ym = now; ym <= last; ym = addMonths(ym, 1)){
+        var row = {ym:ym, uyu:0, usd:0, items:[]};
         active.forEach(function(p){
-          var idx = monthsBetween(ymOf(p.date), ym);
-          if(idx >= 0 && idx < p.n){ if(p.currency === "USD") usd += p.cuota; else uyu += p.cuota; }
+          p.items.forEach(function(q){
+            if(q.ym !== ym) return;
+            if(p.currency === "USD") row.usd += q.amount; else row.uyu += q.amount;
+            row.items.push({desc:p.desc, num:q.num, n:p.n, amount:q.amount, currency:p.currency, final:q.num === p.n});
+          });
         });
-        next.push({ym:ym, uyu:uyu, usd:usd});
+        months.push(row);
       }
       var pendingUYU = 0, pendingUSD = 0;
-      active.forEach(function(p){ if(p.currency === "USD") pendingUSD += p.cuota * p.remaining; else pendingUYU += p.cuota * p.remaining; });
-      return '<div class="card"><div class="card-head"><h2>'+esc(c.name)+'</h2>' +
-          '<button type="button" class="btn small" data-pay-card="'+c.id+'">Pagar tarjeta</button></div>' +
-        '<div class="kpis small">' +
+      active.forEach(function(p){
+        p.items.forEach(function(q){ if(q.ym > now){ if(p.currency === "USD") pendingUSD += q.amount; else pendingUYU += q.amount; } });
+      });
+      var thisMonth = months[0] || {uyu:0, usd:0};
+      return '<div class="card"><div class="card-head"><h2>'+esc(c.name)+'</h2><div class="head-actions">' +
+          '<button type="button" class="btn ghost small" data-card-buy="'+c.id+'">＋ Compra</button>' +
+          '<button type="button" class="btn small" data-pay-card="'+c.id+'">Pagar tarjeta</button></div></div>' +
+        '<div class="kpis small four">' +
           kpi("Deuda en $", esc(fmt(-bal.UYU, "UYU")), "", bal.UYU < 0 ? "neg" : "") +
           kpi("Deuda en US$", esc(fmt(-bal.USD, "USD")), "", bal.USD < 0 ? "neg" : "") +
-          kpi("Cuotas que faltan", esc(fmt(pendingUYU, "UYU")) + (pendingUSD ? " + " + esc(fmt(pendingUSD, "USD")) : ""), active.length + " compra" + (active.length === 1 ? "" : "s") + " en cuotas") +
+          kpi("Cuotas de " + MONTHS[Number(now.slice(5)) - 1], esc(fmt(thisMonth.uyu, "UYU")) + (thisMonth.usd ? " + " + esc(fmt(thisMonth.usd, "USD")) : ""), "lo que viene este mes") +
+          kpi("Cuotas que faltan", esc(fmt(pendingUYU, "UYU")) + (pendingUSD ? " + " + esc(fmt(pendingUSD, "USD")) : ""), "de los meses siguientes") +
         '</div>' +
-        (active.length ? '<h3>Compras en cuotas</h3><table class="tbl"><thead><tr><th>Compra</th><th>Fecha</th><th class="num">Total</th><th class="num">Cuota</th><th class="num">Pagadas</th><th class="num">Faltan</th></tr></thead><tbody>' +
+        (active.length ? '<h3>Compras en cuotas</h3><table class="tbl"><thead><tr><th>Compra</th><th>Fecha</th><th class="num">Cuota</th><th class="num">Este mes</th><th class="num">Faltan</th><th>Termina</th><th class="num">Resta pagar</th><th></th></tr></thead><tbody>' +
           active.map(function(p){
-            return '<tr><td>'+esc(p.desc)+'</td><td>'+dayLabel(p.date)+'</td><td class="num">'+esc(fmt(p.total, p.currency))+'</td>' +
-              '<td class="num">'+esc(fmt(p.cuota, p.currency))+'</td><td class="num">'+p.paid+' de '+p.n+'</td><td class="num">'+p.remaining+'</td></tr>';
+            return '<tr><td>'+esc(p.desc)+'</td><td>'+dayLabel(p.date)+'</td>' +
+              '<td class="num">'+esc(fmt(p.cuota, p.currency))+'</td>' +
+              '<td class="num">'+(p.current ? p.current + ' de ' + p.n : '<span class="muted">—</span>')+'</td>' +
+              '<td class="num">'+p.remaining+'</td><td>'+esc(monthLabel(p.lastYM))+'</td>' +
+              '<td class="num">'+esc(fmt(p.cuota * p.remaining, p.currency))+'</td>' +
+              '<td class="num">'+(p.movId ? '<button type="button" class="link" data-edit-mov="'+p.movId+'">Editar</button>' : '<span class="muted small">celular</span>')+'</td></tr>';
           }).join("") + '</tbody></table>' +
-          '<h3>Cuotas de los próximos meses</h3><div class="next-months">' + next.map(function(n){
-            return '<div><span class="muted">'+esc(monthLabel(n.ym))+'</span><b>'+esc(fmt(n.uyu, "UYU"))+'</b>'+(n.usd ? '<b>'+esc(fmt(n.usd, "USD"))+'</b>' : '')+'</div>';
-          }).join("") + '</div>' : '<p class="empty">Sin compras en cuotas pendientes.</p>') +
+          '<h3>Mes por mes</h3><div class="month-plan">' + months.map(function(mo){
+            return '<details'+(mo.ym === now ? ' open' : '')+'><summary><span>'+esc(monthLabel(mo.ym))+(mo.ym === now ? ' <span class="muted small">(este mes)</span>' : '')+'</span>' +
+              '<b>'+esc(fmt(mo.uyu, "UYU"))+(mo.usd ? ' + '+esc(fmt(mo.usd, "USD")) : '')+'</b></summary>' +
+              (mo.items.length ? '<ul>' + mo.items.map(function(it){
+                return '<li><span>'+esc(it.desc)+' <span class="muted">· cuota '+it.num+' de '+it.n+(it.final ? ' (última)' : '')+'</span></span><span>'+esc(fmt(it.amount, it.currency))+'</span></li>';
+              }).join("") + '</ul>' : '<p class="empty small">Sin cuotas este mes.</p>') +
+            '</details>';
+          }).join("") + '</div>' : '<p class="empty">Sin compras en cuotas pendientes. Anotalas con “＋ Compra”.</p>') +
       '</div>';
     }).join("");
     $("cards").querySelectorAll("[data-pay-card]").forEach(function(btn){
       btn.addEventListener("click", function(){
         openMovement("transferencia", null, {toAccountId: btn.getAttribute("data-pay-card"), description:"Pago de tarjeta"});
+      });
+    });
+    $("cards").querySelectorAll("[data-card-buy]").forEach(function(btn){
+      btn.addEventListener("click", function(){ openMovement("gasto", null, {accountId: btn.getAttribute("data-card-buy")}); });
+    });
+    $("cards").querySelectorAll("[data-edit-mov]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var m = D.movements.filter(function(x){ return x.id === btn.getAttribute("data-edit-mov"); })[0];
+        if(m) openMovement(m.kind, m);
       });
     });
   }
@@ -1178,7 +1245,54 @@
     var show = movKind === "gasto" && acc && acc.kind === "tarjeta";
     $("movInstField").hidden = !show;
     if(!show) $("movInst").value = "1";
+    $("movPlanBox").hidden = !(show && Number($("movInst").value) > 1);
+    $("movSaveAnother").hidden = !(show && !editingMov);
+    if(movKind === "gasto") $("movHint").textContent = show ? "" :
+      "Para gastos del día a día usá la app del celular; acá conviene cargar los que son en dólares o que no querés en el Libro de Gastos.";
+    updatePlanHint();
   }
+  // Compra en cuotas: el monto puede ser la cuota o el total, y puede venir "por la mitad".
+  var amtMode = "cuota", startTouched = false;
+  function setAmtMode(mode){
+    amtMode = mode;
+    $("movAmtMode").querySelectorAll("button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-mode") === mode); });
+    updatePlanHint();
+  }
+  $("movAmtMode").querySelectorAll("button").forEach(function(b){
+    b.addEventListener("click", function(){ setAmtMode(b.getAttribute("data-mode")); });
+  });
+  function draftPlan(){
+    var n = Number($("movInst").value) || 1, a = parseFloat($("movAmount").value) || 0;
+    var from = Math.min(n, Math.max(1, parseInt($("movInstFrom").value, 10) || 1));
+    var start = $("movInstStart").value || ymOf($("movDate").value || todayStr());
+    return cuotaPlan({date:$("movDate").value || todayStr(), total: amtMode === "cuota" ? a * n : a, n:n, from:from, start:start + "-01"});
+  }
+  function updatePlanHint(){
+    if($("movPlanBox").hidden){ $("movPlanHint").textContent = ""; return; }
+    var p = draftPlan(), cur = $("movCurrency").value;
+    if(!(p.cuota > 0)){ $("movPlanHint").textContent = ""; return; }
+    var first = p.items[0], last = p.items[p.items.length - 1];
+    $("movPlanHint").textContent = p.n + " cuotas de " + fmt(p.cuota, cur) + " (total " + fmt(p.cuota * p.n, cur) + "). " +
+      (p.from > 1 ? "Faltan " + p.items.length + ": " : "") +
+      "de " + monthLabel(first.ym) + " a " + monthLabel(last.ym) + " · suma a la deuda " + fmt(p.tracked, cur) + ".";
+  }
+  // Por defecto, como en el resumen de la tarjeta: una compra nueva empieza a pagarse el
+  // mes siguiente; si ya venía en cuotas, la cuota que dice es la del mes que viene.
+  function defaultStart(){
+    var from = parseInt($("movInstFrom").value, 10) || 1;
+    return addMonths(from > 1 ? currentYM() : ymOf($("movDate").value || todayStr()), 1);
+  }
+  $("movInst").addEventListener("change", updateInstField);
+  $("movInstFrom").addEventListener("input", function(){
+    // Si viene por la mitad, lo más común es que la cuota que dice sea la del mes que viene.
+    if(!startTouched) $("movInstStart").value = defaultStart();
+    updatePlanHint();
+  });
+  $("movInstStart").addEventListener("input", function(){ startTouched = true; updatePlanHint(); });
+  $("movDate").addEventListener("change", function(){
+    if(!startTouched) $("movInstStart").value = defaultStart();
+    updatePlanHint();
+  });
   function updateRateHint(){
     if(movKind !== "transferencia"){ $("movRateHint").textContent = ""; return; }
     var a = parseFloat($("movAmount").value), b = parseFloat($("movToAmount").value);
@@ -1192,7 +1306,7 @@
   }
   $("movAccount").addEventListener("change", function(){ syncCurrency($("movAccount"), $("movCurrency")); updateInstField(); });
   $("movTo").addEventListener("change", function(){ syncCurrency($("movTo"), $("movToCurrency")); autoToAmount(); });
-  $("movAmount").addEventListener("input", function(){ autoToAmount(); updateRateHint(); });
+  $("movAmount").addEventListener("input", function(){ autoToAmount(); updateRateHint(); updatePlanHint(); });
   $("movToAmount").addEventListener("input", updateRateHint);
   $("movCurrency").addEventListener("change", function(){ autoToAmount(); updateRateHint(); });
   $("movToCurrency").addEventListener("change", function(){ autoToAmount(); updateRateHint(); });
@@ -1222,8 +1336,13 @@
     fillSelect($("movAccount"), accOpts);
     fillSelect($("movTo"), accountOptions(null));
     fillSelect($("movInst"), instOptions().map(function(n){ return [String(n), n === 1 ? "1 pago" : n + " cuotas"]; }));
-    setMovKind(kind);
     preset = preset || {};
+    if(!m && preset.accountId) $("movAccount").value = preset.accountId;
+    startTouched = !!(m && m.instStart);
+    setAmtMode(m ? "total" : amtMode);
+    $("movInstFrom").value = m ? (m.instFrom || 1) : 1;
+    $("movInstStart").value = m ? (m.instStart ? ymOf(m.instStart) : ymOf(m.date)) : addMonths(currentYM(), 1);
+    setMovKind(kind);
     $("movDate").value = m ? m.date : todayStr();
     $("movAmount").value = m ? Math.abs(m.amount) * (m.kind === "ajuste" && m.amount < 0 ? -1 : 1) : "";
     if(m){
@@ -1245,6 +1364,9 @@
       }
       syncCurrency($("movAccount"), $("movCurrency"));
       syncCurrency($("movTo"), $("movToCurrency"));
+      if(preset.date){ $("movDate").value = preset.date; }
+      if(preset.instStart){ $("movInstStart").value = preset.instStart; startTouched = true; }
+      if(preset.category) $("movCategory").value = preset.category;
     }
     updateInstField();
     updateRateHint();
@@ -1252,7 +1374,9 @@
     openDialog(movDialog);
     setTimeout(function(){ try{ $("movAmount").focus(); }catch(e){} }, 40);
   }
-  $("movSave").addEventListener("click", function(){
+  $("movSave").addEventListener("click", function(){ saveMovementDialog(false); });
+  $("movSaveAnother").addEventListener("click", function(){ saveMovementDialog(true); });
+  function saveMovementDialog(again){
     var amount = parseFloat($("movAmount").value);
     if(!amount || (movKind !== "ajuste" && amount <= 0)){ toast("Poné un monto válido"); return; }
     var acc = $("movAccount").value || null;
@@ -1264,6 +1388,14 @@
       description: $("movDesc").value.trim(), installments: movKind === "gasto" ? Number($("movInst").value || 1) : 1,
       createdAt: editingMov ? editingMov.createdAt : new Date().toISOString()
     };
+    m.hadPlan = !!(editingMov && ((editingMov.instFrom || 1) > 1 || editingMov.instStart));
+    if(!$("movPlanBox").hidden){
+      var plan = draftPlan();
+      m.amount = Math.round(plan.cuota * plan.n * 100) / 100;
+      m.instFrom = plan.from;
+      var st = $("movInstStart").value;
+      m.instStart = (plan.from > 1 || (st && st !== ymOf(m.date))) ? st + "-01" : null;
+    } else { m.instFrom = 1; m.instStart = null; }
     if(movKind === "transferencia"){
       var to = $("movTo").value, toAmount = parseFloat($("movToAmount").value);
       if(!to || to === acc){ toast("Elegí una cuenta de destino distinta"); return; }
@@ -1273,7 +1405,9 @@
     saveMovement(m, !editingMov).then(function(ok){ if(ok) toast("Guardado"); });
     closeDialog(movDialog);
     render();
-  });
+    if(again) openMovement("gasto", null, {accountId:m.accountId, date:m.date, category:m.category,
+      instStart: startTouched ? $("movInstStart").value : null});
+  }
   $("movDelete").addEventListener("click", function(){
     if(!editingMov || !window.confirm("¿Eliminar este movimiento?")) return;
     deleteMovement(editingMov.id).then(function(ok){ if(ok) toast("Eliminado"); });
