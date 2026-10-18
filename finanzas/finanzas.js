@@ -420,7 +420,7 @@
   }
 
   function fetchRemote(){
-    var user = session.user;
+    var user = session.user, gen = writeGen;
     return Promise.all([
       sb.from("groups").select("id,name").order("created_at"),
       sb.from("group_members").select("id,group_id,user_id,name"),
@@ -432,6 +432,7 @@
       sb.from("fin_links").select("*"),
       sb.from("fin_settings").select("*").maybeSingle()
     ]).then(function(res){
+      if(gen !== writeGen || pendingWrites > 0){ var stale = new Error("stale"); stale.stale = true; throw stale; }
       // Deudas y finanzas son opcionales (si falta correr su SQL, se sigue sin ellas).
       [4,5,6,7,8].forEach(function(i){ if(res[i].error){ console.warn(res[i].error); res[i] = {data: i === 8 ? null : []}; } });
       [0,1,2,3].forEach(function(i){ if(res[i].error) throw res[i].error; });
@@ -483,16 +484,22 @@
   }
 
   // ---------------- guardar ----------------
+  // Mientras se guarda algo, una recarga que empezó antes no puede pisar los datos.
+  var pendingWrites = 0, writeGen = 0;
   function run(op){
     if(!REMOTE){ saveLocalFin(); return Promise.resolve(true); }
+    pendingWrites++; writeGen++;
     return Promise.resolve().then(op).then(function(r){
       if(r && r.error) throw r.error;
       return true;
     }).catch(function(err){
       console.error(err);
       toast("No se pudo guardar. Revisá tu conexión.");
-      refresh();
       return false;
+    }).then(function(ok){
+      pendingWrites--;
+      if(pendingWrites === 0) scheduleRefresh();
+      return ok;
     });
   }
   function saveAccount(a, isNew){
@@ -1360,8 +1367,17 @@
   }
 
   // ---------------- inicio y login ----------------
+  var refreshing = null, refreshAgain = false;
   function refresh(){
-    return load().then(render).catch(function(err){ console.error(err); toast("No se pudieron cargar los datos"); });
+    if(refreshing){ refreshAgain = true; return refreshing; }
+    refreshing = load().then(render).catch(function(err){
+      if(err && err.stale){ if(pendingWrites === 0) refreshAgain = true; return; }
+      console.error(err); toast("No se pudieron cargar los datos");
+    }).then(function(){
+      refreshing = null;
+      if(refreshAgain){ refreshAgain = false; return refresh(); }
+    });
+    return refreshing;
   }
   var refreshTimer;
   function scheduleRefresh(){ clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 400); }

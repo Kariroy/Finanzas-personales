@@ -133,6 +133,7 @@
   function toRemoteMember(id, groupId){ return id === "me" ? myMemberByGroup[groupId] : id; }
 
   function fetchRemote(){
+    var gen = writeGen;
     return Promise.all([
       sb.from("groups").select("id,name,invite_code,created_by,created_at").order("created_at"),
       sb.from("group_members").select("id,group_id,user_id,name,created_at").order("created_at"),
@@ -143,6 +144,8 @@
       sb.from("fin_accounts").select("id,name,kind,currency,archived,sort").order("sort").order("created_at"),
       sb.from("fin_links").select("ref_kind,ref_id,account_id,installments").eq("ref_kind", "expense")
     ]).then(function(res){
+      // Si mientras tanto se guardó (o se está guardando) algo, estos datos pueden ser viejos.
+      if(gen !== writeGen || pendingWrites > 0){ var stale = new Error("stale"); stale.stale = true; throw stale; }
       // Finanzas es opcional: si falta correr supabase/10-finanzas.sql, sigue sin ella.
       if(res[5].error || res[6].error || res[7].error){
         console.warn("Finanzas no disponible:", res[5].error || res[6].error || res[7].error);
@@ -261,16 +264,24 @@
 
   // Guarda un cambio: en modo local escribe localStorage; en Supabase corre la
   // consulta y, si falla, avisa y vuelve a traer los datos del servidor.
+  // Escrituras en curso: mientras haya alguna, una recarga que empezó antes no puede
+  // pisar el estado (traería los datos de antes del cambio y parecería que se revirtió).
+  var pendingWrites = 0, writeGen = 0;
   function persist(run){
     if(!REMOTE){ save(); return Promise.resolve(true); }
+    pendingWrites++; writeGen++;
     return Promise.resolve().then(run).then(function(r){
       if(r && r.error) throw r.error;
       return true;
     }).catch(function(err){
       console.error(err);
       showToast("No se pudo guardar. Revisá tu conexión.");
-      refresh();
       return false;
+    }).then(function(ok){
+      pendingWrites--;
+      // Al terminar de guardar, traer lo último (por si el aviso de tiempo real no llega).
+      if(pendingWrites === 0) scheduleRefresh();
+      return ok;
     });
   }
 
@@ -882,7 +893,10 @@
       }
       var row = debtToRow(d);
       return send(row).then(function(r){
-        if(r.error && /note|settles_id/.test(r.error.message || "")){ delete row.note; delete row.settles_id; return send(row); }
+        if(r.error && /note|settles_id/.test(r.error.message || "")){
+          if(row.note || row.settles_id) showToast("Falta correr supabase/12-deudas-detalle.sql: se guardó sin comentario ni vínculo");
+          delete row.note; delete row.settles_id; return send(row);
+        }
         return r;
       });
     });
@@ -2642,6 +2656,7 @@
       }
       renderAll();
     }).catch(function(err){
+      if(err && err.stale){ if(pendingWrites === 0) refreshAgain = true; return; }
       console.error(err);
       showToast("No se pudieron cargar los datos");
     }).then(function(){
