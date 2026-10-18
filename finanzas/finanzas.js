@@ -458,7 +458,8 @@
         }),
         debts: res[4].data.map(function(r){
           return {id:r.id, kind:r.kind, date:r.date, amount:Number(r.amount), description:r.description || "", categoryId:r.category_id,
-            creditor: side(r.creditor_user, r.creditor_name), debtor: side(r.debtor_user, r.debtor_name), createdAt:r.created_at};
+            creditor: side(r.creditor_user, r.creditor_name), debtor: side(r.debtor_user, r.debtor_name), createdAt:r.created_at,
+            note:r.note || "", settlesId:r.settles_id || null};
         }),
         accounts: res[5].data.map(function(r){
           return {id:r.id, name:r.name, kind:r.kind, currency:r.currency, initialUYU:Number(r.initial_uyu), initialUSD:Number(r.initial_usd), archived:r.archived, sort:r.sort, balanceAt:r.balance_at || null};
@@ -894,7 +895,7 @@
         var cash = debtCash(d), l = link("debt", d.id);
         var acc = cash ? '<select data-debt-acc="'+d.id+'">'+accountOptions("Sin cuenta").map(function(o){ return '<option value="'+o[0]+'"'+((l && l.accountId || "") === o[0] ? " selected" : "")+'>'+esc(o[1])+'</option>'; }).join("")+'</select>'
           : '<span class="muted small">no movió tu plata</span>';
-        return '<tr><td class="nowrap">'+esc(dayLabel(d.date))+'</td><td>'+esc(describeDebt(d))+'</td><td>'+esc(d.description || "")+'</td>' +
+        return '<tr><td class="nowrap">'+esc(dayLabel(d.date))+'</td><td>'+esc(describeDebt(d))+'</td><td>'+esc(d.description || "")+(d.note ? '<div class="note">'+esc(d.note)+'</div>' : '')+'</td>' +
           '<td class="num">'+esc(fmt(d.amount, "UYU"))+'</td><td>'+acc+'</td>' +
           '<td class="num"><button type="button" class="link" data-debt-edit="'+d.id+'">Editar</button></td></tr>';
       }).join("") + '</tbody></table>';
@@ -956,6 +957,7 @@
       $("debtAmount").value = d.amount;
       $("debtDate").value = d.date;
       $("debtDesc").value = d.description || "";
+      $("debtNote").value = d.note || "";
       $("debtCategory").value = d.categoryId || "cat-otros";
     } else {
       debtKind = preset.kind || "prestamo";
@@ -964,6 +966,7 @@
       $("debtAmount").value = preset.amount || "";
       $("debtDate").value = todayStr();
       $("debtDesc").value = "";
+      $("debtNote").value = "";
       $("debtCategory").value = "cat-otros";
     }
     $("debtOther").value = "";
@@ -980,7 +983,8 @@
     function u(side){ return side.me ? session.user.id : (side.user || null); }
     function n(side){ return (side.me ? D.me : side.name || "").slice(0, 40); }
     return {kind:d.kind, date:d.date, amount:d.amount, description:d.description || "", category_id:d.categoryId || null,
-      creditor_user:u(d.creditor), creditor_name:n(d.creditor), debtor_user:u(d.debtor), debtor_name:n(d.debtor)};
+      creditor_user:u(d.creditor), creditor_name:n(d.creditor), debtor_user:u(d.debtor), debtor_name:n(d.debtor),
+      note:d.note || null, settles_id:d.settlesId || null};
   }
   // En modo local las deudas viven en los datos del Libro de Gastos.
   function saveLocalDebts(){
@@ -1009,14 +1013,23 @@
       id: editingDebt ? editingDebt.id : uid(), kind:debtKind, date:$("debtDate").value || todayStr(), amount:amount,
       description:$("debtDesc").value.trim(), categoryId: debtKind === "gasto" && debtDir === "el" ? $("debtCategory").value : null,
       creditor: meIsCreditor ? {me:true} : other, debtor: meIsCreditor ? other : {me:true},
-      createdAt: editingDebt ? editingDebt.createdAt : new Date().toISOString()
+      createdAt: editingDebt ? editingDebt.createdAt : new Date().toISOString(),
+      note: $("debtNote").value.trim(), settlesId: editingDebt ? editingDebt.settlesId || null : null
     };
     var isNew = !editingDebt;
     if(isNew) D.debts.unshift(d);
     else D.debts = D.debts.map(function(x){ return x.id === d.id ? d : x; });
     var acc = draftCash() !== 0 ? $("debtAccount").value : "";
     var saved = REMOTE
-      ? run(function(){ return isNew ? sb.from("debts").insert(Object.assign({id:d.id}, debtToRow(d))) : sb.from("debts").update(debtToRow(d)).eq("id", d.id); })
+      ? run(function(){
+          var row = debtToRow(d);
+          function send(r){ return isNew ? sb.from("debts").insert(Object.assign({id:d.id}, r)) : sb.from("debts").update(r).eq("id", d.id); }
+          // Si falta correr la parte 12, guarda sin comentario.
+          return send(row).then(function(res){
+            if(res.error && /note|settles_id/.test(res.error.message || "")){ delete row.note; delete row.settles_id; return send(row); }
+            return res;
+          });
+        })
       : (saveLocalDebts(), Promise.resolve(true));
     saved.then(function(ok){
       if(!ok) return;

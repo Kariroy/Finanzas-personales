@@ -194,7 +194,8 @@
             id: r.id, kind: r.kind, date: r.date, amount: Number(r.amount),
             description: r.description || "", categoryId: r.category_id,
             creditor: side(r.creditor_user, r.creditor_name),
-            debtor: side(r.debtor_user, r.debtor_name)
+            debtor: side(r.debtor_user, r.debtor_name),
+            note: r.note || "", settlesId: r.settles_id || null
           };
         }),
         members: [{id:"me", name:myName}].concat(
@@ -347,6 +348,34 @@
       debtExpenses().filter(function(x){ return x.id === id; })[0];
   }
   function debtById(id){ return (state.debts || []).filter(function(d){ return d.id === id; })[0]; }
+
+  // Deudas fuera de grupo con una persona, una por una, con lo que le queda a cada una.
+  // Un pago con settlesId salda esa deuda; los demás pagos van a las más viejas primero.
+  // leftover = lo pagado de más que no corresponde a ninguna deuda abierta.
+  function debtBreakdown(key){
+    // state.debts va de la más nueva a la más vieja: a igual fecha, primero la anotada antes.
+    var all = state.debts || [];
+    var list = all.filter(function(d){ return personKey(otherSide(d)) === key; })
+      .sort(function(a, b){ return a.date.localeCompare(b.date) || all.indexOf(b) - all.indexOf(a); });
+    var items = [], byId = {}, leftover = 0;
+    list.forEach(function(d){
+      if(d.kind === "pago") return;
+      var it = {debt:d, sign: d.creditor.me ? 1 : -1, remaining:d.amount};
+      items.push(it); byId[d.id] = it;
+    });
+    var pagos = list.filter(function(d){ return d.kind === "pago"; });
+    pagos.filter(function(p){ return p.settlesId; }).concat(pagos.filter(function(p){ return !p.settlesId; })).forEach(function(p){
+      var amt = p.amount, sign = p.creditor.me ? 1 : -1;
+      function take(it){
+        if(amt <= 0.004 || it.sign !== sign) return;
+        var x = Math.min(amt, it.remaining); it.remaining -= x; amt -= x;
+      }
+      if(p.settlesId && byId[p.settlesId]) take(byId[p.settlesId]);
+      items.forEach(take);
+      if(amt > 0.004) leftover -= sign * amt;
+    });
+    return {items:items, byId:byId, leftover:leftover};
+  }
 
   // ---------------- amigos: saldo por persona (grupos + fuera de grupo) ----------------
   function memberObj(id){ return state.members.filter(function(m){ return m.id === id; })[0]; }
@@ -834,7 +863,8 @@
       kind: d.kind, date: d.date, amount: d.amount,
       description: d.description || "", category_id: d.categoryId || null,
       creditor_user: u(d.creditor), creditor_name: n(d.creditor),
-      debtor_user: u(d.debtor), debtor_name: n(d.debtor)
+      debtor_user: u(d.debtor), debtor_name: n(d.debtor),
+      note: d.note || null, settles_id: d.settlesId || null
     };
   }
   function saveDebt(d, isUpdate){
@@ -845,9 +875,16 @@
       state.debts.unshift(d);
     }
     return persist(function(){
-      return isUpdate
-        ? sb.from("debts").update(debtToRow(d)).eq("id", d.id)
-        : sb.from("debts").insert(Object.assign({id:d.id}, debtToRow(d)));
+      function send(row){
+        return isUpdate
+          ? sb.from("debts").update(row).eq("id", d.id)
+          : sb.from("debts").insert(Object.assign({id:d.id}, row));
+      }
+      var row = debtToRow(d);
+      return send(row).then(function(r){
+        if(r.error && /note|settles_id/.test(r.error.message || "")){ delete row.note; delete row.settles_id; return send(row); }
+        return r;
+      });
     });
   }
   function deleteDebt(id){
@@ -1711,10 +1748,23 @@
     return net > 0 ? {text:"te debe " + money(net), cls:"positive"} : {text:"le debés " + money(-net), cls:"negative"};
   }
   // Partes del saldo con esa persona: cada grupo en común + "Sin grupo" (deudas).
-  function friendParts(f){
+  function friendParts(f, detailed){
     var parts = f.parts.map(function(p){ return {label:p.name, net:p.net, groupId:p.groupId, memberId:p.memberId}; });
-    if(f.debtCount) parts.push({label:"Sin grupo", net:f.debtNet, direct:true});
+    if(!f.debtCount) return parts;
+    if(!detailed){ parts.push({label:"Sin grupo", net:f.debtNet, direct:true}); return parts; }
+    var bd = debtBreakdown(f.key);
+    bd.items.filter(function(it){ return it.remaining >= 1; }).reverse().forEach(function(it){
+      parts.push({label:debtTitle(it.debt), sub:shortDate(it.debt.date), net:it.sign * it.remaining, direct:true, debtId:it.debt.id});
+    });
+    if(Math.abs(bd.leftover) >= 1) parts.push({label:"Pagos de más", net:bd.leftover, direct:true});
     return parts;
+  }
+  function debtTitle(d){
+    return d.description || (d.kind === "prestamo" ? "Préstamo" : d.kind === "pago" ? "Pago" : categoryName(d.categoryId));
+  }
+  function shortDate(date){
+    var p = date.split("-").map(Number);
+    return p[2] + " " + ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"][p[1]-1];
   }
 
   function renderDebts(){
@@ -1786,17 +1836,21 @@
   document.getElementById("personScreenBack").addEventListener("click", function(){ goBack(); });
   document.getElementById("personAddDebt").addEventListener("click", function(){ openDebtForm(null, currentPersonKey); });
 
-  function debtRowHTML(d){
+  function debtRowHTML(d, bd){
     var other = otherSide(d).name;
-    var title = d.description ||
-      (d.kind === "prestamo" ? "Préstamo" : d.kind === "pago" ? "Pago" : categoryName(d.categoryId));
+    var title = debtTitle(d);
     var sub;
     if(d.kind === "gasto") sub = d.creditor.me ? "Pagaste algo de " + other : other + " pagó algo tuyo";
     else if(d.kind === "prestamo") sub = d.creditor.me ? "Le prestaste a " + other : other + " te prestó";
     else sub = d.debtor.me ? "Le pagaste a " + other : other + " te pagó";
+    var target = d.kind === "pago" && d.settlesId ? debtById(d.settlesId) : null;
+    if(target) sub += " · por “" + debtTitle(target) + "”";
     var eff = debtEffect(d);
     var status = d.kind === "pago" ? "pago" : (eff > 0 ? "te debe" : "le debés");
     var cls = d.kind === "pago" ? "" : (eff > 0 ? "positive" : "negative");
+    var it = bd && bd.byId[d.id];
+    if(it && it.remaining < 1){ status = "saldada"; cls = "settled"; }
+    else if(it && it.remaining < d.amount - 0.004) status += " · queda " + money(it.remaining);
     var dot = d.kind === "pago" ? "var(--warn)" : (d.kind === "gasto" ? categoryColorVar(d.categoryId) : "var(--ink-soft)");
     return '<div class="ledger-row" data-debt="'+esc(d.id)+'">' +
       ledgerDateHTML(d.date) +
@@ -1804,9 +1858,10 @@
       '<div class="ledger-main">' +
         '<div class="ledger-title">'+esc(title)+'</div>' +
         '<div class="ledger-sub">'+esc(sub)+'</div>' +
+        (d.note ? '<div class="ledger-note">'+esc(d.note)+'</div>' : '') +
       '</div>' +
       '<div class="ledger-right">' +
-        '<div class="ledger-status '+cls+'">'+status+'</div>' +
+        '<div class="ledger-status '+cls+'">'+esc(status)+'</div>' +
         '<div class="ledger-amount '+cls+'">'+money(d.amount)+'</div>' +
       '</div>' +
     '</div>';
@@ -1825,13 +1880,14 @@
     var hero = document.getElementById("personHero");
     var net = f.net;
     var caption = Math.abs(net) < 1 ? "Están al día" : (net > 0 ? side.name + " te debe en total" : "Le debés a " + side.name + " en total");
-    var partsHTML = friendParts(f).map(function(x, i){
+    var parts = friendParts(f, true);
+    var partsHTML = parts.map(function(x, i){
       var t = shortNet(x.net);
       var btn = Math.abs(x.net) >= 1 ? '<button type="button" class="btn-ghost small-btn" data-settle="'+i+'">Liquidar</button>' : '';
       return '<div class="friend-part big">' +
         '<button type="button" class="friend-part-name" data-part="'+i+'">'+
           (x.direct ? '<span class="part-icon">⇆</span>' : avatarHTML(x.groupId, "tiny")) +
-          '<span>'+esc(x.label)+'</span></button>' +
+          '<span class="part-label"><span>'+esc(x.label)+'</span>'+(x.sub ? '<small>'+esc(x.sub)+'</small>' : '')+'</span></button>' +
         '<span class="friend-part-amt '+t.cls+'">'+esc(t.text)+'</span>' + btn +
       '</div>';
     }).join("");
@@ -1840,15 +1896,15 @@
       '<div class="amount">'+money(Math.abs(net))+'</div>' +
       '<div class="caption">'+esc(caption)+'</div>' +
       (partsHTML ? '<div class="friend-parts">'+partsHTML+'</div>' : '');
-    var parts = friendParts(f);
     hero.querySelectorAll("[data-part]").forEach(function(b){
       var x = parts[Number(b.getAttribute("data-part"))];
       if(!x.direct) b.addEventListener("click", function(){ openGroupScreen(x.groupId); });
+      else if(x.debtId) b.addEventListener("click", function(){ var d = debtById(x.debtId); if(d) openDebtForm(d); });
     });
     hero.querySelectorAll("[data-settle]").forEach(function(b){
       b.addEventListener("click", function(){
         var x = parts[Number(b.getAttribute("data-settle"))];
-        if(x.direct) openPersonSettle(side, x.net < 0, Math.abs(x.net));
+        if(x.direct) openPersonSettle(side, x.net < 0, Math.abs(x.net), x.debtId ? debtById(x.debtId) : null);
         else if(x.net > 0) openSettleModal(x.groupId, x.memberId, "me", x.net);
         else openSettleModal(x.groupId, "me", x.memberId, -x.net);
       });
@@ -1857,9 +1913,10 @@
     var rows = (state.debts || []).filter(function(d){ return personKey(otherSide(d)) === key; })
       .sort(function(a, b){ return b.date.localeCompare(a.date); });
     var movEl = document.getElementById("personMovements");
+    var bd = debtBreakdown(key);
     movEl.innerHTML = rows.length === 0
       ? '<div class="empty-state">No hay deudas fuera de grupo con '+esc(side.name)+'.</div>'
-      : rows.map(debtRowHTML).join("");
+      : rows.map(function(d){ return debtRowHTML(d, bd); }).join("");
     movEl.querySelectorAll("[data-debt]").forEach(function(row){
       row.addEventListener("click", function(){
         var d = debtById(row.getAttribute("data-debt"));
@@ -1943,6 +2000,7 @@
     document.getElementById("debtDate").value = d ? d.date : todayStr();
     document.getElementById("debtAmount").value = d ? d.amount : "";
     document.getElementById("debtDesc").value = d ? (d.description || "") : "";
+    document.getElementById("debtNote").value = d ? (d.note || "") : "";
     document.getElementById("debtCategory").value = (d && d.categoryId) || "cat-otros";
     document.getElementById("debtScreenTitle").textContent = d ? "Editar deuda" : "Anotar deuda";
     document.getElementById("debtDeleteBtn").hidden = !d;
@@ -1971,6 +2029,7 @@
       date: document.getElementById("debtDate").value || todayStr(),
       amount: amount,
       description: document.getElementById("debtDesc").value.trim(),
+      note: document.getElementById("debtNote").value.trim(),
       categoryId: kind === "gasto" ? document.getElementById("debtCategory").value : null,
       creditor: iOwe ? other : {me:true},
       debtor: iOwe ? {me:true} : other
@@ -1993,11 +2052,12 @@
   });
 
   // Liquidar con una persona: registra un pago que salda la deuda.
-  function openPersonSettle(side, iOwe, amount){
-    settleCtx = {person:side, iOwe:iOwe};
+  function openPersonSettle(side, iOwe, amount, debt){
+    settleCtx = {person:side, iOwe:iOwe, settlesId: debt ? debt.id : null};
     document.getElementById("settleFromLabel").textContent = iOwe ? "Vos" : side.name;
     document.getElementById("settleToLabel").textContent = iOwe ? side.name : "Vos";
-    document.getElementById("settleDescription").textContent = iOwe ? "Le pagaste a " + side.name : side.name + " te pagó a vos";
+    document.getElementById("settleDescription").textContent = (iOwe ? "Le pagaste a " + side.name : side.name + " te pagó a vos") +
+      (debt ? " · por “" + debtTitle(debt) + "”" : "");
     document.getElementById("settleAmount").value = amount.toFixed(2);
     settleModal.hidden = false;
   }
@@ -2211,6 +2271,7 @@
     if(settleCtx.person){
       saveDebt({
         id: uid(), kind: "pago", date: todayStr(), amount: amt, description: "", categoryId: null,
+        settlesId: settleCtx.settlesId || null, note: "",
         creditor: settleCtx.iOwe ? settleCtx.person : {me:true},
         debtor: settleCtx.iOwe ? {me:true} : settleCtx.person
       }, false);

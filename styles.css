@@ -158,7 +158,7 @@ h2.section-title{
   color:var(--ink-soft);
   font-weight:600;
 }
-input, select{
+input, select, textarea{
   font-family:inherit;
   font-size:0.95rem;
   color:var(--ink);
@@ -168,7 +168,7 @@ input, select{
   padding:10px 12px;
   width:100%;
 }
-input:focus, select:focus, button:focus-visible{
+input:focus, select:focus, textarea:focus, button:focus-visible{
   outline:2px solid var(--accent);
   outline-offset:1px;
 }
@@ -837,6 +837,15 @@ main{ padding-bottom:160px; }
   font-family:inherit; font-size:inherit; color:inherit; text-align:left; cursor:pointer;
 }
 .friend-part-amt{ white-space:nowrap; }
+.part-label{ display:flex; flex-direction:column; min-width:0; }
+.part-label > span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.part-label small{ font-size:0.72rem; color:var(--ink-soft); }
+.ledger-note{
+  font-size:0.76rem; color:var(--ink); margin-top:3px;
+  background:var(--surface-2); border-radius:6px; padding:3px 7px;
+  white-space:pre-wrap; word-break:break-word;
+}
+.ledger-status.settled{ color:var(--ink-soft); }
 .small-btn{ padding:5px 9px; font-size:0.78rem; }
 .part-icon{
   width:26px; height:26px; border-radius:8px;
