@@ -24,8 +24,7 @@
       </div>
     </div>
     <nav class="nav" aria-label="Secciones">
-      <button type="button" class="nav-btn active" data-view="resumen">Resumen</button>
-      <button type="button" class="nav-btn" data-view="cuentas">Cuentas</button>
+      <button type="button" class="nav-btn active" data-view="cuentas">Cuentas</button>
       <button type="button" class="nav-btn" data-view="movimientos">Movimientos <span class="badge" id="pendingBadge" hidden></span></button>
       <button type="button" class="nav-btn" data-view="tarjetas">Tarjetas</button>
       <button type="button" class="nav-btn" data-view="deudas">Deudas</button>
@@ -38,57 +37,14 @@
   </aside>
 
   <main class="main">
-    <!-- RESUMEN -->
-    <section class="view active" id="view-resumen">
-      <header class="view-head">
-        <h1>Resumen</h1>
-        <div class="month-nav">
-          <button type="button" class="icon-btn" id="prevMonth" aria-label="Mes anterior">‹</button>
-          <span id="monthLabel"></span>
-          <button type="button" class="icon-btn" id="nextMonth" aria-label="Mes siguiente">›</button>
-        </div>
-        <div class="head-actions">
-          <button type="button" class="btn ghost" data-new="ingreso">＋ Ingreso</button>
-          <button type="button" class="btn ghost" data-new="gasto">＋ Gasto</button>
-          <button type="button" class="btn ghost" data-new="transferencia">⇄ Transferencia</button>
-        </div>
-      </header>
-      <div class="kpis" id="kpis"></div>
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h2>Ingresos y gastos por mes</h2><div class="legend" id="ieLegend"></div></div>
-          <div id="ieChart"></div>
-        </div>
-        <div class="card">
-          <div class="card-head"><h2>Gastos del mes por categoría</h2></div>
-          <div id="catBars"></div>
-        </div>
-      </div>
-      <div class="grid-3">
-        <div class="card">
-          <div class="card-head"><h2>Cuentas</h2><button type="button" class="link" data-goto="cuentas">Ver todas</button></div>
-          <div id="accountsMini"></div>
-        </div>
-        <div class="card">
-          <div class="card-head"><h2>Deudas</h2><button type="button" class="link" data-goto="deudas">Ver todas</button></div>
-          <div id="debtsMini"></div>
-        </div>
-        <div class="card">
-          <div class="card-head"><h2>Para revisar</h2></div>
-          <div id="todo"></div>
-        </div>
-      </div>
-    </section>
-
     <!-- CUENTAS -->
-    <section class="view" id="view-cuentas">
+    <section class="view active" id="view-cuentas">
       <header class="view-head">
         <h1>Cuentas</h1>
         <div class="head-actions">
           <button type="button" class="btn" id="newAccountBtn">＋ Nueva cuenta</button>
         </div>
       </header>
-      <div class="kpis" id="worthKpis"></div>
       <div class="card"><div id="accountsTable"></div></div>
     </section>
 

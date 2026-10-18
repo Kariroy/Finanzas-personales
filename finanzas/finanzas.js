@@ -125,28 +125,6 @@
     return 0;
   }
   function debtEffect(d){ return d.amount * (d.creditor.me ? 1 : -1) * (d.kind === "pago" ? -1 : 1); }
-  function groupNetMe(g){
-    var b = {}; g.memberIds.forEach(function(id){ b[id] = 0; });
-    D.expenses.forEach(function(e){
-      if(e.scope !== "compartido" || e.groupId !== g.id) return;
-      b[e.paidBy] = (b[e.paidBy] || 0) + e.amount;
-      if(e.splitType === "completo") b[e.owedBy] = (b[e.owedBy] || 0) - e.amount;
-      else g.memberIds.forEach(function(id){ b[id] -= e.amount / (g.memberIds.length || 1); });
-    });
-    D.settlements.forEach(function(s){
-      if(s.groupId !== g.id) return;
-      b[s.from] = (b[s.from] || 0) + s.amount;
-      b[s.to] = (b[s.to] || 0) - s.amount;
-    });
-    return b.me || 0;
-  }
-  // Lo que te deben (+) o debés (−) a otros, sumando grupos y deudas.
-  function receivablesNet(){
-    var v = 0;
-    D.groups.forEach(function(g){ v += groupNetMe(g); });
-    D.debts.forEach(function(d){ if(counts(d)) v += debtEffect(d); });
-    return v;
-  }
 
   // ---- saldo con cada persona (como "Amigos" en el celular) ----
   function personKey(side){ return side.user ? "u:" + side.user : "n:" + String(side.name || "").trim().toLowerCase(); }
@@ -204,13 +182,6 @@
   }
 
   // ---------------- motor: costos, ingresos, saldos ----------------
-  // Reparte un monto en n cuotas mensuales desde el mes de la fecha.
-  function spread(date, amount, n){
-    n = Math.max(1, n || 1);
-    var out = [], ym = ymOf(date);
-    for(var i = 0; i < n; i++) out.push({ym: addMonths(ym, i), amount: amount / n});
-    return out;
-  }
   // Cuotas de una compra: de la cuota "from" a la "n", una por mes desde "start"
   // (por defecto, el mes de la compra). Las anteriores a "from" ya estaban pagas.
   function cuotaPlan(src){
@@ -221,58 +192,6 @@
   }
   function movPlan(m){ return cuotaPlan({date:m.date, total:m.amount, n:m.installments, from:m.instFrom, start:m.instStart}); }
 
-  // Todo lo que te cuesta (en $): tus gastos, tu parte de los compartidos, lo que otro
-  // pagó por vos y los gastos propios de finanzas (ej. en dólares). Las cuotas se reparten.
-  function costItems(){
-    var items = [];
-    D.expenses.forEach(function(e){
-      var mine = myShareOf(e);
-      if(!(mine > 0) || !counts(e)) return;
-      var l = link("expense", e.id);
-      var g = e.scope === "compartido" ? groupById(e.groupId) : null;
-      items.push({date:e.date, amount:mine, n:(l && l.installments) || 1, category:categoryName(e.categoryId),
-        desc:e.description || categoryName(e.categoryId), where: g ? g.name : "Personal"});
-    });
-    D.debts.forEach(function(d){
-      if(d.kind === "gasto" && d.debtor.me && counts(d)){
-        items.push({date:d.date, amount:d.amount, n:1, category:categoryName(d.categoryId),
-          desc:d.description || "Pagó " + (d.creditor.name || "otro"), where:"Deuda"});
-      }
-    });
-    D.movements.forEach(function(m){
-      if(m.kind !== "gasto") return;
-      var plan = movPlan(m);
-      items.push({date:m.date, amount:toUYU(plan.tracked, m.currency), n:m.installments || 1,
-        sched: plan.items.map(function(c){ return {ym:c.ym, amount:toUYU(c.amount, m.currency)}; }),
-        category:categoryName(m.category), desc:m.description || categoryName(m.category), where:"Finanzas"});
-    });
-    return items;
-  }
-  function costByMonth(){
-    var map = {};
-    costItems().forEach(function(it){
-      (it.sched || spread(it.date, it.amount, it.n)).forEach(function(p){ map[p.ym] = (map[p.ym] || 0) + p.amount; });
-    });
-    return map;
-  }
-  function costByCategory(ym){
-    var map = {};
-    costItems().forEach(function(it){
-      (it.sched || spread(it.date, it.amount, it.n)).forEach(function(p){
-        if(p.ym === ym) map[it.category] = (map[it.category] || 0) + p.amount;
-      });
-    });
-    return map;
-  }
-  function incomeByMonth(){
-    var map = {};
-    D.movements.forEach(function(m){
-      if(m.kind === "ingreso") map[ymOf(m.date)] = (map[ymOf(m.date)] || 0) + toUYU(m.amount, m.currency);
-    });
-    return map;
-  }
-
-  // Saldos por cuenta y moneda.
   // El saldo inicial de una cuenta es el de su fecha (balanceAt): lo anterior ya está
   // incluido ahí, así que asignarlo a la cuenta no vuelve a moverle el saldo.
   function countsForBalance(accId, item){
@@ -313,12 +232,6 @@
     return b;
   }
   function accountTotalUYU(bal){ return bal.UYU + bal.USD * rate(); }
-  function netWorth(){
-    var b = balances(), t = 0;
-    D.accounts.forEach(function(a){ if(b[a.id]) t += accountTotalUYU(b[a.id]); });
-    return {accounts:t, receivables:receivablesNet(), total:t + receivablesNet()};
-  }
-
   // Compras en cuotas de cada tarjeta.
   // Compras de una tarjeta (en cuotas o en 1 pago), con cada pago en su mes. "billed" = pagos
   // que ya vinieron hasta este mes (incluido); "remaining" = los que faltan.
@@ -588,8 +501,7 @@
   }
 
   // ---------------- vistas ----------------
-  var view = "resumen";
-  var selYM = currentYM();
+  var view = "cuentas";
   document.querySelectorAll(".nav-btn").forEach(function(b){
     b.addEventListener("click", function(){ showView(b.getAttribute("data-view")); });
   });
@@ -602,8 +514,6 @@
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id === "view-" + v); });
     render();
   }
-  $("prevMonth").addEventListener("click", function(){ selYM = addMonths(selYM, -1); render(); });
-  $("nextMonth").addEventListener("click", function(){ selYM = addMonths(selYM, 1); render(); });
 
   function render(){
     if(!D) return;
@@ -611,7 +521,6 @@
     var pending = ledgerRows().filter(function(r){ return r.pending && ymOf(r.date) === currentYM(); }).length;
     $("pendingBadge").hidden = !pending;
     $("pendingBadge").textContent = pending;
-    if(view === "resumen") renderResumen();
     if(view === "cuentas") renderCuentas();
     if(view === "movimientos") renderMovimientos();
     if(view === "tarjetas") renderTarjetas();
@@ -619,143 +528,20 @@
     if(view === "config") renderConfig();
   }
 
-  // ---- Resumen ----
+  // ---- piezas ----
   function kpi(label, value, sub, cls){
     return '<div class="kpi"><div class="kpi-label">'+esc(label)+'</div><div class="kpi-value '+(cls || "")+'">'+value+'</div>' +
       (sub ? '<div class="kpi-sub">'+sub+'</div>' : '') + '</div>';
   }
-  function renderResumen(){
-    $("monthLabel").textContent = monthLabel(selYM);
-    var inc = incomeByMonth(), cost = costByMonth();
-    var i = inc[selYM] || 0, c = cost[selYM] || 0, saved = i - c;
-    var nw = netWorth();
-    $("kpis").innerHTML =
-      kpi("Ingresos", esc(fmt(i, "UYU")), "en " + esc(MONTHS[Number(selYM.slice(5)) - 1])) +
-      kpi("Gastos", esc(fmt(c, "UYU")), "lo que te costó el mes") +
-      kpi("Ahorro", esc(fmt(saved, "UYU")), i > 0 ? Math.round(saved / i * 100) + "% de lo que ganaste" : "sin ingresos cargados", saved >= 0 ? "pos" : "neg") +
-      kpi("Patrimonio", esc(fmt(nw.total, "UYU")), "cuentas " + esc(fmt(nw.accounts, "UYU")) + " · " + (nw.receivables >= 0 ? "te deben " : "debés ") + esc(fmt(Math.abs(nw.receivables), "UYU")));
-
-    renderIEChart(inc, cost);
-    renderCatBars();
-    renderAccountsMini();
-    renderDebtsMini();
-    renderTodo();
-  }
-
-  function renderIEChart(inc, cost){
-    var months = [];
-    for(var k = 11; k >= 0; k--) months.push(addMonths(selYM, -k));
-    $("ieLegend").innerHTML = '<span><i class="sw inc"></i>Ingresos</span><span><i class="sw exp"></i>Gastos</span>';
-    var W = 640, H = 240, padL = 48, padR = 8, padT = 16, padB = 26;
-    var plotW = W - padL - padR, plotH = H - padT - padB;
-    var max = 0;
-    months.forEach(function(m){ max = Math.max(max, inc[m] || 0, cost[m] || 0); });
-    var top = niceMax(max);
-    var y = function(v){ return padT + plotH - v / top * plotH; };
-    var step = plotW / months.length, bw = Math.min(16, (step - 8) / 2);
-    var grid = "";
-    for(var g = 0; g <= 4; g++){
-      var gv = top * g / 4;
-      grid += '<line x1="'+padL+'" x2="'+(W - padR)+'" y1="'+y(gv)+'" y2="'+y(gv)+'" class="grid'+(g === 0 ? " base" : "")+'"/>' +
-        '<text x="'+(padL - 6)+'" y="'+(y(gv) + 3.5)+'" class="axis" text-anchor="end">'+fmtShort(gv)+'</text>';
-    }
-    var bars = months.map(function(m, i){
-      var cx = padL + i * step + step / 2;
-      var vi = inc[m] || 0, vc = cost[m] || 0;
-      return '<g class="col'+(m === selYM ? " sel" : "")+'" data-ym="'+m+'" tabindex="0" role="button" aria-label="'+esc(monthLabel(m) + ": ingresos " + fmt(vi, "UYU") + ", gastos " + fmt(vc, "UYU"))+'">' +
-        '<rect class="hit" x="'+(padL + i * step)+'" y="'+padT+'" width="'+step+'" height="'+(plotH + padB)+'"/>' +
-        barPath(cx - bw - 1, bw, y(vi), padT + plotH, "inc") +
-        barPath(cx + 1, bw, y(vc), padT + plotH, "exp") +
-        '<text x="'+cx+'" y="'+(H - 8)+'" class="axis" text-anchor="middle">'+shortMonth(m)+'</text>' +
-      '</g>';
-    }).join("");
-    $("ieChart").innerHTML = '<div class="chart-wrap"><svg viewBox="0 0 '+W+' '+H+'" class="chart" role="img" aria-label="Ingresos y gastos por mes">' +
-      grid + bars + '</svg><div class="tip" hidden></div></div>';
-    var tip = $("ieChart").querySelector(".tip"), wrap = $("ieChart").querySelector(".chart-wrap");
-    $("ieChart").querySelectorAll(".col").forEach(function(col){
-      var m = col.getAttribute("data-ym");
-      function show(){
-        var vi = inc[m] || 0, vc = cost[m] || 0;
-        tip.innerHTML = '<b>'+esc(monthLabel(m))+'</b><div><i class="sw inc"></i>Ingresos '+esc(fmt(vi, "UYU"))+'</div>' +
-          '<div><i class="sw exp"></i>Gastos '+esc(fmt(vc, "UYU"))+'</div><div class="muted">Ahorro '+esc(fmt(vi - vc, "UYU"))+'</div>';
-        tip.hidden = false;
-        var r = col.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
-        tip.style.left = Math.max(0, Math.min(r.left - wr.left + r.width / 2 - tip.offsetWidth / 2, wr.width - tip.offsetWidth)) + "px";
-      }
-      function hide(){ tip.hidden = true; }
-      col.addEventListener("mouseenter", show); col.addEventListener("focus", show);
-      col.addEventListener("mouseleave", hide); col.addEventListener("blur", hide);
-      col.addEventListener("click", function(){ selYM = m; render(); });
-    });
-  }
-  function barPath(x, w, top, base, cls){
-    var h = base - top;
-    if(h <= 0.5) return "";
-    var r = Math.min(4, w / 2, h);
-    return '<path class="bar '+cls+'" d="M'+x+' '+base+' V'+(top + r)+' Q'+x+' '+top+' '+(x + r)+' '+top+' H'+(x + w - r)+' Q'+(x + w)+' '+top+' '+(x + w)+' '+(top + r)+' V'+base+' Z"/>';
-  }
-  function niceMax(v){
-    if(v <= 0) return 1000;
-    var p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p;
-    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
-  }
-
-  function renderCatBars(){
-    var map = costByCategory(selYM);
-    var cats = Object.keys(map).sort(function(a, b){ return map[b] - map[a]; });
-    var max = cats.length ? map[cats[0]] : 1, total = cats.reduce(function(s, c){ return s + map[c]; }, 0);
-    $("catBars").innerHTML = cats.length === 0 ? '<p class="empty">Sin gastos en ' + esc(monthLabel(selYM)) + '.</p>' :
-      cats.map(function(c){
-        return '<div class="hbar"><span class="hbar-name">'+esc(c)+'</span>' +
-          '<span class="hbar-track"><span style="width:'+Math.max(2, map[c] / max * 100)+'%"></span></span>' +
-          '<span class="hbar-val">'+esc(fmt(map[c], "UYU"))+'</span><span class="hbar-pct">'+Math.round(map[c] / total * 100)+'%</span></div>';
-      }).join("");
-  }
-
-  function balanceCells(a, bal){
-    var parts = [];
-    if(a.currency !== "USD") parts.push(fmt(bal.UYU, "UYU"));
-    if(a.currency !== "UYU") parts.push(fmt(bal.USD, "USD"));
-    return parts;
-  }
-  function renderAccountsMini(){
-    var b = balances();
-    var accs = D.accounts.filter(function(a){ return !a.archived; });
-    $("accountsMini").innerHTML = accs.length === 0
-      ? '<p class="empty">Todavía no tenés cuentas. <button type="button" class="link" id="miniNewAcc">Crear la primera</button></p>'
-      : '<table class="tbl"><tbody>' + accs.map(function(a){
-          var bal = b[a.id];
-          return '<tr><td><b>'+esc(a.name)+'</b><div class="muted">'+esc(kindName(a.kind))+'</div></td>' +
-            '<td class="num">'+balanceCells(a, bal).map(function(s){ return '<div class="'+(s.indexOf("−") === 0 ? "neg" : "")+'">'+esc(s)+'</div>'; }).join("")+'</td></tr>';
-        }).join("") + '</tbody></table>';
-    var n = $("miniNewAcc"); if(n) n.addEventListener("click", function(){ openAccount(null); });
-  }
   function kindName(k){ var x = ACCOUNT_KINDS.filter(function(o){ return o.id === k; })[0]; return x ? x.name : k; }
 
-  function renderTodo(){
-    var rows = ledgerRows().filter(function(r){ return r.pending; });
-    var month = rows.filter(function(r){ return ymOf(r.date) === selYM; });
-    var items = [];
-    if(D.accounts.length === 0) items.push('Creá tus <b>cuentas</b> (banco, efectivo, tarjeta, ahorro en dólares) para seguir los saldos.');
-    if(month.length) items.push('<b>'+month.length+' movimiento'+(month.length === 1 ? "" : "s")+'</b> de '+esc(monthLabel(selYM))+' sin cuenta asignada. <button type="button" class="link" id="todoPending">Asignar</button>');
-    else if(rows.length) items.push(rows.length + ' movimientos anteriores sin cuenta. <button type="button" class="link" id="todoPendingAll">Ver</button>');
-    if(!incomeByMonth()[selYM]) items.push('No cargaste <b>ingresos</b> en '+esc(monthLabel(selYM))+'. <button type="button" class="link" data-new="ingreso">Cargar</button>');
-    $("todo").innerHTML = items.length ? '<ul class="todo">' + items.map(function(t){ return '<li>'+t+'</li>'; }).join("") + '</ul>' : '<p class="empty">Todo en orden ✓</p>';
-    var tp = $("todoPending"); if(tp) tp.addEventListener("click", function(){ filters.month = selYM; filters.pending = true; showView("movimientos"); });
-    var ta = $("todoPendingAll"); if(ta) ta.addEventListener("click", function(){ filters.month = "all"; filters.pending = true; showView("movimientos"); });
-    bindNewButtons($("todo"));
-  }
 
   // ---- Cuentas ----
   function renderCuentas(){
-    var b = balances(), nw = netWorth();
+    var b = balances();
+    // Totales de las cuentas en uso (las archivadas no suman).
     var uyu = 0, usd = 0;
-    D.accounts.forEach(function(a){ if(b[a.id]){ uyu += b[a.id].UYU; usd += b[a.id].USD; } });
-    $("worthKpis").innerHTML =
-      kpi("En pesos", esc(fmt(uyu, "UYU"))) +
-      kpi("En dólares", esc(fmt(usd, "USD")), "≈ " + esc(fmt(usd * rate(), "UYU")) + " a $ " + rate()) +
-      kpi(nw.receivables >= 0 ? "Te deben" : "Debés", esc(fmt(Math.abs(nw.receivables), "UYU")), "grupos y deudas") +
-      kpi("Patrimonio", esc(fmt(nw.total, "UYU")), "todo sumado en pesos", nw.total >= 0 ? "pos" : "neg");
+    D.accounts.forEach(function(a){ if(b[a.id] && !a.archived){ uyu += b[a.id].UYU; usd += b[a.id].USD; } });
     var accs = D.accounts.slice().sort(function(a, b2){ return (a.archived - b2.archived) || (a.sort - b2.sort); });
     $("accountsTable").innerHTML = accs.length === 0 ? '<p class="empty">Creá tu primera cuenta con “＋ Nueva cuenta”.</p>' :
       '<table class="tbl"><thead><tr><th>Cuenta</th><th>Tipo</th><th class="num">Saldo $</th><th class="num">Saldo US$</th><th class="num">Total en $</th><th></th></tr></thead><tbody>' +
@@ -767,7 +553,10 @@
           '<td class="num '+(bal.USD < 0 ? "neg" : "")+'">'+(a.currency !== "UYU" ? esc(fmt(bal.USD, "USD")) : "—")+'</td>' +
           '<td class="num">'+esc(fmt(accountTotalUYU(bal), "UYU"))+'</td>' +
           '<td class="num"><button type="button" class="link" data-acc-edit="'+a.id+'">Editar</button></td></tr>';
-      }).join("") + '</tbody></table>';
+      }).join("") + '</tbody><tfoot><tr><td colspan="2">Total</td>' +
+        '<td class="num '+(uyu < 0 ? "neg" : "")+'">'+esc(fmt(uyu, "UYU"))+'</td>' +
+        '<td class="num '+(usd < 0 ? "neg" : "")+'">'+esc(fmt(usd, "USD"))+'</td>' +
+        '<td class="num">'+esc(fmt(uyu + usd * rate(), "UYU"))+'</td><td></td></tr></tfoot></table>';
     $("accountsTable").querySelectorAll("[data-acc-edit]").forEach(function(btn){
       btn.addEventListener("click", function(){ openAccount(accountById(btn.getAttribute("data-acc-edit"))); });
     });
@@ -898,13 +687,6 @@
   // ---- Deudas ----
   function settled(v){ return Math.abs(v) < 0.5; }
   function partText(p){ return p.name + ": " + (settled(p.net) ? "al día" : (p.net > 0 ? "te debe " : "le debés ") + fmt(Math.abs(p.net), "UYU")); }
-  function renderDebtsMini(){
-    var people = peopleBalances().filter(function(p){ return !settled(p.net); });
-    $("debtsMini").innerHTML = people.length === 0 ? '<p class="empty">Estás al día con todos ✓</p>' :
-      '<ul class="mini-list">' + people.slice(0, 6).map(function(p){
-        return '<li><span>'+esc(p.side.name)+'</span><span class="'+(p.net > 0 ? "pos" : "neg")+'">'+(p.net > 0 ? "te debe " : "le debés ")+esc(fmt(Math.abs(p.net), "UYU"))+'</span></li>';
-      }).join("") + '</ul>';
-  }
   function describeDebt(d){
     var o = otherSide(d).name;
     if(d.kind === "prestamo") return d.creditor.me ? "Le prestaste a " + o : o + " te prestó";
