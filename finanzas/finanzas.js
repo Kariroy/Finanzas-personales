@@ -101,6 +101,9 @@
   function link(kind, id){ return D.links[kind + ":" + id]; }
 
   // ---- lo que viene del Libro de Gastos ----
+  // "Contar desde" (Configuración del celular) y "solo registro": se ven pero no suman
+  // en gastos ni en deudas. Los saldos de las cuentas no cambian: esa plata sí se movió.
+  function counts(item){ return !item.ignored && (!D.countFrom || item.date >= D.countFrom); }
   function myShareOf(e){
     if(e.scope !== "compartido") return e.amount;
     var g = groupById(e.groupId);
@@ -141,7 +144,7 @@
   function receivablesNet(){
     var v = 0;
     D.groups.forEach(function(g){ v += groupNetMe(g); });
-    D.debts.forEach(function(d){ v += debtEffect(d); });
+    D.debts.forEach(function(d){ if(counts(d)) v += debtEffect(d); });
     return v;
   }
 
@@ -189,6 +192,7 @@
       });
     });
     D.debts.forEach(function(d){
+      if(!counts(d)) return;
       var en = entry(otherSide(d)), v = debtEffect(d);
       en.debtNet += v; en.debtCount++; en.net += v;
     });
@@ -213,14 +217,14 @@
     var items = [];
     D.expenses.forEach(function(e){
       var mine = myShareOf(e);
-      if(!(mine > 0)) return;
+      if(!(mine > 0) || !counts(e)) return;
       var l = link("expense", e.id);
       var g = e.scope === "compartido" ? groupById(e.groupId) : null;
       items.push({date:e.date, amount:mine, n:(l && l.installments) || 1, category:categoryName(e.categoryId),
         desc:e.description || categoryName(e.categoryId), where: g ? g.name : "Personal"});
     });
     D.debts.forEach(function(d){
-      if(d.kind === "gasto" && d.debtor.me){
+      if(d.kind === "gasto" && d.debtor.me && counts(d)){
         items.push({date:d.date, amount:d.amount, n:1, category:categoryName(d.categoryId),
           desc:d.description || "Pagó " + (d.creditor.name || "otro"), where:"Deuda"});
       }
@@ -409,7 +413,7 @@
     if(!shared || !shared.members){ shared = demoShared(); try{ localStorage.setItem(LS_SHARED, JSON.stringify(shared)); }catch(e){} }
     if(!fin || !fin.accounts){ fin = demoFin(shared); saveLocalFin(fin); }
     D = {
-      me:"Vos", members:shared.members || [], groups:shared.groups || [], expenses:shared.expenses || [],
+      me:"Vos", countFrom:shared.countFrom || null, members:shared.members || [], groups:shared.groups || [], expenses:shared.expenses || [],
       settlements:shared.settlements || [], debts:shared.debts || [],
       accounts:fin.accounts, movements:fin.movements, links:fin.links || {}, settings:fin.settings || emptyFin().settings
     };
@@ -444,6 +448,7 @@
       var fs = res[8].data;
       D = {
         me: meta.name || meta.full_name || (user.email || "").split("@")[0],
+        countFrom: meta.count_from || null,
         members: memberRows.filter(function(m){ return !mine[m.id]; }).map(function(m){ return {id:m.id, name:m.name, userId:m.user_id}; }),
         groups: res[0].data.map(function(g){
           return {id:g.id, name:g.name, memberIds: memberRows.filter(function(m){ return m.group_id === g.id; }).map(function(m){ return loc(m.id); })};
@@ -452,7 +457,7 @@
           var shared = !!r.group_id;
           return {id:r.id, date:r.date, amount:Number(r.amount), description:r.description || "", categoryId:r.category_id,
             scope: shared ? "compartido" : "personal", paidBy: shared ? loc(r.paid_by) : "me",
-            groupId:r.group_id, splitType:r.split_type, owedBy: loc(r.owed_by), createdAt:r.created_at};
+            groupId:r.group_id, splitType:r.split_type, owedBy: loc(r.owed_by), createdAt:r.created_at, ignored:!!r.ignored};
         }),
         settlements: res[3].data.map(function(r){
           return {id:r.id, groupId:r.group_id, from:loc(r.from_member), to:loc(r.to_member), amount:Number(r.amount), date:r.date, createdAt:r.created_at};
@@ -460,7 +465,7 @@
         debts: res[4].data.map(function(r){
           return {id:r.id, kind:r.kind, date:r.date, amount:Number(r.amount), description:r.description || "", categoryId:r.category_id,
             creditor: side(r.creditor_user, r.creditor_name), debtor: side(r.debtor_user, r.debtor_name), createdAt:r.created_at,
-            note:r.note || "", settlesId:r.settles_id || null};
+            note:r.note || "", settlesId:r.settles_id || null, ignored:!!r.ignored};
         }),
         accounts: res[5].data.map(function(r){
           return {id:r.id, name:r.name, kind:r.kind, currency:r.currency, initialUYU:Number(r.initial_uyu), initialUSD:Number(r.initial_usd), archived:r.archived, sort:r.sort, balanceAt:r.balance_at || null};
@@ -902,7 +907,7 @@
         var cash = debtCash(d), l = link("debt", d.id);
         var acc = cash ? '<select data-debt-acc="'+d.id+'">'+accountOptions("Sin cuenta").map(function(o){ return '<option value="'+o[0]+'"'+((l && l.accountId || "") === o[0] ? " selected" : "")+'>'+esc(o[1])+'</option>'; }).join("")+'</select>'
           : '<span class="muted small">no movió tu plata</span>';
-        return '<tr><td class="nowrap">'+esc(dayLabel(d.date))+'</td><td>'+esc(describeDebt(d))+'</td><td>'+esc(d.description || "")+(d.note ? '<div class="note">'+esc(d.note)+'</div>' : '')+'</td>' +
+        return '<tr class="'+(counts(d) ? "" : "archived")+'"><td class="nowrap">'+esc(dayLabel(d.date))+'</td><td>'+esc(describeDebt(d))+(counts(d) ? '' : ' <span class="muted small">(registro)</span>')+'</td><td>'+esc(d.description || "")+(d.note ? '<div class="note">'+esc(d.note)+'</div>' : '')+'</td>' +
           '<td class="num">'+esc(fmt(d.amount, "UYU"))+'</td><td>'+acc+'</td>' +
           '<td class="num"><button type="button" class="link" data-debt-edit="'+d.id+'">Editar</button></td></tr>';
       }).join("") + '</tbody></table>';
@@ -1021,7 +1026,8 @@
       description:$("debtDesc").value.trim(), categoryId: debtKind === "gasto" && debtDir === "el" ? $("debtCategory").value : null,
       creditor: meIsCreditor ? {me:true} : other, debtor: meIsCreditor ? other : {me:true},
       createdAt: editingDebt ? editingDebt.createdAt : new Date().toISOString(),
-      note: $("debtNote").value.trim(), settlesId: editingDebt ? editingDebt.settlesId || null : null
+      note: $("debtNote").value.trim(), settlesId: editingDebt ? editingDebt.settlesId || null : null,
+      ignored: editingDebt ? !!editingDebt.ignored : false
     };
     var isNew = !editingDebt;
     if(isNew) D.debts.unshift(d);

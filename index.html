@@ -292,6 +292,7 @@
             <textarea id="debtNote" rows="2" maxlength="500" placeholder="ej: me lo devuelve en cuotas de $5.000"></textarea>
           </div>
           <p class="field-hint" id="debtHint"></p>
+          <label class="fin-toggle" id="debtIgnoredRow" hidden><input type="checkbox" id="debtIgnored"> <span>Solo registro: no sumar en lo que se deben</span></label>
           <button class="btn-primary" id="debtSaveBtn" type="button">Guardar</button>
           <button class="btn-ghost" id="debtDeleteBtn" type="button" hidden>Eliminar</button>
         </div>
@@ -354,6 +355,7 @@
             <input type="number" id="cantidad" placeholder="$ 0" step="0.01" min="0" inputmode="decimal" enterkeyhint="done">
           </div>
 
+          <label class="fin-toggle" id="expIgnoredRow" hidden><input type="checkbox" id="expIgnored"> <span>Solo registro: no sumar en el Resumen</span></label>
           <button class="btn-primary" id="saveBtn" type="button">Guardar gasto</button>
         </div>
       </div>
@@ -420,6 +422,16 @@
             <input type="text" id="joinCodeInput" placeholder="ej: 3F9A1C2B" autocapitalize="characters" maxlength="8">
           </div>
           <button class="btn-ghost" id="joinGroupBtn" type="button" style="margin-top:12px;width:100%;">Unirme</button>
+        </div>
+      </div>
+      <div class="settings-section" id="countFromBox">
+        <h4>Contar desde</h4>
+        <p class="hint">Lo anterior a esta fecha queda como registro: se sigue viendo, pero no suma en las deudas fuera de grupo ni en el Resumen. Solo cambia lo que ves vos.</p>
+        <div class="count-from-row">
+          <input type="date" id="countFromInput" aria-label="Contar desde">
+          <button type="button" class="hdr-btn hdr-ghost" id="countFromToday">Hoy</button>
+          <button type="button" class="hdr-btn hdr-ghost" id="countFromTomorrow">Mañana</button>
+          <button type="button" class="hdr-btn hdr-ghost" id="countFromClear" hidden>Contar todo</button>
         </div>
       </div>
       <div class="settings-section" id="finBox">

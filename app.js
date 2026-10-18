@@ -198,7 +198,7 @@
             description: r.description || "", categoryId: r.category_id,
             creditor: side(r.creditor_user, r.creditor_name),
             debtor: side(r.debtor_user, r.debtor_name),
-            note: r.note || "", settlesId: r.settles_id || null
+            note: r.note || "", settlesId: r.settles_id || null, ignored: !!r.ignored
           };
         }),
         members: [{id:"me", name:myName}].concat(
@@ -225,7 +225,8 @@
             description: r.description || "",
             categoryId: r.category_id,
             scope: shared ? "compartido" : "personal",
-            paidBy: shared ? toLocalMember(r.paid_by) : "me"
+            paidBy: shared ? toLocalMember(r.paid_by) : "me",
+            ignored: !!r.ignored
           };
           if(shared){
             e.groupId = r.group_id;
@@ -260,6 +261,10 @@
       paid_by: shared ? toRemoteMember(e.paidBy, e.groupId) : null,
       owed_by: shared && e.splitType === "completo" ? toRemoteMember(e.owedBy, e.groupId) : null
     };
+  }
+  function withIgnored(row, item, was){
+    if(item.ignored || was) row.ignored = !!item.ignored;
+    return row;
   }
 
   // Guarda un cambio: en modo local escribe localStorage; en Supabase corre la
@@ -314,6 +319,18 @@
     return state.groups.filter(function(g){return g.id===id;})[0];
   }
 
+  // ---------------- contar desde / solo registro ----------------
+  // Lo anterior a "contar desde" y lo marcado como solo registro se ve, pero no suma
+  // en los saldos de deudas ni en el Resumen. La fecha es de cada usuario.
+  function countFrom(){
+    if(REMOTE) return (session && session.user && session.user.user_metadata && session.user.user_metadata.count_from) || null;
+    return state.countFrom || null;
+  }
+  function counts(item){
+    var cf = countFrom();
+    return !item.ignored && (!cf || item.date >= cf);
+  }
+
   // ---------------- deudas: helpers ----------------
   // Una deuda tiene acreedor y deudor; uno de los dos sos vos ({me:true}) y el otro
   // es un usuario ({user, name}) o un nombre suelto ({name}).
@@ -346,7 +363,7 @@
   function debtExpenses(){
     return (state.debts || []).filter(function(d){ return d.kind === "gasto" && d.debtor.me; })
       .map(function(d){
-        return {id:"d:" + d.id, debtId:d.id, fromDebt:true, date:d.date, amount:d.amount,
+        return {id:"d:" + d.id, debtId:d.id, fromDebt:true, date:d.date, amount:d.amount, ignored:!!d.ignored,
           description:d.description, categoryId:d.categoryId || "cat-otros",
           scope:"personal", paidBy:"me", paidByName:d.creditor.name};
       });
@@ -366,7 +383,7 @@
   function debtBreakdown(key){
     // state.debts va de la más nueva a la más vieja: a igual fecha, primero la anotada antes.
     var all = state.debts || [];
-    var list = all.filter(function(d){ return personKey(otherSide(d)) === key; })
+    var list = all.filter(function(d){ return counts(d) && personKey(otherSide(d)) === key; })
       .sort(function(a, b){ return a.date.localeCompare(b.date) || all.indexOf(b) - all.indexOf(a); });
     var items = [], byId = {}, leftover = 0;
     list.forEach(function(d){
@@ -430,6 +447,7 @@
       });
     });
     (state.debts || []).forEach(function(d){
+      if(!counts(d)) return;
       var side = otherSide(d);
       var en = entry(personKey(side), side);
       var v = debtEffect(d);
@@ -665,7 +683,7 @@
     }
     updatePayRow();
   }
-  withSelect.addEventListener("change", onWithChange);
+  withSelect.addEventListener("change", function(){ onWithChange(); syncExpIgnored(); });
 
   function refreshMemberSelectsForGroup(groupId){
     var g = groupById(groupId);
@@ -776,8 +794,13 @@
   var saveBtn = document.getElementById("saveBtn");
   var expenseScreen = document.getElementById("expenseScreen");
 
+  var expIgnoredBox = document.getElementById("expIgnored");
+  function syncExpIgnored(){
+    document.getElementById("expIgnoredRow").hidden = !(editingId && withSelect.value === "individual");
+  }
   function resetForm(groupId){
     editingId = null;
+    expIgnoredBox.checked = false;
     saveBtn.textContent = "Guardar gasto";
     document.getElementById("expenseScreenTitle").textContent = "Nuevo gasto";
     cantidadInput.value = "";
@@ -787,6 +810,7 @@
     onWithChange();
     payInst.value = "1";
     updatePayRow();
+    syncExpIgnored();
   }
 
   // El mismo formulario se usa en la pestaña "Nuevo gasto" y en pantalla completa
@@ -828,7 +852,8 @@
     var exp = Object.assign({
       id: editing ? editing.id : uid(),
       scope: isCompartido ? "compartido" : "personal",
-      paidBy: isCompartido ? currentSplit.paidBy : "me"
+      paidBy: isCompartido ? currentSplit.paidBy : "me",
+      ignored: !isCompartido && !!editing && expIgnoredBox.checked
     }, base);
     if(isCompartido){
       exp.groupId = currentSplit.groupId;
@@ -844,9 +869,19 @@
       state.expenses.unshift(exp);
     }
     persist(function(){
-      return wasEditing
-        ? sb.from("expenses").update(expenseToRow(exp)).eq("id", exp.id)
-        : sb.from("expenses").insert(Object.assign({id:exp.id}, expenseToRow(exp)));
+      var row = withIgnored(expenseToRow(exp), exp, editing && editing.ignored);
+      function send(r){
+        return wasEditing
+          ? sb.from("expenses").update(r).eq("id", exp.id)
+          : sb.from("expenses").insert(Object.assign({id:exp.id}, r));
+      }
+      return send(row).then(function(r){
+        if(r.error && "ignored" in row && (/ignored/.test(r.error.message || "") || r.error.code === "42501")){
+          showToast("Falta correr supabase/13-solo-registro.sql");
+          delete row.ignored; return send(row);
+        }
+        return r;
+      });
     });
     saveExpenseLink(exp);
     var wasEdit = !!editingId;
@@ -879,6 +914,7 @@
     };
   }
   function saveDebt(d, isUpdate){
+    var old = isUpdate ? debtById(d.id) : null, prevIgnored = !!(old && old.ignored);
     if(isUpdate){
       var idx = state.debts.findIndex(function(x){ return x.id === d.id; });
       if(idx > -1) state.debts[idx] = d; else state.debts.unshift(d);
@@ -891,12 +927,14 @@
           ? sb.from("debts").update(row).eq("id", d.id)
           : sb.from("debts").insert(Object.assign({id:d.id}, row));
       }
-      var row = debtToRow(d);
+      var prev = isUpdate ? prevIgnored : false;
+      var row = withIgnored(debtToRow(d), d, prev);
       return send(row).then(function(r){
         // Falta correr la parte 12 (columna inexistente o sin permiso para editarla): guardar sin ellas.
-        if(r.error && (/note|settles_id/.test(r.error.message || "") || r.error.code === "42501")){
-          if(row.note || row.settles_id) showToast("Falta correr supabase/12-deudas-detalle.sql: se guardó sin comentario ni vínculo");
-          delete row.note; delete row.settles_id; return send(row);
+        if(r.error && (/note|settles_id|ignored/.test(r.error.message || "") || r.error.code === "42501")){
+          if("ignored" in row) showToast("Falta correr supabase/13-solo-registro.sql");
+          else if(row.note || row.settles_id) showToast("Falta correr supabase/12-deudas-detalle.sql: se guardó sin comentario ni vínculo");
+          delete row.note; delete row.settles_id; delete row.ignored; return send(row);
         }
         return r;
       });
@@ -923,6 +961,8 @@
       updateSplitSummaryText();
     }
     editingId = e.id;
+    expIgnoredBox.checked = !!e.ignored;
+    syncExpIgnored();
     loadExpenseLink(e);
     saveBtn.textContent = "Guardar cambios";
     document.getElementById("expenseScreenTitle").textContent = "Editar gasto";
@@ -1799,7 +1839,8 @@
     }
     document.getElementById("debtOverview").innerHTML =
       '<div class="overview-head">'+head+'</div>' +
-      '<div class="overview-sub">Sumando tus grupos en común y lo anotado fuera de grupo.</div>';
+      '<div class="overview-sub">Sumando tus grupos en común y lo anotado fuera de grupo' +
+        (countFrom() ? ' (fuera de grupo, desde el ' + esc(shortDate(countFrom())) + ')' : '') + '.</div>';
 
     // Solo quienes tienen algo pendiente; los que están al día no se muestran.
     people = people.filter(function(p){ return Math.abs(p.net) >= 1; });
@@ -1864,10 +1905,12 @@
     var status = d.kind === "pago" ? "pago" : (eff > 0 ? "te debe" : "le debés");
     var cls = d.kind === "pago" ? "" : (eff > 0 ? "positive" : "negative");
     var it = bd && bd.byId[d.id];
-    if(it && it.remaining < 1){ status = "saldada"; cls = "settled"; }
+    var record = !counts(d);
+    if(record){ status = "registro"; cls = "settled"; }
+    else if(it && it.remaining < 1){ status = "saldada"; cls = "settled"; }
     else if(it && it.remaining < d.amount - 0.004) status += " · queda " + money(it.remaining);
     var dot = d.kind === "pago" ? "var(--warn)" : (d.kind === "gasto" ? categoryColorVar(d.categoryId) : "var(--ink-soft)");
-    return '<div class="ledger-row" data-debt="'+esc(d.id)+'">' +
+    return '<div class="ledger-row'+(record ? " is-record" : "")+'" data-debt="'+esc(d.id)+'">' +
       ledgerDateHTML(d.date) +
       '<div class="ledger-dot" style="background:'+dot+'"></div>' +
       '<div class="ledger-main">' +
@@ -2016,6 +2059,8 @@
     document.getElementById("debtAmount").value = d ? d.amount : "";
     document.getElementById("debtDesc").value = d ? (d.description || "") : "";
     document.getElementById("debtNote").value = d ? (d.note || "") : "";
+    document.getElementById("debtIgnored").checked = !!(d && d.ignored);
+    document.getElementById("debtIgnoredRow").hidden = !d;
     document.getElementById("debtCategory").value = (d && d.categoryId) || "cat-otros";
     document.getElementById("debtScreenTitle").textContent = d ? "Editar deuda" : "Anotar deuda";
     document.getElementById("debtDeleteBtn").hidden = !d;
@@ -2045,6 +2090,7 @@
       amount: amount,
       description: document.getElementById("debtDesc").value.trim(),
       note: document.getElementById("debtNote").value.trim(),
+      ignored: !!editingDebtId && document.getElementById("debtIgnored").checked,
       categoryId: kind === "gasto" ? document.getElementById("debtCategory").value : null,
       creditor: iOwe ? other : {me:true},
       debtor: iOwe ? {me:true} : other
@@ -2350,7 +2396,8 @@
       .concat(state.expenses
         .filter(function(e){ return e.scope === "compartido"; })
         .map(function(e){ return {expense:e, amount:myShareOf(e) || 0, personal:false}; })
-        .filter(function(x){ return x.amount > 0; }));
+        .filter(function(x){ return x.amount > 0; }))
+      .filter(function(x){ return counts(x.expense); });
   }
 
   function renderMyOverview(){
@@ -2363,7 +2410,8 @@
     });
     document.getElementById("mySummary").innerHTML =
       '<div class="summary-left"><span class="summary-balance">Tus gastos</span>' +
-        '<span class="summary-sub">Personal '+money(pMonth)+' · Grupos '+money(gMonth)+'</span></div>' +
+        '<span class="summary-sub">Personal '+money(pMonth)+' · Grupos '+money(gMonth)+
+        (countFrom() ? ' · desde el ' + esc(shortDate(countFrom())) : '')+'</span></div>' +
       '<div class="summary-right"><span class="summary-label">Gastado en '+esc(monthName(ym))+'</span>' +
         '<span class="summary-amt">'+money(pMonth + gMonth)+'</span></div>';
 
@@ -2406,8 +2454,33 @@
   var settingsModal = document.getElementById("settingsModal");
   var meNameInput = document.getElementById("meNameInput");
 
+  var countFromInput = document.getElementById("countFromInput");
+  function setCountFrom(v){
+    v = v || null;
+    if(REMOTE){
+      if(session) session.user.user_metadata = Object.assign({}, session.user.user_metadata, {count_from:v});
+      sb.auth.updateUser({data:{count_from:v}}).then(function(r){ if(r.error){ console.error(r.error); showToast("No se pudo guardar. Revisá tu conexión."); } });
+    } else {
+      state.countFrom = v;
+      save();
+    }
+    document.getElementById("countFromClear").hidden = !v;
+    renderAll();
+    showToast(v ? "Se cuenta desde el " + shortDate(v) : "Se cuenta todo");
+  }
+  countFromInput.addEventListener("change", function(){ setCountFrom(countFromInput.value); });
+  document.getElementById("countFromTomorrow").addEventListener("click", function(){
+    var t = new Date(); t.setDate(t.getDate() + 1);
+    var v = t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
+    countFromInput.value = v; setCountFrom(v);
+  });
+  document.getElementById("countFromToday").addEventListener("click", function(){ countFromInput.value = todayStr(); setCountFrom(todayStr()); });
+  document.getElementById("countFromClear").addEventListener("click", function(){ countFromInput.value = ""; setCountFrom(null); });
+
   function openSettings(){
     meNameInput.value = memberName("me");
+    countFromInput.value = countFrom() || "";
+    document.getElementById("countFromClear").hidden = !countFrom();
     finEnabledBox.checked = finOn();
     document.getElementById("resetDataBtn").hidden = REMOTE;
     document.getElementById("signOutBtn").hidden = !REMOTE;

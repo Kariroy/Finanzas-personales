@@ -846,6 +846,9 @@ main{ padding-bottom:160px; }
   white-space:pre-wrap; word-break:break-word;
 }
 .ledger-status.settled{ color:var(--ink-soft); }
+.ledger-row.is-record{ opacity:0.55; }
+.count-from-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.count-from-row input{ flex:1 1 150px; width:auto; }
 .small-btn{ padding:5px 9px; font-size:0.78rem; }
 .part-icon{
   width:26px; height:26px; border-radius:8px;
