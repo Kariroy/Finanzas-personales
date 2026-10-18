@@ -28,6 +28,7 @@
       <button type="button" class="nav-btn" data-view="cuentas">Cuentas</button>
       <button type="button" class="nav-btn" data-view="movimientos">Movimientos <span class="badge" id="pendingBadge" hidden></span></button>
       <button type="button" class="nav-btn" data-view="tarjetas">Tarjetas</button>
+      <button type="button" class="nav-btn" data-view="deudas">Deudas</button>
       <button type="button" class="nav-btn" data-view="config">Configuración</button>
     </nav>
     <div class="side-foot">
@@ -63,10 +64,14 @@
           <div id="catBars"></div>
         </div>
       </div>
-      <div class="grid-2">
+      <div class="grid-3">
         <div class="card">
           <div class="card-head"><h2>Cuentas</h2><button type="button" class="link" data-goto="cuentas">Ver todas</button></div>
           <div id="accountsMini"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Deudas</h2><button type="button" class="link" data-goto="deudas">Ver todas</button></div>
+          <div id="debtsMini"></div>
         </div>
         <div class="card">
           <div class="card-head"><h2>Para revisar</h2></div>
@@ -113,6 +118,25 @@
     <section class="view" id="view-tarjetas">
       <header class="view-head"><h1>Tarjetas</h1></header>
       <div id="cards"></div>
+    </section>
+
+    <!-- DEUDAS -->
+    <section class="view" id="view-deudas">
+      <header class="view-head">
+        <h1>Deudas</h1>
+        <div class="head-actions">
+          <button type="button" class="btn" id="newDebtBtn">＋ Anotar deuda</button>
+        </div>
+      </header>
+      <div class="kpis three" id="debtKpis"></div>
+      <div class="card">
+        <div class="card-head"><h2>Por persona</h2><label class="check small"><input type="checkbox" id="debtShowAll"> Mostrar también a quienes están al día</label></div>
+        <div id="debtPeople"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Deudas fuera de grupo</h2><span class="muted small">Préstamos, cosas que pagó uno por el otro y devoluciones</span></div>
+        <div id="debtHistory"></div>
+      </div>
     </section>
 
     <!-- CONFIGURACIÓN -->
@@ -187,6 +211,42 @@
       <span class="spacer"></span>
       <button type="button" class="btn ghost" data-close>Cancelar</button>
       <button type="button" class="btn" id="movSave">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Deuda -->
+<div class="overlay" id="debtDialog" hidden>
+  <div class="dialog">
+    <h2 id="debtTitle">Anotar deuda</h2>
+    <div class="seg" id="debtKindSeg">
+      <button type="button" data-kind="prestamo">Préstamo</button>
+      <button type="button" data-kind="gasto">Pagó algo del otro</button>
+      <button type="button" data-kind="pago">Devolución</button>
+    </div>
+    <div class="row">
+      <div class="field"><label for="debtPerson">Con quién</label><select id="debtPerson"></select></div>
+      <div class="field" id="debtOtherField" hidden><label for="debtOther">Nombre</label><input type="text" id="debtOther" maxlength="40" placeholder="ej: Papá"></div>
+    </div>
+    <div class="seg" id="debtDirSeg">
+      <button type="button" data-dir="yo"></button>
+      <button type="button" data-dir="el"></button>
+    </div>
+    <div class="row">
+      <div class="field"><label for="debtAmount">Monto ($)</label><input type="number" id="debtAmount" step="0.01" min="0.01"></div>
+      <div class="field"><label for="debtDate">Fecha</label><input type="date" id="debtDate"></div>
+    </div>
+    <div class="row">
+      <div class="field" id="debtAccField"><label for="debtAccount" id="debtAccLabel">Cuenta</label><select id="debtAccount"></select></div>
+      <div class="field" id="debtCatField"><label for="debtCategory">Categoría</label><select id="debtCategory"></select></div>
+    </div>
+    <div class="field"><label for="debtDesc">Descripción</label><input type="text" id="debtDesc" maxlength="200"></div>
+    <p class="hint" id="debtHint"></p>
+    <div class="dialog-actions">
+      <button type="button" class="btn danger-ghost" id="debtDelete" hidden>Eliminar</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" data-close>Cancelar</button>
+      <button type="button" class="btn" id="debtSave">Guardar</button>
     </div>
   </div>
 </div>
