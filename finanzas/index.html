@@ -15,30 +15,14 @@
 </head>
 <body>
 <div class="layout">
-  <aside class="side">
-    <div class="brand">
-      <div class="brand-logo" aria-hidden="true">$</div>
-      <div>
-        <div class="brand-name">Finanzas</div>
-        <div class="brand-sub" id="whoami"></div>
-      </div>
-    </div>
-    <nav class="nav" aria-label="Secciones">
-      <button type="button" class="nav-btn active" data-view="cuentas">Cuentas</button>
-      <button type="button" class="nav-btn" data-view="deudas">Deudas</button>
-      <button type="button" class="nav-btn" data-view="config">Configuración</button>
-    </nav>
-    <div class="side-foot">
-      <a class="side-link" href="../">← Libro de Gastos</a>
-      <div class="mode-note" id="modeNote"></div>
-    </div>
-  </aside>
-
   <main class="main">
-    <!-- CUENTAS -->
+    <!-- CUENTAS (izquierda) Y DEUDAS (derecha) -->
     <section class="view active" id="view-cuentas">
+      <div class="dash">
+      <div class="dash-main">
       <header class="view-head">
         <h1>Cuentas</h1>
+        <button type="button" class="icon-btn gear" id="cfgBtn" aria-label="Configuración" title="Configuración">⚙</button>
         <div class="head-actions">
           <button type="button" class="btn" id="newAccountBtn">＋ Nueva cuenta</button>
         </div>
@@ -62,6 +46,21 @@
         <div class="bulk" id="bulkBar" hidden></div>
         <div id="ledger"></div>
       </details>
+      </div>
+      <aside class="dash-side">
+        <header class="view-head">
+          <h1>Deudas</h1>
+          <div class="head-actions">
+            <button type="button" class="btn" id="newDebtBtn">＋ Anotar deuda</button>
+          </div>
+        </header>
+        <div class="kpis three small" id="debtKpis"></div>
+        <div class="card">
+          <label class="check small show-all"><input type="checkbox" id="debtShowAll"> Mostrar también a quienes están al día</label>
+          <div id="debtPeople"></div>
+        </div>
+      </aside>
+      </div>
     </section>
 
     <!-- MOVIMIENTOS -->
@@ -71,43 +70,34 @@
       <div id="cards"></div>
     </section>
 
-    <!-- DEUDAS -->
-    <section class="view" id="view-deudas">
-      <header class="view-head">
-        <h1>Deudas</h1>
-        <div class="head-actions">
-          <button type="button" class="btn" id="newDebtBtn">＋ Anotar deuda</button>
-        </div>
-      </header>
-      <div class="kpis three" id="debtKpis"></div>
-      <div class="card">
-        <div class="card-head"><h2>Por persona</h2><label class="check small"><input type="checkbox" id="debtShowAll"> Mostrar también a quienes están al día</label></div>
-        <div id="debtPeople"></div>
-      </div>
-    </section>
-
-    <!-- CONFIGURACIÓN -->
-    <section class="view" id="view-config">
-      <header class="view-head"><h1>Configuración</h1></header>
-      <div class="card narrow">
-        <label class="switch-row">
-          <input type="checkbox" id="cfgEnabled">
-          <span><strong>Finanzas personales en el celular</strong><br>
-          <small>Suma "Ingreso" en Nuevo y te deja elegir de qué cuenta sale cada gasto.</small></span>
-        </label>
-        <div class="field">
-          <label for="cfgRate">Valor del dólar (pesos por US$ 1)</label>
-          <input type="number" id="cfgRate" step="0.01" min="0.01">
-          <small>Se usa para sumar pesos y dólares en los totales.</small>
-        </div>
-        <div class="field">
-          <label for="cfgIncomeCats">Categorías de ingreso (separadas por coma)</label>
-          <input type="text" id="cfgIncomeCats">
-        </div>
-        <button type="button" class="btn" id="cfgSave">Guardar</button>
-      </div>
-    </section>
+    <footer class="foot"><a href="../">← Libro de Gastos</a> · <span id="modeNote"></span></footer>
   </main>
+</div>
+
+<!-- Configuración -->
+<div class="overlay" id="cfgDialog" hidden>
+  <div class="dialog">
+    <h2>Configuración</h2>
+    <label class="switch-row">
+      <input type="checkbox" id="cfgEnabled">
+      <span><strong>Finanzas personales en el celular</strong><br>
+      <small>Suma "Ingreso" en Nuevo y te deja elegir de qué cuenta sale cada gasto.</small></span>
+    </label>
+    <div class="field">
+      <label for="cfgRate">Valor del dólar (pesos por US$ 1)</label>
+      <input type="number" id="cfgRate" step="0.01" min="0.01">
+      <small>Se usa para sumar pesos y dólares en los totales.</small>
+    </div>
+    <div class="field">
+      <label for="cfgIncomeCats">Categorías de ingreso (separadas por coma)</label>
+      <input type="text" id="cfgIncomeCats">
+    </div>
+    <div class="dialog-actions">
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" data-close>Cancelar</button>
+      <button type="button" class="btn" id="cfgSave">Guardar</button>
+    </div>
+  </div>
 </div>
 
 <!-- Login -->

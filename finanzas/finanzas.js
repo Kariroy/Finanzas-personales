@@ -502,32 +502,24 @@
   }
 
   // ---------------- vistas ----------------
+  // Una sola pantalla (Cuentas + Deudas); el detalle de una tarjeta se abre desde Cuentas.
   var view = "cuentas";
-  document.querySelectorAll(".nav-btn").forEach(function(b){
-    b.addEventListener("click", function(){ showView(b.getAttribute("data-view")); });
-  });
   document.querySelectorAll("[data-goto]").forEach(function(b){
     b.addEventListener("click", function(){ showView(b.getAttribute("data-goto")); });
   });
   function showView(v){
     view = v;
-    // El detalle de una tarjeta se abre desde Cuentas.
-    var navV = v === "tarjetas" ? "cuentas" : v;
-    document.querySelectorAll(".nav-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-view") === navV); });
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id === "view-" + v); });
     render();
   }
 
   function render(){
     if(!D) return;
-    $("whoami").textContent = D.me || "";
     var pending = ledgerRows().filter(function(r){ return r.pending && ymOf(r.date) === currentYM(); }).length;
     $("pendingBadge").hidden = !pending;
     $("pendingBadge").textContent = pending;
-    if(view === "cuentas"){ renderCuentas(); renderMovimientos(); }
+    if(view === "cuentas"){ renderCuentas(); renderMovimientos(); renderDeudas(); }
     if(view === "tarjetas") renderTarjetas();
-    if(view === "deudas") renderDeudas();
-    if(view === "config") renderConfig();
   }
 
   // ---- piezas ----
@@ -711,35 +703,35 @@
     var owed = 0, owe = 0;
     people.forEach(function(p){ if(!settled(p.net)){ if(p.net > 0) owed += p.net; else owe -= p.net; } });
     $("debtKpis").innerHTML =
-      kpi("Te deben", esc(fmt(owed, "UYU")), "suma de lo que te deben", "pos") +
-      kpi("Debés", esc(fmt(owe, "UYU")), "suma de lo que debés", owe > 0 ? "neg" : "") +
+      kpi("Te deben", esc(fmt(owed, "UYU")), "", "pos") +
+      kpi("Debés", esc(fmt(owe, "UYU")), "", owe > 0 ? "neg" : "") +
       kpi("Neto", esc(fmt(owed - owe, "UYU")), owed - owe >= 0 ? "a tu favor" : "en contra", owed - owe >= 0 ? "pos" : "neg");
 
     var shown = people.filter(function(p){ return showAll || !settled(p.net); });
     // Tocar a una persona despliega sus deudas fuera de grupo, una por una.
-    function debtRow(d){
+    function debtItem(d){
       var cash = debtCash(d), l = link("debt", d.id);
       var acc = cash ? '<select data-debt-acc="'+d.id+'">'+accountOptions("Sin cuenta").map(function(o){ return '<option value="'+o[0]+'"'+((l && l.accountId || "") === o[0] ? " selected" : "")+'>'+esc(o[1])+'</option>'; }).join("")+'</select>'
         : '<span class="muted small">no movió tu plata</span>';
-      return '<tr class="'+(counts(d) ? "" : "archived")+'"><td class="nowrap">'+esc(dayLabel(d.date))+'</td><td>'+esc(describeDebt(d))+(counts(d) ? '' : ' <span class="muted small">(registro)</span>')+'</td><td>'+esc(d.description || "")+(d.note ? '<div class="note">'+esc(d.note)+'</div>' : '')+'</td>' +
-        '<td class="num">'+esc(fmt(d.amount, "UYU"))+'</td><td>'+acc+'</td>' +
-        '<td class="num"><button type="button" class="link" data-debt-edit="'+d.id+'">Editar</button></td></tr>';
+      return '<li class="'+(counts(d) ? "" : "archived")+'"><div class="pd-top"><span>'+esc(dayLabel(d.date))+' · '+esc(describeDebt(d))+(counts(d) ? '' : ' <span class="muted small">(registro)</span>')+'</span><b>'+esc(fmt(d.amount, "UYU"))+'</b></div>' +
+        (d.description ? '<div>'+esc(d.description)+'</div>' : '') + (d.note ? '<div class="note">'+esc(d.note)+'</div>' : '') +
+        '<div class="pd-bottom">'+acc+'<button type="button" class="link" data-debt-edit="'+d.id+'">Editar</button></div></li>';
     }
-    $("debtPeople").innerHTML = shown.length === 0 ? '<p class="empty">Estás al día con todos ✓</p>' :
-      '<table class="tbl"><thead><tr><th>Persona</th><th>Detalle</th><th class="num">Saldo</th><th></th></tr></thead><tbody>' +
-      shown.map(function(p, i){
+    $("debtPeople").innerHTML = (shown.length === 0 ? '<p class="empty">Estás al día con todos ✓</p>' :
+      '<div class="people">' + shown.map(function(p, i){
         var parts = p.parts.filter(function(x){ return !settled(x.net) || p.parts.length === 1; });
         var mine = D.debts.filter(function(d){ return personKey(otherSide(d)) === p.key; })
           .sort(function(a, b){ return b.date.localeCompare(a.date); });
         var open = !!openPeople[p.key];
-        return '<tr><td>'+(mine.length ? '<button type="button" class="link strong person-toggle'+(open ? " open" : "")+'" data-person="'+i+'">'+esc(p.side.name)+'</button>' : '<strong>'+esc(p.side.name)+'</strong>')+'</td>' +
-          '<td><div class="parts">'+parts.map(function(x){ return '<span class="part">'+esc(partText(x))+'</span>'; }).join("")+'</div></td>' +
-          '<td class="num '+(settled(p.net) ? "" : (p.net > 0 ? "pos" : "neg"))+'">'+(settled(p.net) ? "al día" : esc((p.net > 0 ? "te debe " : "le debés ") + fmt(Math.abs(p.net), "UYU")))+'</td>' +
-          '<td class="num">'+(settled(p.debtNet) ? "" : '<button type="button" class="link" data-debt-pay="'+i+'">Anotar devolución</button>')+'</td></tr>' +
-          (open ? '<tr class="person-debts"><td colspan="4"><table class="tbl inner"><thead><tr><th>Fecha</th><th>Qué pasó</th><th>Descripción</th><th class="num">Monto</th><th>Cuenta</th><th></th></tr></thead><tbody>' +
-            mine.map(debtRow).join("") + '</tbody></table></td></tr>' : '');
-      }).join("") + '</tbody></table>' +
-      '<p class="muted small">Tocá a una persona para ver sus deudas fuera de grupo. Lo de los grupos se salda desde el celular (Amigos → la persona → Saldar).</p>';
+        return '<div class="person">' +
+          '<div class="person-row">'+(mine.length ? '<button type="button" class="link strong person-toggle'+(open ? " open" : "")+'" data-person="'+i+'">'+esc(p.side.name)+'</button>' : '<strong>'+esc(p.side.name)+'</strong>') +
+            '<span class="'+(settled(p.net) ? "muted" : (p.net > 0 ? "pos" : "neg"))+'"><b>'+(settled(p.net) ? "al día" : esc((p.net > 0 ? "te debe " : "le debés ") + fmt(Math.abs(p.net), "UYU")))+'</b></span></div>' +
+          '<div class="person-sub"><div class="parts">'+parts.map(function(x){ return '<span class="part">'+esc(partText(x))+'</span>'; }).join("")+'</div>' +
+            (settled(p.debtNet) ? '' : '<button type="button" class="link small" data-debt-pay="'+i+'">Anotar devolución</button>')+'</div>' +
+          (open ? '<ul class="person-debts">' + mine.map(debtItem).join("") + '</ul>' : '') +
+        '</div>';
+      }).join("") + '</div>') +
+      '<p class="muted small">Tocá a una persona para ver sus deudas fuera de grupo. Lo de los grupos se salda desde el celular.</p>';
     $("debtPeople").querySelectorAll("[data-person]").forEach(function(btn){
       btn.addEventListener("click", function(){
         var k = shown[Number(btn.getAttribute("data-person"))].key;
@@ -1000,8 +992,10 @@
     D.settings.usdRate = r;
     D.settings.incomeCategories = $("cfgIncomeCats").value.split(",").map(function(s){ return s.trim(); }).filter(Boolean);
     saveSettings().then(function(ok){ if(ok) toast("Guardado"); });
+    closeDialog($("cfgDialog"));
     render();
   });
+  $("cfgBtn").addEventListener("click", function(){ renderConfig(); openDialog($("cfgDialog")); });
 
   // ---------------- diálogo: movimiento ----------------
   var movDialog = $("movDialog"), editingMov = null, movKind = "ingreso";
