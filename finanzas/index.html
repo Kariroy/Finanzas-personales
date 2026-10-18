@@ -262,10 +262,11 @@
         <select id="accCurrency"><option value="UYU">Pesos</option><option value="USD">Dólares</option><option value="AMBAS">Pesos y dólares</option></select></div>
     </div>
     <div class="row">
-      <div class="field" id="accInitUyuField"><label for="accInitUyu">Saldo inicial $</label><input type="number" id="accInitUyu" step="0.01"></div>
-      <div class="field" id="accInitUsdField"><label for="accInitUsd">Saldo inicial US$</label><input type="number" id="accInitUsd" step="0.01"></div>
+      <div class="field"><label for="accSince">Saldo al día</label><input type="date" id="accSince"></div>
+      <div class="field" id="accInitUyuField"><label for="accInitUyu">Saldo $</label><input type="number" id="accInitUyu" step="0.01"></div>
+      <div class="field" id="accInitUsdField"><label for="accInitUsd">Saldo US$</label><input type="number" id="accInitUsd" step="0.01"></div>
     </div>
-    <p class="hint" id="accHint">Lo que había en la cuenta antes del primer movimiento que cargues. En una tarjeta, lo que ya debías va en negativo.</p>
+    <p class="hint" id="accHint">Lo que había en la cuenta ese día. Lo anterior lo podés asignar igual a la cuenta (para tus reportes), pero no cambia el saldo porque ya está incluido. En una tarjeta, lo que debías va en negativo.</p>
     <label class="check" id="accArchivedRow"><input type="checkbox" id="accArchived"> Archivada (no se usa más)</label>
     <div class="dialog-actions">
       <span class="spacer"></span>

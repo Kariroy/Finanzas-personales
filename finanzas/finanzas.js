@@ -257,30 +257,39 @@
   }
 
   // Saldos por cuenta y moneda.
+  // El saldo inicial de una cuenta es el de su fecha (balanceAt): lo anterior ya está
+  // incluido ahí, así que asignarlo a la cuenta no vuelve a moverle el saldo.
+  function countsForBalance(accId, item){
+    var a = accountById(accId);
+    if(!a || !a.balanceAt) return true;
+    var cut = new Date(a.balanceAt), day = localDateStr(cut);
+    if(item.date !== day) return item.date > day;
+    return !item.createdAt || new Date(item.createdAt) > cut;
+  }
   function balances(){
     var b = {};
     D.accounts.forEach(function(a){ b[a.id] = {UYU: Number(a.initialUYU) || 0, USD: Number(a.initialUSD) || 0}; });
-    function add(acc, cur, v){ if(acc && b[acc]) b[acc][cur] += v; }
+    function add(acc, cur, v, item){ if(acc && b[acc] && countsForBalance(acc, item)) b[acc][cur] += v; }
     D.movements.forEach(function(m){
-      if(m.kind === "ingreso") add(m.accountId, m.currency, m.amount);
-      else if(m.kind === "gasto") add(m.accountId, m.currency, -m.amount);
-      else if(m.kind === "ajuste") add(m.accountId, m.currency, m.amount);
+      if(m.kind === "ingreso") add(m.accountId, m.currency, m.amount, m);
+      else if(m.kind === "gasto") add(m.accountId, m.currency, -m.amount, m);
+      else if(m.kind === "ajuste") add(m.accountId, m.currency, m.amount, m);
       else if(m.kind === "transferencia"){
-        add(m.accountId, m.currency, -m.amount);
-        add(m.toAccountId, m.toCurrency, m.toAmount);
+        add(m.accountId, m.currency, -m.amount, m);
+        add(m.toAccountId, m.toCurrency, m.toAmount, m);
       }
     });
     D.expenses.forEach(function(e){
       var l = link("expense", e.id);
-      if(l && l.accountId && paidByMe(e)) add(l.accountId, "UYU", -e.amount);
+      if(l && l.accountId && paidByMe(e)) add(l.accountId, "UYU", -e.amount, e);
     });
     D.settlements.forEach(function(s){
       var l = link("settlement", s.id);
-      if(l && l.accountId) add(l.accountId, "UYU", settlementCash(s));
+      if(l && l.accountId) add(l.accountId, "UYU", settlementCash(s), s);
     });
     D.debts.forEach(function(d){
       var l = link("debt", d.id);
-      if(l && l.accountId) add(l.accountId, "UYU", debtCash(d));
+      if(l && l.accountId) add(l.accountId, "UYU", debtCash(d), d);
     });
     return b;
   }
@@ -376,6 +385,14 @@
         amount: cash, currency:"UYU", pending: !(l && l.accountId)
       });
     });
+    rows.forEach(function(r){
+      if(r.type === "transferencia" || !r.accountId) return;
+      var item = r.ref.type === "movement" ? D.movements.filter(function(m){ return m.id === r.ref.id; })[0]
+        : r.ref.type === "expense" ? D.expenses.filter(function(e){ return e.id === r.ref.id; })[0]
+        : r.ref.type === "settlement" ? D.settlements.filter(function(x){ return x.id === r.ref.id; })[0]
+        : D.debts.filter(function(x){ return x.id === r.ref.id; })[0];
+      if(item && !countsForBalance(r.accountId, item)) r.beforeBalance = true;
+    });
     return rows.sort(function(a, b){ return b.date.localeCompare(a.date); });
   }
 
@@ -434,17 +451,17 @@
           var shared = !!r.group_id;
           return {id:r.id, date:r.date, amount:Number(r.amount), description:r.description || "", categoryId:r.category_id,
             scope: shared ? "compartido" : "personal", paidBy: shared ? loc(r.paid_by) : "me",
-            groupId:r.group_id, splitType:r.split_type, owedBy: loc(r.owed_by)};
+            groupId:r.group_id, splitType:r.split_type, owedBy: loc(r.owed_by), createdAt:r.created_at};
         }),
         settlements: res[3].data.map(function(r){
-          return {id:r.id, groupId:r.group_id, from:loc(r.from_member), to:loc(r.to_member), amount:Number(r.amount), date:r.date};
+          return {id:r.id, groupId:r.group_id, from:loc(r.from_member), to:loc(r.to_member), amount:Number(r.amount), date:r.date, createdAt:r.created_at};
         }),
         debts: res[4].data.map(function(r){
           return {id:r.id, kind:r.kind, date:r.date, amount:Number(r.amount), description:r.description || "", categoryId:r.category_id,
-            creditor: side(r.creditor_user, r.creditor_name), debtor: side(r.debtor_user, r.debtor_name)};
+            creditor: side(r.creditor_user, r.creditor_name), debtor: side(r.debtor_user, r.debtor_name), createdAt:r.created_at};
         }),
         accounts: res[5].data.map(function(r){
-          return {id:r.id, name:r.name, kind:r.kind, currency:r.currency, initialUYU:Number(r.initial_uyu), initialUSD:Number(r.initial_usd), archived:r.archived, sort:r.sort};
+          return {id:r.id, name:r.name, kind:r.kind, currency:r.currency, initialUYU:Number(r.initial_uyu), initialUSD:Number(r.initial_usd), archived:r.archived, sort:r.sort, balanceAt:r.balance_at || null};
         }),
         movements: res[6].data.map(movFromRow),
         links: res[7].data.reduce(function(m, r){ m[r.ref_kind + ":" + r.ref_id] = {accountId:r.account_id, installments:r.installments}; return m; }, {}),
@@ -455,7 +472,7 @@
   function movFromRow(r){
     return {id:r.id, kind:r.kind, date:r.date, amount:Number(r.amount), currency:r.currency, accountId:r.account_id,
       toAccountId:r.to_account_id, toAmount:r.to_amount == null ? null : Number(r.to_amount), toCurrency:r.to_currency,
-      category:r.category, description:r.description || "", installments:r.installments || 1};
+      category:r.category, description:r.description || "", installments:r.installments || 1, createdAt:r.created_at};
   }
   function movToRow(m){
     return {kind:m.kind, date:m.date, amount:m.amount, currency:m.currency, account_id:m.accountId || null,
@@ -480,8 +497,13 @@
   function saveAccount(a, isNew){
     if(isNew) D.accounts.push(a);
     return run(function(){
-      var row = {name:a.name, kind:a.kind, currency:a.currency, initial_uyu:a.initialUYU || 0, initial_usd:a.initialUSD || 0, archived:!!a.archived, sort:a.sort || 0};
-      return isNew ? sb.from("fin_accounts").insert(Object.assign({id:a.id}, row)) : sb.from("fin_accounts").update(row).eq("id", a.id);
+      var row = {name:a.name, kind:a.kind, currency:a.currency, initial_uyu:a.initialUYU || 0, initial_usd:a.initialUSD || 0, archived:!!a.archived, sort:a.sort || 0,
+        balance_at:a.balanceAt || null};
+      function send(r){ return isNew ? sb.from("fin_accounts").insert(Object.assign({id:a.id}, r)) : sb.from("fin_accounts").update(r).eq("id", a.id); }
+      return send(row).then(function(res){
+        if(res.error && /balance_at/.test(res.error.message || "")){ delete row.balance_at; return send(row); }
+        return res;
+      });
     });
   }
   function saveMovement(m, isNew){
@@ -688,7 +710,7 @@
       '<table class="tbl"><thead><tr><th>Cuenta</th><th>Tipo</th><th class="num">Saldo $</th><th class="num">Saldo US$</th><th class="num">Total en $</th><th></th></tr></thead><tbody>' +
       accs.map(function(a){
         var bal = b[a.id];
-        return '<tr class="'+(a.archived ? "archived" : "")+'"><td><button type="button" class="link strong" data-acc-ledger="'+a.id+'">'+esc(a.name)+'</button>'+(a.archived ? ' <span class="muted">(archivada)</span>' : '')+'</td>' +
+        return '<tr class="'+(a.archived ? "archived" : "")+'"><td><button type="button" class="link strong" data-acc-ledger="'+a.id+'">'+esc(a.name)+'</button>'+(a.archived ? ' <span class="muted">(archivada)</span>' : '')+(a.balanceAt ? '<div class="muted small">saldo inicial al '+esc(dayLabel(localDateStr(new Date(a.balanceAt))))+'</div>' : '')+'</td>' +
           '<td>'+esc(kindName(a.kind))+'</td>' +
           '<td class="num '+(bal.UYU < 0 ? "neg" : "")+'">'+(a.currency !== "USD" ? esc(fmt(bal.UYU, "UYU")) : "—")+'</td>' +
           '<td class="num '+(bal.USD < 0 ? "neg" : "")+'">'+(a.currency !== "UYU" ? esc(fmt(bal.USD, "USD")) : "—")+'</td>' +
@@ -780,7 +802,7 @@
           '<td class="muted">'+esc(r.typeLabel)+'</td>' +
           '<td>'+esc(r.desc)+(r.extra ? '<div class="muted small">'+esc(r.extra)+'</div>' : '')+'</td>' +
           '<td>'+esc(r.category)+'</td>' +
-          '<td>'+accCell+'</td>' +
+          '<td>'+accCell+(r.beforeBalance ? '<div class="muted small" title="Es anterior a la fecha del saldo de la cuenta: ya está incluido en ese saldo.">no cambia el saldo</div>' : '')+'</td>' +
           '<td class="num '+amtCls+'">'+(r.amount ? esc(fmt(r.type === "transferencia" ? r.amount : r.amount, r.currency)) : '<span class="muted">sin plata</span>')+'</td>' +
           '<td class="num">'+(r.editable ? '<button type="button" class="link" data-edit-mov="'+r.ref.id+'">Editar</button>' : '')+'</td>' +
         '</tr>';
@@ -986,7 +1008,8 @@
     var d = {
       id: editingDebt ? editingDebt.id : uid(), kind:debtKind, date:$("debtDate").value || todayStr(), amount:amount,
       description:$("debtDesc").value.trim(), categoryId: debtKind === "gasto" && debtDir === "el" ? $("debtCategory").value : null,
-      creditor: meIsCreditor ? {me:true} : other, debtor: meIsCreditor ? other : {me:true}
+      creditor: meIsCreditor ? {me:true} : other, debtor: meIsCreditor ? other : {me:true},
+      createdAt: editingDebt ? editingDebt.createdAt : new Date().toISOString()
     };
     var isNew = !editingDebt;
     if(isNew) D.debts.unshift(d);
@@ -1209,7 +1232,8 @@
       id: editingMov ? editingMov.id : uid(), kind: movKind, date: $("movDate").value || todayStr(),
       amount: amount, currency: $("movCurrency").value, accountId: acc,
       category: (movKind === "ingreso" || movKind === "gasto") ? $("movCategory").value : null,
-      description: $("movDesc").value.trim(), installments: movKind === "gasto" ? Number($("movInst").value || 1) : 1
+      description: $("movDesc").value.trim(), installments: movKind === "gasto" ? Number($("movInst").value || 1) : 1,
+      createdAt: editingMov ? editingMov.createdAt : new Date().toISOString()
     };
     if(movKind === "transferencia"){
       var to = $("movTo").value, toAmount = parseFloat($("movToAmount").value);
@@ -1246,6 +1270,7 @@
     $("accCurrency").value = a ? a.currency : "UYU";
     $("accInitUyu").value = a ? a.initialUYU : "";
     $("accInitUsd").value = a ? a.initialUSD : "";
+    $("accSince").value = a ? (a.balanceAt ? localDateStr(new Date(a.balanceAt)) : "") : todayStr();
     $("accArchived").checked = a ? !!a.archived : false;
     $("accArchivedRow").hidden = !a;
     syncAccFields();
@@ -1260,6 +1285,13 @@
     a.initialUYU = a.currency === "USD" ? 0 : (parseFloat($("accInitUyu").value) || 0);
     a.initialUSD = a.currency === "UYU" ? 0 : (parseFloat($("accInitUsd").value) || 0);
     a.archived = $("accArchived").checked;
+    // Fecha del saldo: hoy = desde ahora; otro día = al cierre de ese día; vacío = cuenta todo.
+    var since = $("accSince").value, prev = a.balanceAt ? localDateStr(new Date(a.balanceAt)) : "";
+    if(!since) a.balanceAt = null;
+    else if(since !== prev){
+      var p = since.split("-").map(Number);
+      a.balanceAt = since === todayStr() ? new Date().toISOString() : new Date(p[0], p[1]-1, p[2], 23, 59, 59).toISOString();
+    }
     saveAccount(a, !editingAcc).then(function(ok){ if(ok) toast("Cuenta guardada"); });
     closeDialog(accDialog);
     render();
