@@ -830,7 +830,7 @@
 
   // ---------------- diálogo: movimiento ----------------
   var movDialog = $("movDialog"), editingMov = null, movKind = "ingreso";
-  function openDialog(el){ el.hidden = false; var f = el.querySelector("input:not([type=hidden]), select"); if(f) setTimeout(function(){ try{ f.focus(); }catch(e){} }, 30); }
+  function openDialog(el){ el.hidden = false; var f = el.querySelector("input:not([type=hidden]), select"); if(f) setTimeout(function(){ try{ if(!el.contains(document.activeElement)) f.focus(); }catch(e){} }, 30); }
   function closeDialog(el){ el.hidden = true; }
   document.querySelectorAll(".overlay [data-close]").forEach(function(b){
     b.addEventListener("click", function(){ closeDialog(b.closest(".overlay")); });
