@@ -195,6 +195,13 @@ button, input, select, textarea{ font-family:inherit; font-size:inherit; color:i
 .todo{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:10px; }
 .kpis.small.four{ grid-template-columns:repeat(4, minmax(0,1fr)); }
 .plan-hint{ margin:6px 0 0; color:var(--ink); }
+.ledger-box > summary{ display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; list-style:none; }
+.ledger-box > summary::-webkit-details-marker{ display:none; }
+.ledger-box > summary h2::before{ content:"›"; display:inline-block; margin-right:8px; color:var(--ink-soft); transition:transform .15s; }
+.ledger-box[open] > summary h2::before{ transform:rotate(90deg); }
+.ledger-box[open] .ledger-hint{ display:none; }
+.ledger-box .ledger-actions{ margin:14px 0 10px; }
+.ledger-box .filters{ margin-bottom:10px; }
 .month-plan{ display:flex; flex-direction:column; gap:6px; }
 .month-plan details{ background:var(--bg); border-radius:10px; padding:8px 12px; }
 .month-plan summary{ display:flex; justify-content:space-between; gap:10px; cursor:pointer; list-style:none; }

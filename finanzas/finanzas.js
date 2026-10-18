@@ -523,8 +523,7 @@
     var pending = ledgerRows().filter(function(r){ return r.pending && ymOf(r.date) === currentYM(); }).length;
     $("pendingBadge").hidden = !pending;
     $("pendingBadge").textContent = pending;
-    if(view === "cuentas") renderCuentas();
-    if(view === "movimientos") renderMovimientos();
+    if(view === "cuentas"){ renderCuentas(); renderMovimientos(); }
     if(view === "tarjetas") renderTarjetas();
     if(view === "deudas") renderDeudas();
     if(view === "config") renderConfig();
@@ -539,6 +538,13 @@
 
 
   // ---- Cuentas ----
+  // Los movimientos están en Cuentas, en un bloque desplegable.
+  function showLedger(){
+    showView("cuentas");
+    var box = $("ledgerBox");
+    box.open = true;
+    setTimeout(function(){ box.scrollIntoView({behavior:"smooth", block:"start"}); }, 30);
+  }
   function renderCuentas(){
     var b = balances();
     // Totales de las cuentas en uso (las archivadas no suman).
@@ -566,7 +572,7 @@
       btn.addEventListener("click", function(){
         var id = btn.getAttribute("data-acc-ledger"), a = accountById(id);
         if(a && a.kind === "tarjeta"){ cardView = id; showView("tarjetas"); return; }
-        filters.account = id; filters.month = "all"; filters.pending = false; showView("movimientos");
+        filters.account = id; filters.month = "all"; filters.pending = false; showLedger();
       });
     });
   }
@@ -957,7 +963,7 @@
       });
     });
     $("cards").querySelectorAll("[data-card-mov]").forEach(function(btn){
-      btn.addEventListener("click", function(){ filters.account = btn.getAttribute("data-card-mov"); filters.month = "all"; filters.pending = false; showView("movimientos"); });
+      btn.addEventListener("click", function(){ filters.account = btn.getAttribute("data-card-mov"); filters.month = "all"; filters.pending = false; showLedger(); });
     });
     $("cards").querySelectorAll("[data-card-buy]").forEach(function(btn){
       btn.addEventListener("click", function(){ openMovement("gasto", null, {accountId: btn.getAttribute("data-card-buy")}); });

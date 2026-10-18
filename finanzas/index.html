@@ -25,7 +25,6 @@
     </div>
     <nav class="nav" aria-label="Secciones">
       <button type="button" class="nav-btn active" data-view="cuentas">Cuentas</button>
-      <button type="button" class="nav-btn" data-view="movimientos">Movimientos <span class="badge" id="pendingBadge" hidden></span></button>
       <button type="button" class="nav-btn" data-view="deudas">Deudas</button>
       <button type="button" class="nav-btn" data-view="config">Configuración</button>
     </nav>
@@ -45,30 +44,27 @@
         </div>
       </header>
       <div class="card"><div id="accountsTable"></div></div>
+      <details class="card ledger-box" id="ledgerBox">
+        <summary><h2>Movimientos <span class="badge" id="pendingBadge" hidden></span></h2><span class="muted small ledger-hint">Tocá para ver</span></summary>
+        <div class="head-actions ledger-actions">
+          <button type="button" class="btn ghost small" data-new="ingreso">＋ Ingreso</button>
+          <button type="button" class="btn ghost small" data-new="gasto">＋ Gasto</button>
+          <button type="button" class="btn ghost small" data-new="transferencia">⇄ Transferencia</button>
+          <button type="button" class="btn ghost small" data-new="ajuste">± Ajuste</button>
+        </div>
+        <div class="filters">
+          <label>Mes <select id="fMonth"></select></label>
+          <label>Tipo <select id="fType"></select></label>
+          <label>Cuenta <select id="fAccount"></select></label>
+          <label class="check"><input type="checkbox" id="fPending"> Solo sin cuenta</label>
+          <input type="search" id="fSearch" placeholder="Buscar…" aria-label="Buscar">
+        </div>
+        <div class="bulk" id="bulkBar" hidden></div>
+        <div id="ledger"></div>
+      </details>
     </section>
 
     <!-- MOVIMIENTOS -->
-    <section class="view" id="view-movimientos">
-      <header class="view-head">
-        <h1>Movimientos</h1>
-        <div class="head-actions">
-          <button type="button" class="btn ghost" data-new="ingreso">＋ Ingreso</button>
-          <button type="button" class="btn ghost" data-new="gasto">＋ Gasto</button>
-          <button type="button" class="btn ghost" data-new="transferencia">⇄ Transferencia</button>
-          <button type="button" class="btn ghost" data-new="ajuste">± Ajuste</button>
-        </div>
-      </header>
-      <div class="filters">
-        <label>Mes <select id="fMonth"></select></label>
-        <label>Tipo <select id="fType"></select></label>
-        <label>Cuenta <select id="fAccount"></select></label>
-        <label class="check"><input type="checkbox" id="fPending"> Solo sin cuenta</label>
-        <input type="search" id="fSearch" placeholder="Buscar…" aria-label="Buscar">
-      </div>
-      <div class="bulk" id="bulkBar" hidden></div>
-      <div class="card"><div id="ledger"></div></div>
-    </section>
-
     <!-- TARJETAS -->
     <section class="view" id="view-tarjetas">
       <header class="view-head"><button type="button" class="btn ghost small" data-goto="cuentas">‹ Cuentas</button><h1 id="cardTitle">Tarjeta</h1></header>
