@@ -699,51 +699,65 @@
     return d.debtor.me ? "Le devolviste a " + o : o + " te devolvió";
   }
   function renderDeudas(){
-    var people = peopleBalances(), showAll = $("debtShowAll").checked;
-    var owed = 0, owe = 0;
-    people.forEach(function(p){ if(!settled(p.net)){ if(p.net > 0) owed += p.net; else owe -= p.net; } });
-    $("debtKpis").innerHTML =
-      kpi("Te deben", esc(fmt(owed, "UYU")), "", "pos") +
-      kpi("Debés", esc(fmt(owe, "UYU")), "", owe > 0 ? "neg" : "") +
-      kpi("Neto", esc(fmt(owed - owe, "UYU")), owed - owe >= 0 ? "a tu favor" : "en contra", owed - owe >= 0 ? "pos" : "neg");
-
-    var shown = people.filter(function(p){ return showAll || !settled(p.net); });
-    // Tocar a una persona despliega sus deudas fuera de grupo, una por una.
-    function debtItem(d){
-      var cash = debtCash(d), l = link("debt", d.id);
-      var acc = cash ? '<select data-debt-acc="'+d.id+'">'+accountOptions("Sin cuenta").map(function(o){ return '<option value="'+o[0]+'"'+((l && l.accountId || "") === o[0] ? " selected" : "")+'>'+esc(o[1])+'</option>'; }).join("")+'</select>'
-        : '<span class="muted small">no movió tu plata</span>';
-      return '<li class="'+(counts(d) ? "" : "archived")+'"><div class="pd-top"><span>'+esc(dayLabel(d.date))+' · '+esc(describeDebt(d))+(counts(d) ? '' : ' <span class="muted small">(registro)</span>')+'</span><b>'+esc(fmt(d.amount, "UYU"))+'</b></div>' +
-        (d.description ? '<div>'+esc(d.description)+'</div>' : '') + (d.note ? '<div class="note">'+esc(d.note)+'</div>' : '') +
-        '<div class="pd-bottom">'+acc+'<button type="button" class="link" data-debt-edit="'+d.id+'">Editar</button></div></li>';
+    // Como una planilla: "Me deben" y "Debo" con su total, y abajo la diferencia.
+    // Con una misma persona puede haber de las dos cosas (ej. un grupo y algo fuera de grupo).
+    var people = peopleBalances(), byKey = {}, owedRows = [], oweRows = [], owed = 0, owe = 0;
+    // Fuera de grupo, cada dirección por separado: lo que te deben (menos lo que te devolvieron)
+    // y lo que debés (menos lo que devolviste). Si alguien devolvió de más, pasa al otro lado.
+    var direct = {};
+    D.debts.forEach(function(d){
+      if(!counts(d)) return;
+      var k = personKey(otherSide(d)), x = direct[k] || (direct[k] = {owed:0, owe:0});
+      if(d.kind === "pago"){ if(d.creditor.me) x.owed -= d.amount; else x.owe -= d.amount; }
+      else if(d.creditor.me) x.owed += d.amount; else x.owe += d.amount;
+    });
+    people.forEach(function(p){
+      byKey[p.key] = p;
+      var pos = 0, neg = 0, x = direct[p.key];
+      p.parts.forEach(function(q){ if(q.name === "Sin grupo" || settled(q.net)) return; if(q.net > 0) pos += q.net; else neg -= q.net; });
+      if(x){
+        if(x.owed < 0){ x.owe -= x.owed; x.owed = 0; }
+        if(x.owe < 0){ x.owed -= x.owe; x.owe = 0; }
+        pos += x.owed; neg += x.owe;
+      }
+      if(pos >= 0.5){ owedRows.push({p:p, v:pos}); owed += pos; }
+      if(neg >= 0.5){ oweRows.push({p:p, v:neg}); owe += neg; }
+    });
+    function sheet(title, rows, total, cls){
+      rows.sort(function(a, b){ return b.v - a.v; });
+      return '<table class="tbl sheet"><thead><tr><th>'+title+'</th><th class="num">Cantidad</th></tr></thead><tbody>' +
+        (rows.length ? rows.map(function(r){
+          var open = openPerson === r.p.key;
+          return '<tr><td><button type="button" class="link strong person-toggle'+(open ? " open" : "")+'" data-person="'+esc(r.p.key)+'">'+esc(r.p.side.name)+'</button></td><td class="num '+cls+'">'+esc(fmt(r.v, "UYU"))+'</td></tr>';
+        }).join("") : '<tr><td colspan="2" class="muted">Nadie</td></tr>') +
+        '</tbody><tfoot><tr><td>Total</td><td class="num '+cls+'">'+esc(fmt(total, "UYU"))+'</td></tr></tfoot></table>';
     }
-    $("debtPeople").innerHTML = (shown.length === 0 ? '<p class="empty">Estás al día con todos ✓</p>' :
-      '<div class="people">' + shown.map(function(p, i){
-        var parts = p.parts.filter(function(x){ return !settled(x.net) || p.parts.length === 1; });
-        var mine = D.debts.filter(function(d){ return personKey(otherSide(d)) === p.key; })
-          .sort(function(a, b){ return b.date.localeCompare(a.date); });
-        var open = !!openPeople[p.key];
-        return '<div class="person">' +
-          '<div class="person-row">'+(mine.length ? '<button type="button" class="link strong person-toggle'+(open ? " open" : "")+'" data-person="'+i+'">'+esc(p.side.name)+'</button>' : '<strong>'+esc(p.side.name)+'</strong>') +
-            '<span class="'+(settled(p.net) ? "muted" : (p.net > 0 ? "pos" : "neg"))+'"><b>'+(settled(p.net) ? "al día" : esc((p.net > 0 ? "te debe " : "le debés ") + fmt(Math.abs(p.net), "UYU")))+'</b></span></div>' +
-          '<div class="person-sub"><div class="parts">'+parts.map(function(x){ return '<span class="part">'+esc(partText(x))+'</span>'; }).join("")+'</div>' +
-            (settled(p.debtNet) ? '' : '<button type="button" class="link small" data-debt-pay="'+i+'">Anotar devolución</button>')+'</div>' +
-          (open ? '<ul class="person-debts">' + mine.map(debtItem).join("") + '</ul>' : '') +
-        '</div>';
-      }).join("") + '</div>') +
-      '<p class="muted small">Tocá a una persona para ver sus deudas fuera de grupo. Lo de los grupos se salda desde el celular.</p>';
+    var net = owed - owe, html = '<div class="debt-sheet">' + sheet("Me deben", owedRows, owed, "pos") + sheet("Debo", oweRows, owe, "neg") + '</div>' +
+      '<div class="sheet-total"><span>Total</span><b class="'+(settled(net) ? "" : (net > 0 ? "pos" : "neg"))+'">'+esc(fmt(net, "UYU"))+'</b></div>';
+
+    // Detalle de la persona tocada: de dónde sale y sus deudas fuera de grupo, una por una.
+    var p = openPerson && byKey[openPerson];
+    if(p){
+      var mine = D.debts.filter(function(d){ return personKey(otherSide(d)) === p.key; })
+        .sort(function(a, b){ return b.date.localeCompare(a.date); });
+      var parts = p.parts.filter(function(x){ return !settled(x.net); });
+      html += '<div class="person-detail"><div class="person-row"><strong>'+esc(p.side.name)+'</strong>' +
+          (settled(p.debtNet) ? '' : '<button type="button" class="link small" id="debtPay">Anotar devolución</button>') + '</div>' +
+        (parts.length ? '<div class="parts">'+parts.map(function(x){ return '<span class="part">'+esc(partText(x))+'</span>'; }).join("")+'</div>' : '') +
+        (mine.length ? '<ul class="person-debts">' + mine.map(debtItem).join("") + '</ul>' : '') + '</div>';
+    }
+    $("debtPeople").innerHTML = html + '<p class="muted small">Tocá un nombre para ver el detalle. Lo de los grupos se salda desde el celular.</p>';
+
     $("debtPeople").querySelectorAll("[data-person]").forEach(function(btn){
       btn.addEventListener("click", function(){
-        var k = shown[Number(btn.getAttribute("data-person"))].key;
-        openPeople[k] = !openPeople[k];
+        var k = btn.getAttribute("data-person");
+        openPerson = openPerson === k ? null : k;
         render();
       });
     });
-    $("debtPeople").querySelectorAll("[data-debt-pay]").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var p = shown[Number(btn.getAttribute("data-debt-pay"))];
-        openDebt(null, {kind:"pago", key:p.key, dir: p.debtNet > 0 ? "el" : "yo", amount: Math.round(Math.abs(p.debtNet) * 100) / 100});
-      });
+    var pay = $("debtPay");
+    if(pay) pay.addEventListener("click", function(){
+      openDebt(null, {kind:"pago", key:p.key, dir: p.debtNet > 0 ? "el" : "yo", amount: Math.round(Math.abs(p.debtNet) * 100) / 100});
     });
     $("debtPeople").querySelectorAll("[data-debt-acc]").forEach(function(sel){
       sel.addEventListener("change", function(){ setLink("debt", sel.getAttribute("data-debt-acc"), sel.value || null, 1); render(); });
@@ -752,8 +766,15 @@
       btn.addEventListener("click", function(){ openDebt(D.debts.filter(function(d){ return d.id === btn.getAttribute("data-debt-edit"); })[0]); });
     });
   }
-  var openPeople = {};
-  $("debtShowAll").addEventListener("change", render);
+  function debtItem(d){
+    var cash = debtCash(d), l = link("debt", d.id);
+    var acc = cash ? '<select data-debt-acc="'+d.id+'">'+accountOptions("Sin cuenta").map(function(o){ return '<option value="'+o[0]+'"'+((l && l.accountId || "") === o[0] ? " selected" : "")+'>'+esc(o[1])+'</option>'; }).join("")+'</select>'
+      : '<span class="muted small">no movió tu plata</span>';
+    return '<li class="'+(counts(d) ? "" : "archived")+'"><div class="pd-top"><span>'+esc(dayLabel(d.date))+' · '+esc(describeDebt(d))+(counts(d) ? '' : ' <span class="muted small">(registro)</span>')+'</span><b>'+esc(fmt(d.amount, "UYU"))+'</b></div>' +
+      (d.description ? '<div>'+esc(d.description)+'</div>' : '') + (d.note ? '<div class="note">'+esc(d.note)+'</div>' : '') +
+      '<div class="pd-bottom">'+acc+'<button type="button" class="link" data-debt-edit="'+d.id+'">Editar</button></div></li>';
+  }
+  var openPerson = null;
 
   // diálogo de deuda
   var editingDebt = null, debtKind = "prestamo", debtDir = "yo", debtPeople = [];
