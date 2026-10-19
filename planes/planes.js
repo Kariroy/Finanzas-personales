@@ -340,7 +340,7 @@ function renderCards(){
       '<span class="title"></span></div>' +
       '<div class="meta">' +
         (i.blocked ? '<span class="lock" title="Prerequisitos sin terminar">🔒 ' + i.pending + '</span>' : kids ? '<span class="kids" title="Tareas que dependen de esta">→ ' + kids + '</span>' : '') +
-        (sun[t.id] ? '<span class="sun" title="Anotada para hoy">☀</span>' : "") + noteDot(t) + '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nueva tarea dependiente (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
+        (sun[t.id] ? sunBtn(true) : "") + noteDot(t) + '<span class="tools">' + (sun[t.id] || t.status === "done" ? "" : sunBtn(false)) + '<button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nueva tarea dependiente (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
       '</div>' +
       '<span class="port out" data-port="out" title="Arrastrá para crear una dependencia"></span>';
     c.querySelector(".title").textContent = t.title;
@@ -1075,6 +1075,7 @@ canvas.addEventListener("click", function(e){
   if(act === "status") statusClick(id, e.shiftKey);
   else if(act === "edit"){ select({ task: id }); startEdit(id); }
   else if(act === "child") newChild(id);
+  else if(act === "sun") tdToggle(proj(), id);
   else if(act === "notes") openNotes(id);
   else if(act === "del"){ sel = { task: id }; deleteSelected(); }
 });
@@ -1267,14 +1268,15 @@ function listRow(p, t, tree, st, nkids){
     ? '<button type="button" class="tog" data-act="fold" aria-label="' + (t.fold ? "Mostrar" : "Ocultar") + ' subtareas">' + (t.fold ? "▸" : "▾") + "</button>"
     : '<span class="tog"></span>';
   var badge = nkids ? '<span class="li-count" title="Hechas en esta rama">' + st.done + "/" + st.n + "</span>" : "";
-  if(tdSun()[t.id]) badge = '<span class="sun" title="Anotada para hoy">☀</span>' + badge;
+  var sun = tdSun()[t.id];
+  if(sun) badge = sunBtn(true, "li-btn") + badge;
   if(i.blocked) badge = '<span class="li-lock" title="Prerequisitos sin terminar">🔒</span>' + badge;
   return '<div class="li s-' + t.status + (i.blocked ? " blocked" : "") + (i.unlocked ? " unlocked" : "") + '" data-id="' + t.id + '">' + fold +
     '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (t.status === "done" ? " checked" : "") + ">" +
     '<button type="button" class="st" data-act="status" title="Toque: cambiar estado · Doble toque: pausar">' + ICON[t.status] + "</button>" +
     '<div class="li-main"><span class="li-tline"><span class="li-title">' + esc(t.title) + "</span></span>" + meta + "</div>" + badge +
     '<span class="li-tools">' +
-    noteDot(t) +
+    noteDot(t) + (sun || t.status === "done" ? "" : sunBtn(false, "li-btn")) +
     '<button type="button" class="li-btn" data-act="sub" title="Agregar subtarea">＋</button>' +
     '<button type="button" class="li-btn" data-act="rename" title="Renombrar">✎</button>' +
     '<button type="button" class="li-btn" data-act="goto" title="Ver en el mapa">◎</button>' +
@@ -1310,6 +1312,7 @@ $("listBody").addEventListener("click", function(e){
   else if(act === "done") setStatus(id, b.checked ? "done" : "todo");
   else if(act === "status") statusClick(id, e.shiftKey);
   else if(act === "notes") openNotes(id);
+  else if(act === "sun") tdToggle(p, id);
   else if(act === "rename") startEdit(id, b.closest(".li").querySelector(".li-title"));
   else if(act === "sub"){
     var n;
@@ -1704,6 +1707,22 @@ function tdPortOk(p){
   if(f === "all") return true;
   var g = programById(p.program), port = g ? portOf(g) : null;
   return f === "none" ? !port : port === f;
+}
+// Botón ☀ del mapa y la lista: suma la tarea a Hoy o, si ya está anotada, la quita.
+function sunBtn(on, cls){
+  return '<button type="button" class="sun' + (on ? " on" : "") + (cls ? " " + cls : "") + '" data-act="sun" title="' +
+    (on ? "Anotada para hoy · tocá para quitarla" : "Sumar a Hoy") + '">☀</button>';
+}
+function tdToggle(p, id){
+  var t = p && byId(p, id); if(!t) return;
+  var k = rtKey(rtToday());
+  var mine = function(it){ return it.ref && it.ref.t === id && it.day <= k && !tdDone(it); };
+  var had = state.today.some(mine);
+  rtChange(function(){
+    if(had) state.today = state.today.filter(function(it){ return !mine(it); });
+    else state.today.push({ id: uid(), day: k, title: t.title, ref: { p: p.id, t: id } });
+  });
+  toast(had ? "Quitada de Hoy" : "☀ Sumada a Hoy", { label: "deshacer", fn: undo });
 }
 function tdWhere(p){ var g = programById(p.program); return (g ? g.name + " › " : "") + p.name; }
 function tdFold(s){ return String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }

@@ -821,5 +821,6 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .td-idea:hover { background: var(--card); }
 .td-plus { color: var(--doing); font-weight: 700; }
 #tdList { margin-bottom: 24px; }
-.sun { color: var(--ready); font-size: 12px; line-height: 1; }
-.li .sun { margin-right: 4px; }
+button.sun { background: none; border: 0; cursor: pointer; color: var(--muted); font-size: 12px; line-height: 1; padding: 0 3px; }
+button.sun:hover { color: var(--ready); }
+button.sun.on { color: var(--ready); }
