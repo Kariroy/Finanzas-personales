@@ -812,14 +812,6 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .td-move { padding: 5px 8px; font-size: 12px; white-space: nowrap; }
 .td-late .rt-sec-h { color: var(--paused); display: flex; align-items: center; gap: 6px; }
 .td-all { margin-left: auto; background: none; border: 0; color: var(--doing); cursor: pointer; font-size: 11px; padding: 2px 4px; }
-.td-ideas { margin: 18px 0 24px; }
-.td-ideas-h { background: none; border: 0; color: var(--muted); font-weight: 700; font-size: 12px; cursor: pointer; padding: 4px 2px; }
-.td-ideas-h span { color: var(--faint); font-weight: 400; }
-.td-idea { display: flex; align-items: center; gap: 10px; border: 1px dashed var(--line-2); border-left: 3px solid var(--ready);
-  border-radius: 8px; padding: 9px 10px; margin-top: 6px; cursor: pointer; }
-.td-idea.s-doing { border-left-color: var(--doing); }
-.td-idea:hover { background: var(--card); }
-.td-plus { color: var(--doing); font-weight: 700; }
 #tdList { margin-bottom: 24px; }
 button.sun { background: none; border: 0; cursor: pointer; color: var(--muted); font-size: 12px; line-height: 1; padding: 0 3px; }
 button.sun:hover { color: var(--ready); }

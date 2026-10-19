@@ -1747,11 +1747,6 @@ function tdMatches(q){
     return sa - sb || (b.i.unlocked - a.i.unlocked) || a.t.title.localeCompare(b.t.title, "es");
   }).slice(0, 6);
 }
-// Sugerencias (plegadas): las que ya se pueden hacer (amarillas) o están en curso.
-function tdIdeas(){
-  return tdCandidates().filter(function(c){ return c.i.unlocked || c.t.status === "doing"; })
-    .sort(function(a, b){ return (b.p.updated || 0) - (a.p.updated || 0); }).slice(0, 40);
-}
 
 function tdItem(it, late){
   var l = tdLink(it), done = tdDone(it), st = l ? l.t.status : done ? "done" : "todo";
@@ -1819,16 +1814,6 @@ function renderToday(){
   } else {
     if(!pend.length) html += '<div class="rt-cheer">✓ ¡Día completo!</div>';
     html += '<div class="rt-sec">' + pend.concat(done).map(function(it){ return tdItem(it, false); }).join("") + "</div>";
-  }
-  var ideas = tdIdeas();
-  if(ideas.length){
-    html += '<div class="td-ideas' + (state.tdIdeas ? " open" : "") + '"><button type="button" class="td-ideas-h" data-act="ideas">' +
-      (state.tdIdeas ? "▾" : "▸") + " Podrías hacer… <span>" + ideas.length + "</span></button>";
-    if(state.tdIdeas) html += ideas.map(function(c){
-      return '<div class="td-idea s-' + c.t.status + '" data-p="' + c.p.id + '" data-t="' + c.t.id + '"><span class="td-plus">＋</span>' +
-        '<div class="rt-main"><div class="rt-name">' + esc(c.t.title) + '</div><div class="rt-meta"><span>' + esc(tdWhere(c.p)) + "</span></div></div></div>";
-    }).join("");
-    html += "</div>";
   }
   $("tdList").innerHTML = html;
   tdSugRender();
@@ -1898,14 +1883,8 @@ $("tdNext").addEventListener("click", function(){ tdCur = rtAdd(tdCur, 1); rende
 $("tdLabel").addEventListener("click", function(){ tdCur = rtToday(); renderToday(); });
 
 $("tdList").addEventListener("click", function(e){
-  var b = e.target.closest("[data-act]");
-  if(!b){
-    var idea = e.target.closest(".td-idea");
-    if(idea) tdAdd({ ref: { p: idea.dataset.p, t: idea.dataset.t } });
-    return;
-  }
+  var b = e.target.closest("[data-act]"); if(!b) return;
   var act = b.dataset.act;
-  if(act === "ideas"){ state.tdIdeas = !state.tdIdeas; save(); renderToday(); return; }
   if(act === "allhoy"){
     var k0 = rtKey(rtToday());
     rtChange(function(){ tdLate().forEach(function(it){ it.day = k0; }); });
