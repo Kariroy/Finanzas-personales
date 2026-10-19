@@ -824,3 +824,6 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 button.sun { background: none; border: 0; cursor: pointer; color: var(--muted); font-size: 12px; line-height: 1; padding: 0 3px; }
 button.sun:hover { color: var(--ready); }
 button.sun.on { color: var(--ready); }
+button.sun.gap { visibility: hidden; }
+.card button.sun:not(.on) { opacity: 0; }
+.card:hover button.sun:not(.on), .card.selected button.sun:not(.on) { opacity: 1; }

@@ -340,7 +340,7 @@ function renderCards(){
       '<span class="title"></span></div>' +
       '<div class="meta">' +
         (i.blocked ? '<span class="lock" title="Prerequisitos sin terminar">🔒 ' + i.pending + '</span>' : kids ? '<span class="kids" title="Tareas que dependen de esta">→ ' + kids + '</span>' : '') +
-        (sun[t.id] ? sunBtn(true) : "") + noteDot(t) + '<span class="tools">' + (sun[t.id] || t.status === "done" ? "" : sunBtn(false)) + '<button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nueva tarea dependiente (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
+        sunBtn(sun[t.id], "", t) + noteDot(t) + '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nueva tarea dependiente (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
       '</div>' +
       '<span class="port out" data-port="out" title="Arrastrá para crear una dependencia"></span>';
     c.querySelector(".title").textContent = t.title;
@@ -1268,15 +1268,13 @@ function listRow(p, t, tree, st, nkids){
     ? '<button type="button" class="tog" data-act="fold" aria-label="' + (t.fold ? "Mostrar" : "Ocultar") + ' subtareas">' + (t.fold ? "▸" : "▾") + "</button>"
     : '<span class="tog"></span>';
   var badge = nkids ? '<span class="li-count" title="Hechas en esta rama">' + st.done + "/" + st.n + "</span>" : "";
-  var sun = tdSun()[t.id];
-  if(sun) badge = sunBtn(true, "li-btn") + badge;
   if(i.blocked) badge = '<span class="li-lock" title="Prerequisitos sin terminar">🔒</span>' + badge;
   return '<div class="li s-' + t.status + (i.blocked ? " blocked" : "") + (i.unlocked ? " unlocked" : "") + '" data-id="' + t.id + '">' + fold +
     '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (t.status === "done" ? " checked" : "") + ">" +
     '<button type="button" class="st" data-act="status" title="Toque: cambiar estado · Doble toque: pausar">' + ICON[t.status] + "</button>" +
     '<div class="li-main"><span class="li-tline"><span class="li-title">' + esc(t.title) + "</span></span>" + meta + "</div>" + badge +
     '<span class="li-tools">' +
-    noteDot(t) + (sun || t.status === "done" ? "" : sunBtn(false, "li-btn")) +
+    sunBtn(tdSun()[t.id], "li-btn", t) + noteDot(t) +
     '<button type="button" class="li-btn" data-act="sub" title="Agregar subtarea">＋</button>' +
     '<button type="button" class="li-btn" data-act="rename" title="Renombrar">✎</button>' +
     '<button type="button" class="li-btn" data-act="goto" title="Ver en el mapa">◎</button>' +
@@ -1709,8 +1707,10 @@ function tdPortOk(p){
   return f === "none" ? !port : port === f;
 }
 // Botón ☀ del mapa y la lista: suma la tarea a Hoy o, si ya está anotada, la quita.
-function sunBtn(on, cls){
-  return '<button type="button" class="sun' + (on ? " on" : "") + (cls ? " " + cls : "") + '" data-act="sun" title="' +
+// Siempre ocupa el mismo lugar (al lado de las notas), así nada se corre al sumarla.
+function sunBtn(on, cls, t){
+  var off = !on && t && t.status === "done";   // una hecha no se suma: el lugar queda vacío
+  return '<button type="button" class="sun' + (on ? " on" : "") + (off ? " gap" : "") + (cls ? " " + cls : "") + '" data-act="sun"' + (off ? " disabled" : "") + ' title="' +
     (on ? "Anotada para hoy · tocá para quitarla" : "Sumar a Hoy") + '">☀</button>';
 }
 function tdToggle(p, id){
