@@ -162,7 +162,7 @@ function snap(v){ return Math.round(v / GRID) * GRID; }
 function cardH(id){ var el = els[id]; return (el && el.offsetHeight) || H; }
 
 // ---------- historial ----------
-function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, notes: state.notes, goals: state.goals, current: state.current }); }
+function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, today: state.today, notes: state.notes, goals: state.goals, current: state.current }); }
 function pushHist(s){
   hist.push(s || snapshot());
   if(hist.length > 200) hist.shift();
@@ -196,6 +196,8 @@ function normalizeData(){
   state.routines = state.routines.filter(function(r){ return isObj(r) && r.id; });
   state.routines.forEach(function(r){ if(!Array.isArray(r.days)) r.days = []; if(typeof r.name !== "string") r.name = "Rutina"; });
   if(!isObj(state.routineDone) || Array.isArray(state.routineDone)) state.routineDone = {};
+  state.today = (Array.isArray(state.today) ? state.today : []).filter(function(it){ return isObj(it) && it.id && typeof it.day === "string"; });
+  state.today.forEach(function(it){ if(typeof it.title !== "string") it.title = "Tarea"; if(it.ref && !isObj(it.ref)) delete it.ref; });
   if(state.current && !proj()) state.current = state.projects[0] ? state.projects[0].id : null;
 }
 
@@ -206,6 +208,7 @@ function restore(s){
   state.portfolios = o.portfolios || [];
   state.routines = o.routines || [];
   state.routineDone = o.routineDone || {};
+  state.today = o.today || [];
   normalizeData();
   state.notes = o.notes || [];
   state.goals = o.goals || [];
@@ -296,6 +299,7 @@ function renderAll(){
   $("projToggle").innerHTML = (pm === "list" ? "☑" : "▦") + '<span class="lbl"> ' + (pm === "list" ? "Lista" : "Mapa") + "</span>";
   renderProjects();
   renderList();
+  renderToday();
   renderRoutines();
   renderNotes();
   renderGoals();
@@ -321,6 +325,7 @@ function renderCards(){
     ? "Doble clic en cualquier lugar para crear la primera tarea."
     : "Creá un proyecto con «+ proyecto».";
   if(!p) return;
+  var sun = tdSun();
   p.tasks.forEach(function(t){
     var i = info(p, t);
     var kids = dependents(p, t.id).length;
@@ -335,7 +340,7 @@ function renderCards(){
       '<span class="title"></span></div>' +
       '<div class="meta">' +
         (i.blocked ? '<span class="lock" title="Prerequisitos sin terminar">🔒 ' + i.pending + '</span>' : kids ? '<span class="kids" title="Tareas que dependen de esta">→ ' + kids + '</span>' : '') +
-        noteDot(t) + '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nueva tarea dependiente (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
+        (sun[t.id] ? '<span class="sun" title="Anotada para hoy">☀</span>' : "") + noteDot(t) + '<span class="tools"><button data-act="edit" title="Renombrar">✎</button><button data-act="child" title="Nueva tarea dependiente (Tab)">+</button><button data-act="del" title="Borrar (Supr)">×</button></span>' +
       '</div>' +
       '<span class="port out" data-port="out" title="Arrastrá para crear una dependencia"></span>';
     c.querySelector(".title").textContent = t.title;
@@ -1262,6 +1267,7 @@ function listRow(p, t, tree, st, nkids){
     ? '<button type="button" class="tog" data-act="fold" aria-label="' + (t.fold ? "Mostrar" : "Ocultar") + ' subtareas">' + (t.fold ? "▸" : "▾") + "</button>"
     : '<span class="tog"></span>';
   var badge = nkids ? '<span class="li-count" title="Hechas en esta rama">' + st.done + "/" + st.n + "</span>" : "";
+  if(tdSun()[t.id]) badge = '<span class="sun" title="Anotada para hoy">☀</span>' + badge;
   if(i.blocked) badge = '<span class="li-lock" title="Prerequisitos sin terminar">🔒</span>' + badge;
   return '<div class="li s-' + t.status + (i.blocked ? " blocked" : "") + (i.unlocked ? " unlocked" : "") + '" data-id="' + t.id + '">' + fold +
     '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (t.status === "done" ? " checked" : "") + ">" +
@@ -1458,6 +1464,7 @@ $("newTask").addEventListener("click", function(){
   var p = proj(); if(!p) return;
   if(state.mode === "list"){ closeSideMobile(); $("listNew").focus(); return; }
   if(state.mode === "routines"){ closeSideMobile(); rtOpen(null); return; }
+  if(state.mode === "today"){ closeSideMobile(); $("tdNew").focus(); return; }
   if(state.mode === "notes"){ closeSideMobile(); ntEditOpen(null); return; }
   if(state.mode === "goals"){ closeSideMobile(); glEditOpen(null); return; }
   var r = canvas.getBoundingClientRect();
@@ -1661,6 +1668,252 @@ $("rtPrev").addEventListener("click", function(){ rtShift(-1); });
 $("rtNext").addEventListener("click", function(){ rtShift(1); });
 $("rtLabel").addEventListener("click", function(){ rtCur = rtToday(); renderRoutines(); });
 $("rtAdd").addEventListener("click", function(){ rtOpen(null); });
+
+// ---------- hoy (las tareas del día) ----------
+// state.today: [{ id, day: "AAAA-MM-DD", title, done, notes, notesAt, ref: { p: idProyecto, t: idTarea } }]
+// Con ref, la línea es una tarea de un proyecto: el nombre, si está hecha y las notas son los de la tarea.
+// Sin ref (o si la tarea ya no existe) es una tarea suelta, con su propio nombre y notas.
+var tdCur = rtToday();
+var tdHi = -1;             // sugerencia marcada con las flechas mientras se anota
+
+function projectById(id){
+  for(var i = 0; i < state.projects.length; i++) if(state.projects[i].id === id) return state.projects[i];
+  return null;
+}
+function tdLink(it){
+  if(!it.ref) return null;
+  var p = projectById(it.ref.p), t = p && byId(p, it.ref.t);
+  return t ? { p: p, t: t } : null;
+}
+function tdDone(it){ var l = tdLink(it); return l ? l.t.status === "done" : !!it.done; }
+function tdTitle(it){ var l = tdLink(it); return l ? l.t.title : it.title; }
+function tdOn(k){ return state.today.filter(function(it){ return it.day === k; }); }
+function tdLate(){
+  var k = rtKey(rtToday());
+  return state.today.filter(function(it){ return it.day < k && !tdDone(it); }).sort(function(a, b){ return a.day < b.day ? -1 : 1; });
+}
+// Tareas de proyectos con algo pendiente para hoy (o atrasado): llevan ☀ en el mapa y la lista.
+function tdSun(){
+  var k = rtKey(rtToday()), out = {};
+  state.today.forEach(function(it){ if(it.ref && it.day <= k && !tdDone(it)) out[it.ref.t] = 1; });
+  return out;
+}
+// ¿El proyecto entra en el portfolio elegido arriba? ("all" = todos, "none" = sin portfolio)
+function tdPortOk(p){
+  var f = state.tdPort || "all";
+  if(f === "all") return true;
+  var g = programById(p.program), port = g ? portOf(g) : null;
+  return f === "none" ? !port : port === f;
+}
+function tdWhere(p){ var g = programById(p.program); return (g ? g.name + " › " : "") + p.name; }
+function tdFold(s){ return String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+// Tareas sin terminar de los proyectos activos del portfolio elegido, salvo las ya anotadas ese día.
+function tdCandidates(){
+  var k = rtKey(tdCur), taken = {}, out = [];
+  tdOn(k).forEach(function(it){ if(it.ref) taken[it.ref.t] = 1; });
+  state.projects.forEach(function(p){
+    if(p.archived || !tdPortOk(p)) return;
+    p.tasks.forEach(function(t){ if(t.status !== "done" && !taken[t.id]) out.push({ p: p, t: t, i: info(p, t) }); });
+  });
+  return out;
+}
+function tdMatches(q){
+  q = tdFold(q.trim()); if(q.length < 2) return [];
+  var words = q.split(/\s+/);
+  return tdCandidates().filter(function(c){
+    var s = tdFold(c.t.title + " " + c.p.name);
+    return words.every(function(w){ return s.indexOf(w) >= 0; });
+  }).sort(function(a, b){
+    var sa = tdFold(a.t.title).indexOf(q) === 0 ? 0 : 1, sb = tdFold(b.t.title).indexOf(q) === 0 ? 0 : 1;
+    return sa - sb || (b.i.unlocked - a.i.unlocked) || a.t.title.localeCompare(b.t.title, "es");
+  }).slice(0, 6);
+}
+// Sugerencias (plegadas): las que ya se pueden hacer (amarillas) o están en curso.
+function tdIdeas(){
+  return tdCandidates().filter(function(c){ return c.i.unlocked || c.t.status === "doing"; })
+    .sort(function(a, b){ return (b.p.updated || 0) - (a.p.updated || 0); }).slice(0, 40);
+}
+
+function tdItem(it, late){
+  var l = tdLink(it), done = tdDone(it), st = l ? l.t.status : done ? "done" : "todo";
+  var i = l ? info(l.p, l.t) : null;
+  var where = l ? '<button type="button" class="td-where" data-act="goto" title="Abrir el proyecto">' + esc(tdWhere(l.p)) + "</button>"
+    : '<span class="td-loose">suelta</span>';
+  var badge = l && st !== "todo" && st !== "done" ? '<span class="td-st">' + (st === "doing" ? "▶ en curso" : "❚❚ en pausa") + "</span>"
+    : i && i.blocked ? '<span class="td-st" title="Prerequisitos sin terminar">🔒 ' + i.pending + "</span>" : "";
+  return '<div class="rt-item td-item s-' + st + (done ? " done" : "") + '" data-id="' + it.id + '">' +
+    '<button type="button" class="rt-chk" data-act="done" aria-label="Hecha">' + (done ? "✓" : "") + "</button>" +
+    '<div class="rt-main"><div class="rt-name">' + esc(tdTitle(it)) + '</div><div class="rt-meta">' + where + badge +
+    (late ? '<span class="td-ago">' + tdAgo(it.day) + "</span>" : "") + "</div></div>" +
+    PlanesNotes.dot(l ? l.t.notes : it.notes) +
+    (late ? '<button type="button" class="btn td-move" data-act="tohoy">→ hoy</button>' : "") +
+    '<button type="button" class="rt-edit" data-act="del" title="Quitar del día" aria-label="Quitar del día">×</button></div>';
+}
+function tdAgo(k){
+  var n = Math.round((rtToday() - rtParse(k)) / 864e5);
+  return n === 1 ? "de ayer" : "hace " + n + " días";
+}
+function tdProgress(k){
+  var its = tdOn(k); if(!its.length) return null;
+  return Math.round(its.filter(tdDone).length * 100 / its.length);
+}
+
+function renderToday(){
+  var box = $("today");
+  box.hidden = state.mode !== "today";
+  if(box.hidden) return;
+  var t = rtToday(), cur = tdCur, k = rtKey(cur), isToday = k === rtKey(t);
+  var rel = isToday ? "Hoy" : k === rtKey(rtAdd(t, -1)) ? "Ayer" : k === rtKey(rtAdd(t, 1)) ? "Mañana" : "";
+  $("tdLabel").innerHTML = (rel || RT_DAY_NAMES[rtDow(cur)]) + "<small>" + RT_DAY_NAMES[rtDow(cur)] + " " + cur.getDate() + " " + RT_MONTHS[cur.getMonth()].slice(0, 3) + "</small>";
+  $("tdTitle").textContent = rel || "Día";
+  var p = tdProgress(k);
+  $("tdRing").style.setProperty("--p", p || 0);
+  $("tdPct").textContent = p === null ? "–" : p + "%";
+
+  var mon = rtAdd(cur, -rtDow(cur)), wh = "";
+  for(var i = 0; i < 7; i++){
+    var d = rtAdd(mon, i), dk = rtKey(d), n = tdOn(dk).length, pr = tdProgress(dk) || 0;
+    wh += '<button type="button" class="rt-wd' + (dk === rtKey(t) ? " today" : "") + (dk === k ? " sel" : "") + (n ? "" : " future") +
+      '" data-day="' + dk + '"><span class="l">' + RT_DAYS[i] + '</span><span class="n">' + d.getDate() +
+      '</span><span class="bar"><i style="width:' + pr + '%"></i></span></button>';
+  }
+  $("tdWeek").innerHTML = wh;
+
+  var f = state.tdPort || "all";
+  if(f !== "all" && f !== "none" && !portfolioById(f)) f = state.tdPort = "all";
+  var chips = [{ id: "all", name: "Todos" }].concat(state.portfolios.map(function(x){ return { id: x.id, name: x.name }; }), [{ id: "none", name: "Sin portfolio" }]);
+  $("tdFilter").innerHTML = '<span class="td-flbl">Buscar en</span>' + chips.map(function(c){
+    return '<button type="button" class="rt-chip' + (c.id === f ? " on" : "") + '" data-port="' + c.id + '">' + esc(c.name) + "</button>";
+  }).join("");
+  $("tdNew").placeholder = isToday ? "Anotar para hoy…" : "Anotar para el " + RT_DAY_NAMES[rtDow(cur)] + " " + cur.getDate() + "…";
+
+  var html = "", late = isToday ? tdLate() : [];
+  if(late.length){
+    html += '<div class="rt-sec td-late"><div class="rt-sec-h">⚠ Atrasadas <span>' + late.length + "</span>" +
+      '<button type="button" class="td-all" data-act="allhoy">pasar todas a hoy</button></div>' +
+      late.map(function(it){ return tdItem(it, true); }).join("") + "</div>";
+  }
+  var its = tdOn(k), pend = its.filter(function(x){ return !tdDone(x); }), done = its.filter(tdDone);
+  if(!its.length){
+    html += '<div class="rt-empty">' + (isToday ? "No anotaste nada para hoy." : "No hay nada anotado para este día.") +
+      "<br>Escribí arriba: si coincide con una tarea de un proyecto, te la trae.</div>";
+  } else {
+    if(!pend.length) html += '<div class="rt-cheer">✓ ¡Día completo!</div>';
+    html += '<div class="rt-sec">' + pend.concat(done).map(function(it){ return tdItem(it, false); }).join("") + "</div>";
+  }
+  var ideas = tdIdeas();
+  if(ideas.length){
+    html += '<div class="td-ideas' + (state.tdIdeas ? " open" : "") + '"><button type="button" class="td-ideas-h" data-act="ideas">' +
+      (state.tdIdeas ? "▾" : "▸") + " Podrías hacer… <span>" + ideas.length + "</span></button>";
+    if(state.tdIdeas) html += ideas.map(function(c){
+      return '<div class="td-idea s-' + c.t.status + '" data-p="' + c.p.id + '" data-t="' + c.t.id + '"><span class="td-plus">＋</span>' +
+        '<div class="rt-main"><div class="rt-name">' + esc(c.t.title) + '</div><div class="rt-meta"><span>' + esc(tdWhere(c.p)) + "</span></div></div></div>";
+    }).join("");
+    html += "</div>";
+  }
+  $("tdList").innerHTML = html;
+  tdSugRender();
+}
+
+// Lista de coincidencias debajo de lo que se está anotando.
+function tdSugRender(){
+  var q = $("tdNew").value, box = $("tdSug"), ms = tdMatches(q);
+  if(!q.trim()){ box.hidden = true; box.innerHTML = ""; tdHi = -1; return; }
+  if(tdHi >= ms.length + 1) tdHi = ms.length;
+  var h = ms.map(function(c, i){
+    return '<button type="button" class="td-opt s-' + c.t.status + (i === tdHi ? " hi" : "") + '" data-i="' + i + '" data-p="' + c.p.id + '" data-t="' + c.t.id + '">' +
+      '<span class="td-o-t">↳ ' + esc(c.t.title) + '</span><span class="td-o-w">' + esc(tdWhere(c.p)) + "</span></button>";
+  }).join("");
+  h += '<button type="button" class="td-opt td-new' + (tdHi === ms.length ? " hi" : "") + '" data-i="' + ms.length + '" data-new="1"><span class="td-o-t">＋ Anotar «' +
+    esc(q.trim()) + "» suelta</span></button>";
+  box.innerHTML = h;
+  box.hidden = false;
+}
+function tdAdd(o){
+  var k = rtKey(tdCur);
+  rtChange(function(){
+    if(o.ref){
+      var p = projectById(o.ref.p), t = p && byId(p, o.ref.t); if(!t) return;
+      state.today.push({ id: uid(), day: k, title: t.title, ref: { p: p.id, t: t.id } });
+    } else state.today.push({ id: uid(), day: k, title: o.title });
+  });
+  $("tdNew").value = ""; tdHi = -1; tdSugRender();
+}
+function tdPick(btn){
+  if(btn.dataset.new){ var q = $("tdNew").value.replace(/\s+/g, " ").trim(); if(q) tdAdd({ title: q }); }
+  else tdAdd({ ref: { p: btn.dataset.p, t: btn.dataset.t } });
+  $("tdNew").focus();
+}
+
+$("tdNew").addEventListener("input", function(){ tdHi = -1; tdSugRender(); });
+$("tdNew").addEventListener("keydown", function(e){
+  var opts = $("tdSug").querySelectorAll(".td-opt");
+  if(e.key === "ArrowDown" || e.key === "ArrowUp"){
+    if(!opts.length) return;
+    e.preventDefault();
+    tdHi = e.key === "ArrowDown" ? Math.min(opts.length - 1, tdHi + 1) : Math.max(-1, tdHi - 1);
+    tdSugRender();
+  } else if(e.key === "Enter"){
+    e.preventDefault();
+    // Enter sin elegir nada = tarea suelta; con una coincidencia marcada, esa tarea.
+    if(tdHi >= 0 && opts[tdHi]) tdPick(opts[tdHi]);
+    else { var q = this.value.replace(/\s+/g, " ").trim(); if(q) tdAdd({ title: q }); }
+  } else if(e.key === "Escape"){ this.value = ""; tdSugRender(); }
+});
+// pointerdown: elegir antes de que el campo pierda el foco (en el celular cierra el teclado).
+$("tdSug").addEventListener("pointerdown", function(e){ if(e.target.closest(".td-opt")) e.preventDefault(); });
+$("tdSug").addEventListener("click", function(e){ var b = e.target.closest(".td-opt"); if(b) tdPick(b); });
+$("tdAddBtn").addEventListener("click", function(){
+  var q = $("tdNew").value.replace(/\s+/g, " ").trim(); if(q) tdAdd({ title: q }); $("tdNew").focus();
+});
+$("tdFilter").addEventListener("click", function(e){
+  var b = e.target.closest("[data-port]"); if(!b) return;
+  state.tdPort = b.dataset.port; save(); renderToday();
+});
+$("tdWeek").addEventListener("click", function(e){
+  var b = e.target.closest("[data-day]"); if(!b) return;
+  tdCur = rtParse(b.dataset.day); renderToday();
+});
+$("tdPrev").addEventListener("click", function(){ tdCur = rtAdd(tdCur, -1); renderToday(); });
+$("tdNext").addEventListener("click", function(){ tdCur = rtAdd(tdCur, 1); renderToday(); });
+$("tdLabel").addEventListener("click", function(){ tdCur = rtToday(); renderToday(); });
+
+$("tdList").addEventListener("click", function(e){
+  var b = e.target.closest("[data-act]");
+  if(!b){
+    var idea = e.target.closest(".td-idea");
+    if(idea) tdAdd({ ref: { p: idea.dataset.p, t: idea.dataset.t } });
+    return;
+  }
+  var act = b.dataset.act;
+  if(act === "ideas"){ state.tdIdeas = !state.tdIdeas; save(); renderToday(); return; }
+  if(act === "allhoy"){
+    var k0 = rtKey(rtToday());
+    rtChange(function(){ tdLate().forEach(function(it){ it.day = k0; }); });
+    return;
+  }
+  var row = b.closest(".td-item"); if(!row) return;
+  var it = state.today.filter(function(x){ return x.id === row.dataset.id; })[0]; if(!it) return;
+  var l = tdLink(it);
+  if(act === "done"){
+    // Tildarla acá también la marca hecha en su proyecto.
+    if(l) change(function(){ l.t.status = l.t.status === "done" ? "todo" : "done"; l.p.updated = Date.now(); });
+    else rtChange(function(){ if(it.done) delete it.done; else it.done = true; });
+  } else if(act === "notes"){
+    var o = l ? l.t : it;
+    PlanesNotes.open({ title: tdTitle(it), text: o.notes || "", at: o.notesAt, save: function(v){
+      rtChange(function(){ if(v){ o.notes = v; o.notesAt = Date.now(); } else { delete o.notes; delete o.notesAt; } });
+    } });
+  } else if(act === "tohoy"){
+    rtChange(function(){ it.day = rtKey(rtToday()); });
+  } else if(act === "del"){
+    rtChange(function(){ state.today = state.today.filter(function(x){ return x !== it; }); });
+    toast("Quitada del día" + (l ? " (la tarea sigue en su proyecto)" : ""), { label: "deshacer", fn: undo });
+  } else if(act === "goto" && l){
+    state.current = l.p.id; state.mode = state.projMode === "list" ? "list" : "map";
+    sel = { task: l.t.id }; save(); renderAll();
+  }
+});
 
 // ---------- editor de rutina ----------
 var rtEditing = null, rtEdDays = [], rtEdSlot = "manana";
@@ -2399,7 +2652,7 @@ var sync = { at: null, timer: null, busy: false, pending: false };
 
 function setSync(text){ $("syncState").textContent = text; }
 
-function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, notes: state.notes, goals: state.goals, aprender: state.aprender }; }
+function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, today: state.today, notes: state.notes, goals: state.goals, aprender: state.aprender }; }
 
 // Reemplaza programas y proyectos por los de otra copia, conservando la vista local.
 function applyData(d){
@@ -2408,6 +2661,7 @@ function applyData(d){
   state.projects = Array.isArray(d.projects) ? d.projects : [];
   state.routines = Array.isArray(d.routines) ? d.routines : [];
   state.routineDone = d.routineDone && typeof d.routineDone === "object" ? d.routineDone : {};
+  state.today = Array.isArray(d.today) ? d.today : [];
   normalizeData();
   state.notes = Array.isArray(d.notes) ? d.notes : [];
   state.goals = Array.isArray(d.goals) ? d.goals : [];
@@ -2469,7 +2723,7 @@ function onSession(s){
   if(!user){
     // Sin sesión: no dejar a la vista datos de la cuenta anterior.
     storeKey = KEY; sync.at = null; clearTimeout(sync.timer); sync.pending = false;
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
     if(window.PlanesAprender) window.PlanesAprender.reload();
     hist = []; fut = []; sel = null;
     renderAll();
@@ -2554,7 +2808,7 @@ if(REMOTE){
     $("signInBtn").disabled = $("signUpBtn").disabled = true;
   } else {
     // Mientras se sabe si hay sesión, no mostrar datos locales de nadie.
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
     if(window.PlanesAprender) window.PlanesAprender.reload();
     renderAll();
     var params = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));
