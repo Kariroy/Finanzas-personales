@@ -1913,6 +1913,78 @@ $("tdList").addEventListener("click", function(e){
   }
 });
 
+// Ordenar por prioridad: mantener apretada una tarjeta y desplazarla.
+var tdDrag = null;
+var TD_HOLD = 350;   // ms apretando antes de que se pueda mover
+$("tdList").addEventListener("pointerdown", function(e){
+  if(e.button > 0 || e.target.closest("button, a, input")) return;
+  var row = e.target.closest(".td-item"); if(!row) return;
+  var d = tdDrag = { row: row, id: e.pointerId, x: e.clientX, y: e.clientY, on: false };
+  d.timer = setTimeout(function(){
+    if(tdDrag !== d) return;
+    var r = row.getBoundingClientRect();
+    d.on = true; d.grab = d.y - r.top; d.dy = 0;
+    row.classList.add("dragging");
+    $("tdList").classList.add("sorting");
+    try { row.setPointerCapture(d.id); } catch(err){}
+    if(navigator.vibrate) navigator.vibrate(15);
+    tdAutoScroll();
+  }, TD_HOLD);
+});
+// Mientras se arrastra, el dedo no tiene que mover la pantalla.
+$("tdList").addEventListener("touchmove", function(e){ if(tdDrag && tdDrag.on) e.preventDefault(); }, { passive: false });
+$("tdList").addEventListener("contextmenu", function(e){ if(e.target.closest(".td-item")) e.preventDefault(); });
+document.addEventListener("pointermove", function(e){
+  var d = tdDrag; if(!d || e.pointerId !== d.id) return;
+  if(!d.on){
+    // Si se mueve antes de tiempo es un scroll normal: no se ordena.
+    if(Math.abs(e.clientX - d.x) > 8 || Math.abs(e.clientY - d.y) > 8){ clearTimeout(d.timer); tdDrag = null; }
+    return;
+  }
+  e.preventDefault();
+  d.y = e.clientY;
+  tdDragMove();
+});
+function tdDragMove(){
+  var d = tdDrag, row = d.row, box = row.parentNode;
+  var top = d.y - d.grab;   // dónde tendría que estar el borde de arriba de la tarjeta
+  var rows = Array.prototype.filter.call(box.children, function(x){ return x.classList.contains("td-item") && x !== row; });
+  var before = null;
+  for(var i = 0; i < rows.length; i++){
+    var r = rows[i].getBoundingClientRect();
+    if(top + row.offsetHeight / 2 < r.top + r.height / 2){ before = rows[i]; break; }
+  }
+  if(before ? row.nextSibling !== before : box.lastElementChild !== row) box.insertBefore(row, before);
+  row.style.transform = "";
+  row.style.transform = "translateY(" + (top - row.getBoundingClientRect().top) + "px)";
+}
+// Cerca de los bordes de la pantalla, la lista se desplaza sola.
+function tdAutoScroll(){
+  var d = tdDrag; if(!d || !d.on) return;
+  var sc = $("today"), r = sc.getBoundingClientRect(), v = 0;
+  if(d.y < r.top + 70) v = -8; else if(d.y > r.bottom - 70) v = 8;
+  if(v){ var before = sc.scrollTop; sc.scrollTop += v; if(sc.scrollTop !== before) tdDragMove(); }
+  requestAnimationFrame(tdAutoScroll);
+}
+function tdDragEnd(e){
+  var d = tdDrag; if(!d || e.pointerId !== d.id) return;
+  clearTimeout(d.timer);
+  tdDrag = null;
+  if(!d.on) return;
+  d.row.classList.remove("dragging");
+  $("tdList").classList.remove("sorting");
+  d.row.style.transform = "";
+  // Nuevo orden de esa sección; las demás tareas no se tocan.
+  var ids = Array.prototype.map.call(d.row.parentNode.querySelectorAll(".td-item"), function(x){ return x.dataset.id; });
+  var items = ids.map(function(id){ return state.today.filter(function(x){ return x.id === id; })[0]; }).filter(Boolean);
+  var slots = items.map(function(it){ return state.today.indexOf(it); }).sort(function(a, b){ return a - b; });
+  var same = slots.every(function(s, i){ return state.today[s] === items[i]; });
+  if(same){ renderToday(); return; }
+  rtChange(function(){ slots.forEach(function(s, i){ state.today[s] = items[i]; }); });
+}
+document.addEventListener("pointerup", tdDragEnd);
+document.addEventListener("pointercancel", tdDragEnd);
+
 // ---------- editor de rutina ----------
 var rtEditing = null, rtEdDays = [], rtEdSlot = "manana";
 function rtPaint(){
