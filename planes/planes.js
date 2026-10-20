@@ -1913,15 +1913,16 @@ $("tdList").addEventListener("click", function(e){
   }
 });
 
-// Ordenar por prioridad: mantener apretada una tarjeta y desplazarla.
+// Ordenar por prioridad: con el mouse se arrastra directo; en el celular se mantiene
+// apretada un instante (si no, deslizar el dedo no podría desplazar la lista).
 var tdDrag = null;
-var TD_HOLD = 350;   // ms apretando antes de que se pueda mover
+var TD_HOLD = 200;   // ms apretando con el dedo antes de que se pueda mover
 $("tdList").addEventListener("pointerdown", function(e){
   if(e.button > 0 || e.target.closest("button, a, input")) return;
   var row = e.target.closest(".td-item"); if(!row) return;
-  var d = tdDrag = { row: row, id: e.pointerId, x: e.clientX, y: e.clientY, on: false };
-  d.timer = setTimeout(function(){
-    if(tdDrag !== d) return;
+  var d = tdDrag = { row: row, id: e.pointerId, x: e.clientX, y: e.clientY, on: false, touch: e.pointerType === "touch" };
+  d.start = function(){
+    if(tdDrag !== d || d.on) return;
     var r = row.getBoundingClientRect();
     d.on = true; d.grab = d.y - r.top; d.dy = 0;
     row.classList.add("dragging");
@@ -1929,7 +1930,9 @@ $("tdList").addEventListener("pointerdown", function(e){
     try { row.setPointerCapture(d.id); } catch(err){}
     if(navigator.vibrate) navigator.vibrate(15);
     tdAutoScroll();
-  }, TD_HOLD);
+  };
+  if(d.touch) d.timer = setTimeout(d.start, TD_HOLD);
+  else e.preventDefault();   // con el mouse: que no se seleccione texto al arrastrar
 });
 // Mientras se arrastra, el dedo no tiene que mover la pantalla.
 $("tdList").addEventListener("touchmove", function(e){ if(tdDrag && tdDrag.on) e.preventDefault(); }, { passive: false });
@@ -1937,8 +1940,11 @@ $("tdList").addEventListener("contextmenu", function(e){ if(e.target.closest(".t
 document.addEventListener("pointermove", function(e){
   var d = tdDrag; if(!d || e.pointerId !== d.id) return;
   if(!d.on){
-    // Si se mueve antes de tiempo es un scroll normal: no se ordena.
-    if(Math.abs(e.clientX - d.x) > 8 || Math.abs(e.clientY - d.y) > 8){ clearTimeout(d.timer); tdDrag = null; }
+    var moved = Math.abs(e.clientX - d.x) > 6 || Math.abs(e.clientY - d.y) > 6;
+    if(!moved) return;
+    // Mouse: arranca al mover. Dedo antes de tiempo: es un scroll normal, no se ordena.
+    if(!d.touch){ d.start(); d.y = e.clientY; tdDragMove(); }   // grab se mide desde donde se apretó
+    else { clearTimeout(d.timer); tdDrag = null; }
     return;
   }
   e.preventDefault();
