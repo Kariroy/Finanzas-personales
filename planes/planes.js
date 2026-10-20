@@ -1686,7 +1686,25 @@ function tdLink(it){
   var p = projectById(it.ref.p), t = p && byId(p, it.ref.t);
   return t ? { p: p, t: t } : null;
 }
-function tdDone(it){ var l = tdLink(it); return l ? l.t.status === "done" : !!it.done; }
+// Estado como en el árbol: todo, doing (en curso), paused (en pausa) o done. Las sueltas lo guardan en it.status.
+function tdStatus(it){ var l = tdLink(it); return l ? l.t.status : ICON[it.status] ? it.status : it.done ? "done" : "todo"; }
+function tdDone(it){ return tdStatus(it) === "done"; }
+function tdSetStatus(it, st){
+  var l = tdLink(it);
+  // Vinculada: cambia la tarea en su proyecto.
+  if(l) change(function(){ l.t.status = st; l.p.updated = Date.now(); });
+  else rtChange(function(){ delete it.done; if(st === "todo") delete it.status; else it.status = st; });
+}
+// Toque en el círculo: siguiente estado. Doble toque (o Shift+clic): pausa / saca de pausa.
+var tdTap = null;
+function tdStatusClick(it, shift){
+  var pause = function(x){ tdSetStatus(x, tdStatus(x) === "paused" ? "todo" : "paused"); };
+  var next = function(x){ tdSetStatus(x, NEXT[tdStatus(x)]); };
+  if(shift){ pause(it); return; }
+  if(tdTap && tdTap.it === it){ clearTimeout(tdTap.timer); tdTap = null; pause(it); return; }
+  if(tdTap){ clearTimeout(tdTap.timer); next(tdTap.it); }
+  tdTap = { it: it, timer: setTimeout(function(){ tdTap = null; next(it); }, 260) };
+}
 function tdTitle(it){ var l = tdLink(it); return l ? l.t.title : it.title; }
 function tdOn(k){ return state.today.filter(function(it){ return it.day === k; }); }
 function tdLate(){
@@ -1749,14 +1767,15 @@ function tdMatches(q){
 }
 
 function tdItem(it, late){
-  var l = tdLink(it), done = tdDone(it), st = l ? l.t.status : done ? "done" : "todo";
+  var l = tdLink(it), st = tdStatus(it), done = st === "done";
   var i = l ? info(l.p, l.t) : null;
   var where = l ? '<button type="button" class="td-where" data-act="goto" title="Abrir el proyecto">' + esc(tdWhere(l.p)) + "</button>"
     : '<span class="td-loose">suelta</span>';
-  var badge = l && st !== "todo" && st !== "done" ? '<span class="td-st">' + (st === "doing" ? "▶ en curso" : "❚❚ en pausa") + "</span>"
-    : i && i.blocked ? '<span class="td-st" title="Prerequisitos sin terminar">🔒 ' + i.pending + "</span>" : "";
-  return '<div class="rt-item td-item s-' + st + (done ? " done" : "") + '" data-id="' + it.id + '">' +
-    '<button type="button" class="rt-chk" data-act="done" aria-label="Hecha">' + (done ? "✓" : "") + "</button>" +
+  var badge = i && i.blocked ? '<span class="td-st" title="Prerequisitos sin terminar">🔒 ' + i.pending + "</span>" : "";
+  var ready = st === "todo" && !(i && i.blocked);   // amarillo: se puede hacer ya
+  return '<div class="rt-item td-item s-' + st + (done ? " done" : "") + (i && i.blocked ? " blocked" : "") + (ready ? " unlocked" : "") + '" data-id="' + it.id + '">' +
+    '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (done ? " checked" : "") + ">" +
+    '<button type="button" class="st" data-act="status" title="Toque: cambiar estado · Doble toque: pausar">' + ICON[st] + "</button>" +
     '<div class="rt-main"><div class="rt-name">' + esc(tdTitle(it)) + '</div><div class="rt-meta">' + where + badge +
     (late ? '<span class="td-ago">' + tdAgo(it.day) + "</span>" : "") + "</div></div>" +
     PlanesNotes.dot(l ? l.t.notes : it.notes) +
@@ -1895,8 +1914,9 @@ $("tdList").addEventListener("click", function(e){
   var l = tdLink(it);
   if(act === "done"){
     // Tildarla acá también la marca hecha en su proyecto.
-    if(l) change(function(){ l.t.status = l.t.status === "done" ? "todo" : "done"; l.p.updated = Date.now(); });
-    else rtChange(function(){ if(it.done) delete it.done; else it.done = true; });
+    tdSetStatus(it, b.checked ? "done" : "todo");
+  } else if(act === "status"){
+    tdStatusClick(it, e.shiftKey);
   } else if(act === "notes"){
     var o = l ? l.t : it;
     PlanesNotes.open({ title: tdTitle(it), text: o.notes || "", at: o.notesAt, save: function(v){

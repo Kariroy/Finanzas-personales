@@ -800,10 +800,8 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .td-o-w { color: var(--muted); font-size: 11px; }
 .td-new .td-o-t { color: var(--doing); font-weight: 500; }
 .td-item { cursor: default; padding-right: 4px; }
-.td-item .rt-chk { background: none; cursor: pointer; padding: 0; }
 .td-item.s-doing { border-left-color: var(--doing); }
 .td-item.s-paused { border-left-color: var(--paused); }
-.td-item.done .rt-chk { background: var(--done); border-color: var(--done); }
 .td-where { background: none; border: 0; padding: 0; color: var(--muted); font-size: 11px; cursor: pointer; text-align: left; }
 .td-where:hover { color: var(--text); text-decoration: underline; }
 .td-loose { color: var(--faint); font-style: italic; }
@@ -823,3 +821,10 @@ button.sun.gap { visibility: hidden; }
 .td-item.dragging { position: relative; z-index: 3; cursor: grabbing; box-shadow: 0 10px 28px rgba(0, 0, 0, .5);
   border-color: var(--doing); background: var(--panel-2); }
 .sorting .td-item:not(.dragging) { transition: transform .12s; }
+.td-item { gap: 8px; }
+.td-item .st { width: 26px; height: 26px; font-size: 13px; }
+.td-item.unlocked .st { color: var(--ready); }
+.td-item.blocked { border-left-color: var(--line-2); }
+.td-item.blocked .rt-name { color: var(--muted); }
+.td-item.done .rt-name { text-decoration: line-through; color: var(--muted); }
+.td-item.done { opacity: .7; }
