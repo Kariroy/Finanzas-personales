@@ -53,8 +53,8 @@
     <div class="topbar">
       <button class="icon-btn menu" id="openSide" aria-label="Mostrar u ocultar el panel" title="Mostrar / ocultar panel">☰</button>
       <div class="seg" id="modeSeg" role="tablist">
-        <button type="button" data-mode="today" role="tab" title="Hoy: las tareas del día">☀<span class="lbl"> Hoy</span></button>
-        <button type="button" data-mode="proj" id="projToggle" role="tab" title="Tocá para cambiar entre Mapa y Lista">▦<span class="lbl"> Mapa</span></button>
+        <button type="button" data-mode="today" role="tab" title="Lista: las tareas del día">☑<span class="lbl"> Lista</span></button>
+        <button type="button" data-mode="map" role="tab" title="Mapa de los proyectos">▦<span class="lbl"> Mapa</span></button>
         <button type="button" data-mode="routines" role="tab" title="Rutinas">↻<span class="lbl"> Rutinas</span></button>
         <button type="button" data-mode="notes" role="tab" title="Notas">✎<span class="lbl"> Notas</span></button>
         <button type="button" data-mode="goals" role="tab" title="Objetivos">◎<span class="lbl"> Objetivos</span></button>
@@ -78,17 +78,6 @@
         <button class="btn" id="fit" title="Ver todo">⤢ centrar</button>
       </div>
     </main>
-
-    <section class="list" id="list" hidden>
-      <div class="list-inner">
-        <div class="list-head" id="listHead"></div>
-        <div class="list-add" id="listAdd">
-          <input type="text" id="listNew" placeholder="Nueva tarea… (subtareas con ＋)" aria-label="Nueva tarea">
-          <button class="btn" type="button" id="listAddBtn">agregar</button>
-        </div>
-        <div id="listBody"></div>
-      </div>
-    </section>
 
     <section class="rt td" id="today" hidden>
       <div class="rt-inner">

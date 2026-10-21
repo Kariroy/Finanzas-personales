@@ -261,70 +261,10 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
   .tools { opacity: 1; }
 }
 
-/* ---------- vista lista (checklist) ---------- */
-.list {
-  position: absolute; inset: 0; overflow-y: auto; background: var(--bg);
-  touch-action: pan-y; padding: 64px 16px 40px;
-}
-.list[hidden] { display: none; }
-.list-inner { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
-.list-head h2 { margin: 0 0 6px; font-size: 16px; }
-.list-head .sub { color: var(--muted); }
 .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 8px; }
 .bar i { display: block; height: 100%; background: var(--done); }
-
-.list-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
-.list-add input, .list-add select {
-  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; min-width: 0;
-}
-.list-add input:focus, .list-add select:focus { outline: none; border-color: var(--doing); }
-
-.li {
-  display: flex; align-items: center; gap: 10px;
-  background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--line-2);
-  border-radius: 6px; padding: 10px 10px 10px 12px; margin-bottom: 6px;
-}
-.li.s-doing { border-left-color: var(--doing); }
-.li.s-paused { border-left-color: var(--paused); }
-.li.s-done { border-left-color: var(--done); }
-.li.s-done .li-title { text-decoration: line-through; color: var(--muted); }
-.li.blocked { opacity: .6; }
-.li.s-done { opacity: .6; }
-.list .li.unlocked { border-color: rgba(227, 195, 65, .45); border-left-color: var(--ready); }
-.li.unlocked .st { color: var(--ready); }
-.li { margin-bottom: 5px; gap: 8px; padding-left: 6px; }
-.subs { margin-left: 18px; padding-left: 12px; border-left: 1px solid var(--line-2); }
-.tog {
-  width: 20px; height: 20px; flex: none; display: grid; place-items: center;
-  background: none; border: 0; padding: 0; color: var(--muted); cursor: pointer; border-radius: 4px;
-}
-button.tog:hover { background: var(--panel-2); color: var(--text); }
-.li-count { color: var(--muted); font-size: 10.5px; flex: none; }
-.li-lock { flex: none; font-size: 11px; }
-.li-tools { display: flex; flex: none; }
-.hide-done { display: inline-flex; margin-left: 14px; font-size: 11px; }
 .chk { width: 20px; height: 20px; flex: none; accent-color: var(--done); cursor: pointer; margin: 0; }
-.li .st { width: 22px; height: 22px; font-size: 12px; }
-.li-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.li-title { font-weight: 600; overflow-wrap: anywhere; outline: none; }
-.li-title[contenteditable="true"] { background: #0b0f14; box-shadow: 0 0 0 1px var(--doing); border-radius: 3px; padding: 0 3px; }
-.li-meta { color: var(--faint); font-size: 10.5px; }
-.li-meta b { color: var(--muted); font-weight: 500; }
-.li-btn { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; padding: 4px 6px; border-radius: 4px; flex: none; }
-.li-btn:hover { color: var(--text); background: var(--panel-2); }
-.list-empty { color: var(--faint); text-align: center; padding: 30px 0; }
-
-@media (max-width: 800px) {
-  .list { padding: 60px 12px 40px; }
-  .li { padding: 12px 8px 12px 12px; }
-  .chk { width: 24px; height: 24px; }
-  .li .st { width: 28px; height: 28px; font-size: 14px; }
-  .li-btn { font-size: 17px; padding: 6px 8px; }
-  .subs { margin-left: 9px; padding-left: 7px; }
-  .li { gap: 6px; }
-  .li-tools .li-btn[data-act="goto"] { display: none; }
-  .hide-done { display: flex; margin: 6px 0 0; }
-}
+@media (max-width: 800px) { .chk { width: 24px; height: 24px; } }
 
 /* ---------- ventana para pedir texto / confirmar ---------- */
 .ask {
@@ -449,9 +389,6 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .card:hover .note-dot, .card.selected .note-dot { opacity: .7; }
 .card .note-dot.has { opacity: 1; }
 /* en la lista, igual que en el mapa: junto a los botones; el vacío bien visible */
-.li-tools { align-items: center; }
-.li .note-dot { width: 13px; height: 13px; margin: 0 9px 0 6px; border-color: var(--muted); opacity: 1; }
-.li .note-dot::after { inset: -12px; }
 
 .notes-box { width: min(560px, 100%); }
 .notes-head .btn { padding: 5px 10px; font-size: 11.5px; }
@@ -484,13 +421,6 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
   .ask:has(.notes-box) { padding-top: 8vh; }
   .notes-box textarea { font-size: 16px; }
   .card .note-dot:not(.has) { opacity: .7; }
-}
-.li-tline { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.li-tline .li-title { min-width: 0; }
-@media (max-width: 800px) {
-  .li { gap: 4px; padding-right: 4px; }
-  .li .tog { width: 16px; }
-  .li-btn { padding: 6px 6px; }
 }
 
 /* ---------- rutinas (checklist diario) ---------- */
@@ -841,5 +771,5 @@ button.sun.gap { visibility: hidden; }
 .td-item .rt-name:hover { text-decoration: underline; text-decoration-color: var(--line-2); }
 .td-item .rt-name[contenteditable="true"] { cursor: text; text-decoration: none; background: #0b0f14; box-shadow: 0 0 0 1px var(--doing);
   border-radius: 3px; padding: 0 3px; margin: 0 -3px; outline: none; user-select: text; -webkit-user-select: text; }
-.li.flash { animation: liFlash 1.6s ease-out; }
-@keyframes liFlash { 0%, 30% { box-shadow: 0 0 0 2px var(--ready); background: #2a2614; } 100% { box-shadow: none; } }
+.card.flash { animation: cardFlash 1.6s ease-out; }
+@keyframes cardFlash { 0%, 30% { box-shadow: 0 0 0 3px var(--ready); } 100% { box-shadow: none; } }

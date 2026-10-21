@@ -27,6 +27,7 @@ if(!Array.isArray(state.goals)) state.goals = [];
 state.aprender = aprData(state.aprender);
 // Al abrir la app se empieza siempre por Hoy, la lista de tareas del día.
 state.mode = "today";
+if(state.projMode) delete state.projMode;
 // Al tocar un aviso de rutina se abre /planes/?rutinas: ir directo a la vista Rutinas.
 if(/[?&]rutinas\b/.test(location.search)){
   state.mode = "routines";
@@ -292,20 +293,14 @@ function isSelDep(d){ return sel && sel.dep && sel.dep.from === d.from && sel.de
 
 function renderAll(){
   canvas.hidden = state.mode !== "map";
-  // El panel de programas y proyectos (y el ☰) solo tienen sentido en Mapa y Lista.
-  var projView = state.mode === "map" || state.mode === "list";
+  // El panel de programas y proyectos (y el ☰) solo tienen sentido en el Mapa.
+  var projView = state.mode === "map";
   document.querySelector(".layout").classList.toggle("no-side", !projView);
   if(!projView) $("side").classList.remove("open");
-  var inProj = state.mode === "map" || state.mode === "list";
-  if(inProj) state.projMode = state.mode;
   Array.prototype.forEach.call($("modeSeg").children, function(b){
-    b.classList.toggle("on", b.dataset.mode === "proj" ? inProj : b.dataset.mode === state.mode);
+    b.classList.toggle("on", b.dataset.mode === state.mode);
   });
-  // Un solo botón para Mapa y Lista: muestra la vista actual (o la última usada).
-  var pm = state.projMode === "list" ? "list" : "map";
-  $("projToggle").innerHTML = (pm === "list" ? "☑" : "▦") + '<span class="lbl"> ' + (pm === "list" ? "Lista" : "Mapa") + "</span>";
   renderProjects();
-  renderList();
   renderToday();
   renderRoutines();
   renderNotes();
@@ -721,10 +716,6 @@ function deleteProgram(g, n){
 
 // ---------- edición del título ----------
 function startEdit(id, span){
-  if(!span && state.mode === "list"){
-    var row = $("listBody").querySelector('.li[data-id="' + id + '"]');
-    span = row && row.querySelector(".li-title");
-  }
   if(!span){ var c = els[id]; span = c && c.querySelector(".title"); }
   if(!span) return;
   var p = proj(), t = byId(p, id);
@@ -740,7 +731,7 @@ function startEdit(id, span){
     var v = span.textContent.replace(/\s+/g, " ").trim();
     span.contentEditable = "false";
     if(ok && v && v !== t.title) change(function(){ t.title = v; });
-    else { renderCards(); renderList(); }
+    else renderCards();
   }
   span.addEventListener("keydown", function(e){
     e.stopPropagation();
@@ -1180,185 +1171,11 @@ $("planesFile").addEventListener("change", function(e){
   });
 });
 
-// ---------- vista lista (árbol de tareas y subtareas) ----------
-// Cada tarea cuelga de su prerequisito: sus dependientes son sus subtareas.
-// Si depende de varias, cuelga de la última en el orden de las ramas y
-// muestra "también espera a …" con las demás.
-
 function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return "&#" + c.charCodeAt(0) + ";"; }); }
-
-// Orden de las ramas: primero lo que va antes (orden topológico), desempate por posición en el mapa.
-function topoOrder(p){
-  var indeg = {}, out = [], pos = {};
-  p.tasks.forEach(function(t){ indeg[t.id] = 0; });
-  p.deps.forEach(function(d){ if(indeg[d.to] !== undefined) indeg[d.to]++; });
-  var byPos = function(a, b){ var A = byId(p, a), B = byId(p, b); return A.y - B.y || A.x - B.x; };
-  var queue = p.tasks.map(function(t){ return t.id; }).filter(function(id){ return !indeg[id]; }).sort(byPos);
-  while(queue.length){
-    var n = queue.shift();
-    out.push(n);
-    dependents(p, n).forEach(function(k){ if(--indeg[k] === 0){ queue.push(k); queue.sort(byPos); } });
-  }
-  out.forEach(function(id, i){ pos[id] = i; });
-  return pos;
-}
-
-function buildTree(p){
-  var order = topoOrder(p), parent = {}, kids = {};
-  p.tasks.forEach(function(t){
-    var pre = prereqs(p, t.id).filter(function(id){ return byId(p, id); });
-    pre.sort(function(a, b){ return order[b] - order[a]; });
-    parent[t.id] = pre[0] || null;
-  });
-  var byOrder = function(a, b){ return order[a] - order[b]; };
-  var roots = p.tasks.map(function(t){ return t.id; }).filter(function(id){ return !parent[id]; }).sort(byOrder);
-  p.tasks.forEach(function(t){ var pa = parent[t.id]; if(pa) (kids[pa] = kids[pa] || []).push(t.id); });
-  Object.keys(kids).forEach(function(k){ kids[k].sort(byOrder); });
-  return { roots: roots, kids: kids, parent: parent, order: order };
-}
-
-function renderList(){
-  var box = $("list"), p = proj();
-  box.hidden = state.mode !== "list";
-  if(box.hidden) return;
-  var body = $("listBody"), head = $("listHead");
-  $("listAdd").hidden = !p;
-  if(!p){
-    head.innerHTML = "";
-    body.innerHTML = '<div class="list-empty">Creá un proyecto con «+ proyecto».</div>';
-    return;
-  }
-  var done = p.tasks.filter(function(t){ return t.status === "done"; }).length;
-  var pct = p.tasks.length ? Math.round(done * 100 / p.tasks.length) : 0;
-  head.innerHTML = "<h2>" + esc(p.name) + '</h2><div class="sub">' + done + " de " + p.tasks.length +
-    " hechas · " + pct + '%<label class="check hide-done"><input type="checkbox" data-act="hidedone"' +
-    (state.hideDone ? " checked" : "") + '> ocultar ramas terminadas</label></div><div class="bar"><i style="width:' + pct + '%"></i></div>';
-
-  var tree = buildTree(p);
-
-  if(!p.tasks.length){
-    body.innerHTML = '<div class="list-empty">Todavía no hay tareas. Escribí la primera arriba.</div>';
-    return;
-  }
-  // Cuántas tareas tiene cada rama y cuántas están hechas (incluida la propia).
-  var stats = {};
-  (function count(ids){
-    ids.forEach(function walk(id){
-      if(stats[id]) return;
-      var t = byId(p, id), s = { n: 1, done: t.status === "done" ? 1 : 0 };
-      (tree.kids[id] || []).forEach(function(k){ walk(k); s.n += stats[k].n; s.done += stats[k].done; });
-      stats[id] = s;
-    });
-  })(tree.roots);
-
-  var html = "";
-  (function nodes(ids){
-    ids.forEach(function(id){
-      var st = stats[id];
-      if(state.hideDone && st.done === st.n) return;
-      var t = byId(p, id), kids = tree.kids[id] || [];
-      html += '<div class="node">' + listRow(p, t, tree, st, kids.length);
-      if(kids.length && !t.fold){ html += '<div class="subs">'; nodes(kids); html += "</div>"; }
-      html += "</div>";
-    });
-  })(tree.roots);
-  body.innerHTML = html || '<div class="list-empty">Todo terminado 🎉</div>';
-}
-
-function listRow(p, t, tree, st, nkids){
-  var i = info(p, t);
-  var others = prereqs(p, t.id).filter(function(id){
-    var x = byId(p, id); return x && id !== tree.parent[t.id] && x.status !== "done";
-  });
-  var meta = others.length ? '<span class="li-meta">también espera a ' + others.map(function(id){ return "<b>" + esc(byId(p, id).title) + "</b>"; }).join(", ") + "</span>" : "";
-  var fold = nkids
-    ? '<button type="button" class="tog" data-act="fold" aria-label="' + (t.fold ? "Mostrar" : "Ocultar") + ' subtareas">' + (t.fold ? "▸" : "▾") + "</button>"
-    : '<span class="tog"></span>';
-  var badge = nkids ? '<span class="li-count" title="Hechas en esta rama">' + st.done + "/" + st.n + "</span>" : "";
-  if(i.blocked) badge = '<span class="li-lock" title="Prerequisitos sin terminar">🔒</span>' + badge;
-  return '<div class="li s-' + t.status + (i.blocked ? " blocked" : "") + (i.unlocked ? " unlocked" : "") + '" data-id="' + t.id + '">' + fold +
-    '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (t.status === "done" ? " checked" : "") + ">" +
-    '<button type="button" class="st" data-act="status" title="Toque: cambiar estado · Doble toque: pausar">' + ICON[t.status] + "</button>" +
-    '<div class="li-main"><span class="li-tline"><span class="li-title">' + esc(t.title) + "</span></span>" + meta + "</div>" + badge +
-    '<span class="li-tools">' +
-    sunBtn(tdSun()[t.id], "li-btn", t) + noteDot(t) +
-    '<button type="button" class="li-btn" data-act="sub" title="Agregar subtarea">＋</button>' +
-    '<button type="button" class="li-btn" data-act="rename" title="Renombrar">✎</button>' +
-    '<button type="button" class="li-btn" data-act="goto" title="Ver en el mapa">◎</button>' +
-    '<button type="button" class="li-btn" data-act="del" title="Borrar">×</button>' +
-    "</span></div>";
-}
-
-// Crea una tarea; con parentId queda como subtarea (depende de ella) y se ubica a su derecha en el mapa.
-function addTask(p, title, parentId){
-  var parent = parentId && byId(p, parentId), t;
-  if(parent){
-    var ys = dependents(p, parentId).map(function(k){ return byId(p, k).y; });
-    t = makeTask(p, parent.x + W + GX, ys.length ? Math.max.apply(null, ys) + H + GY : parent.y, title);
-    p.deps.push({ from: parentId, to: t.id });
-    parent.fold = false;
-  } else {
-    var x = p.tasks.length ? Math.min.apply(null, p.tasks.map(function(k){ return k.x; })) : 0;
-    var y = p.tasks.length ? Math.max.apply(null, p.tasks.map(function(k){ return k.y; })) + H + GY : 0;
-    t = makeTask(p, x, y, title);
-  }
-  return t;
-}
-
-$("listHead").addEventListener("change", function(e){
-  if(e.target.dataset.act === "hidedone"){ state.hideDone = e.target.checked; save(); renderList(); }
-});
-
-$("listBody").addEventListener("click", function(e){
-  var b = e.target.closest("[data-act]"); if(!b) return;
-  var act = b.dataset.act, p = proj();
-  var id = b.closest(".li").dataset.id, t = byId(p, id);
-  if(act === "fold"){ t.fold = !t.fold; save(); renderList(); }
-  else if(act === "done") setStatus(id, b.checked ? "done" : "todo");
-  else if(act === "status") statusClick(id, e.shiftKey);
-  else if(act === "notes") openNotes(id);
-  else if(act === "sun") tdToggle(p, id);
-  else if(act === "rename") startEdit(id, b.closest(".li").querySelector(".li-title"));
-  else if(act === "sub"){
-    var n;
-    change(function(){ n = addTask(p, "Nueva subtarea", id); });
-    var row = $("listBody").querySelector('.li[data-id="' + n.id + '"]');
-    if(row){ row.scrollIntoView({ block: "nearest" }); startEdit(n.id, row.querySelector(".li-title")); }
-  }
-  else if(act === "del"){
-    var k = dependents(p, id).length;
-    var del = function(){ sel = { task: id }; deleteSelected(); };
-    if(k) ask({ title: "«" + t.title + "» tiene " + k + " subtarea(s). Se borra solo esta tarea y sus subtareas quedan sueltas. ¿Seguir?", ok: "borrar", danger: true }, del);
-    else del();
-  }
-  else if(act === "goto"){
-    state.mode = "map"; sel = { task: id }; save(); renderAll();
-    var v = view(), r = canvas.getBoundingClientRect();
-    v.x = r.width / 2 - (t.x + W / 2) * v.z;
-    v.y = r.height / 2 - (t.y + H / 2) * v.z;
-    applyView(); save();
-  }
-});
-$("listBody").addEventListener("dblclick", function(e){
-  var span = e.target.closest(".li-title");
-  if(span) startEdit(span.closest(".li").dataset.id, span);
-});
-
-function listAddTask(){
-  var p = proj(), input = $("listNew"), title = input.value.replace(/\s+/g, " ").trim();
-  if(!p || !title) return;
-  change(function(){ addTask(p, title, null); });
-  input.value = "";
-  input.focus();
-}
-$("listAddBtn").addEventListener("click", listAddTask);
-$("listNew").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); listAddTask(); } });
 
 $("modeSeg").addEventListener("click", function(e){
   var b = e.target.closest("[data-mode]"); if(!b) return;
   var m = b.dataset.mode;
-  // Mapa ⇄ Lista: si ya estás en una, el botón cambia a la otra; si no, vuelve a la última usada.
-  if(m === "proj") m = state.mode === "map" ? "list" : state.mode === "list" ? "map" : (state.projMode === "list" ? "list" : "map");
   if(m === state.mode) return;
   state.mode = m;
   save();
@@ -1470,7 +1287,6 @@ $("helpDlg").addEventListener("click", function(e){
 
 $("newTask").addEventListener("click", function(){
   var p = proj(); if(!p) return;
-  if(state.mode === "list"){ closeSideMobile(); $("listNew").focus(); return; }
   if(state.mode === "routines"){ closeSideMobile(); rtOpen(null); return; }
   if(state.mode === "today"){ closeSideMobile(); $("tdNew").focus(); return; }
   if(state.mode === "notes"){ closeSideMobile(); ntEditOpen(null); return; }
@@ -1745,7 +1561,7 @@ function tdPortOk(p){
 function sunBtn(on, cls, t){
   var off = !on && t && t.status === "done";   // una hecha no se suma: el lugar queda vacío
   return '<button type="button" class="sun' + (on ? " on" : "") + (off ? " gap" : "") + (cls ? " " + cls : "") + '" data-act="sun"' + (off ? " disabled" : "") + ' title="' +
-    (on ? "Anotada para hoy · tocá para quitarla" : "Sumar a Hoy") + '">☀</button>';
+    (on ? "En la Lista de hoy · tocá para quitarla" : "Sumar a la Lista de hoy") + '">☀</button>';
 }
 function tdToggle(p, id){
   var t = p && byId(p, id); if(!t) return;
@@ -1756,7 +1572,7 @@ function tdToggle(p, id){
     if(had) state.today = state.today.filter(function(it){ return !mine(it); });
     else state.today.push({ id: uid(), day: k, title: t.title, ref: { p: p.id, t: id } });
   });
-  toast(had ? "Quitada de Hoy" : "☀ Sumada a Hoy", { label: "deshacer", fn: undo });
+  toast(had ? "Quitada de la Lista" : "☀ Sumada a la Lista", { label: "deshacer", fn: undo });
 }
 function tdWhere(p){ var g = programById(p.program); return (g ? g.name + " › " : "") + p.name; }
 function tdFold(s){ return String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
@@ -1801,22 +1617,21 @@ function tdAgo(k){
   return n === 1 ? "de ayer" : "hace " + n + " días";
 }
 
-// Tarea de un proyecto: abre su árbol (vista Lista) con la tarea a la vista y resaltada.
+// Tarea de un proyecto: abre el mapa de su proyecto centrado en esa tarjeta, seleccionada y resaltada.
 function tdOpenInTree(l){
-  var p = l.p, tree = buildTree(p), up = tree.parent[l.t.id];
-  while(up){ var x = byId(p, up); if(x) x.fold = false; up = tree.parent[up]; }
+  var p = l.p, t = l.t;
   state.current = p.id;
   var g = programById(p.program), port = g ? portOf(g) : null, tab = activeTab();
   if(tab !== "all" && tab !== port) state.portfolioTab = port || "all";
-  if(state.hideDone && l.t.status === "done") state.hideDone = false;
-  state.mode = "list";
+  state.mode = "map";
+  sel = { task: t.id };
   save(); renderAll();
-  var row = $("listBody").querySelector('.li[data-id="' + l.t.id + '"]');
-  if(row){
-    row.scrollIntoView({ block: "center" });
-    row.classList.add("flash");
-    setTimeout(function(){ row.classList.remove("flash"); }, 1600);
-  }
+  var v = view(), r = canvas.getBoundingClientRect();
+  v.x = r.width / 2 - (t.x + W / 2) * v.z;
+  v.y = r.height / 2 - (cardH(t.id) / 2 + t.y) * v.z;
+  applyView(); save();
+  var c = els[t.id];
+  if(c){ c.classList.add("flash"); setTimeout(function(){ c.classList.remove("flash"); }, 1600); }
 }
 // Tarea suelta: el nombre se edita ahí mismo (Enter guarda, Escape cancela).
 function tdEditLoose(it, el){
@@ -1847,7 +1662,7 @@ function renderTdHist(){
   var t = rtToday(), byDay = {};
   state.today.forEach(function(it){ if(it.doneOn && tdDone(it)) (byDay[it.doneOn] = byDay[it.doneOn] || []).push(it); });
   var days = Object.keys(byDay).sort().reverse();
-  if(!days.length){ $("tdHist").innerHTML = '<div class="rt-empty">Todavía no completaste tareas de Hoy.</div>'; return; }
+  if(!days.length){ $("tdHist").innerHTML = '<div class="rt-empty">Todavía no completaste tareas de la Lista.</div>'; return; }
   $("tdHist").innerHTML = days.map(function(k){
     var d = rtParse(k), rel = k === rtKey(t) ? "Hoy" : k === rtKey(rtAdd(t, -1)) ? "Ayer" : "";
     var name = (rel ? rel + " · " : "") + RT_DAY_NAMES[rtDow(d)] + " " + d.getDate() + " " + RT_MONTHS[d.getMonth()].slice(0, 3) +
@@ -2886,7 +2701,7 @@ function onSession(s){
   var cached = readStore(storeKey);
   if(cached){
     // Lo que se eligió en este dispositivo (proyecto, pestaña de portfolio, filtros…) se mantiene al volver a entrar.
-    ["current", "portfolioTab", "tdPort", "projMode", "hideDone", "sideCollapsed", "rtView", "highlight", "looseOpen", "notesFilter"].forEach(function(k){
+    ["current", "portfolioTab", "tdPort", "sideCollapsed", "rtView", "highlight", "looseOpen", "notesFilter"].forEach(function(k){
       if(cached[k] !== undefined) state[k] = cached[k];
     });
     applyData(cached);
