@@ -1790,7 +1790,7 @@ function tdItem(it, late){
   return '<div class="rt-item td-item s-' + st + (done ? " done" : "") + (i && i.blocked ? " blocked" : "") + (ready ? " unlocked" : "") + '" data-id="' + it.id + '">' +
     '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (done ? " checked" : "") + ">" +
     '<button type="button" class="st" data-act="status" title="Toque: cambiar estado · Doble toque: pausar">' + ICON[st] + "</button>" +
-    '<div class="rt-main"><div class="rt-name">' + esc(tdTitle(it)) + '</div>' + (badge || late ? '<div class="rt-meta">' + badge +
+    '<div class="rt-main"><div class="rt-name" data-act="open" title="' + (l ? "Ver en el árbol del proyecto" : "Tocá para editar") + '">' + esc(tdTitle(it)) + '</div>' + (badge || late ? '<div class="rt-meta">' + badge +
     (late ? '<span class="td-ago">' + tdAgo(it.day) + "</span>" : "") + "</div>" : "") + "</div>" +
     PlanesNotes.dot(l ? l.t.notes : it.notes) +
     (late ? '<button type="button" class="btn td-move" data-act="tohoy">→ hoy</button>' : "") +
@@ -1799,6 +1799,46 @@ function tdItem(it, late){
 function tdAgo(k){
   var n = Math.round((rtToday() - rtParse(k)) / 864e5);
   return n === 1 ? "de ayer" : "hace " + n + " días";
+}
+
+// Tarea de un proyecto: abre su árbol (vista Lista) con la tarea a la vista y resaltada.
+function tdOpenInTree(l){
+  var p = l.p, tree = buildTree(p), up = tree.parent[l.t.id];
+  while(up){ var x = byId(p, up); if(x) x.fold = false; up = tree.parent[up]; }
+  state.current = p.id;
+  var g = programById(p.program), port = g ? portOf(g) : null, tab = activeTab();
+  if(tab !== "all" && tab !== port) state.portfolioTab = port || "all";
+  if(state.hideDone && l.t.status === "done") state.hideDone = false;
+  state.mode = "list";
+  save(); renderAll();
+  var row = $("listBody").querySelector('.li[data-id="' + l.t.id + '"]');
+  if(row){
+    row.scrollIntoView({ block: "center" });
+    row.classList.add("flash");
+    setTimeout(function(){ row.classList.remove("flash"); }, 1600);
+  }
+}
+// Tarea suelta: el nombre se edita ahí mismo (Enter guarda, Escape cancela).
+function tdEditLoose(it, el){
+  if(el.isContentEditable) return;
+  el.contentEditable = "true";
+  el.focus();
+  var r = document.createRange(); r.selectNodeContents(el);
+  var sl = getSelection(); sl.removeAllRanges(); sl.addRange(r);
+  var over = false;
+  function finish(ok){
+    if(over) return; over = true;
+    var v = el.textContent.replace(/\s+/g, " ").trim();
+    el.contentEditable = "false";
+    if(ok && v && v !== it.title) rtChange(function(){ it.title = v; });
+    else renderToday();
+  }
+  el.addEventListener("keydown", function(e){
+    e.stopPropagation();
+    if(e.key === "Enter"){ e.preventDefault(); finish(true); }
+    else if(e.key === "Escape"){ e.preventDefault(); finish(false); }
+  });
+  el.addEventListener("blur", function(){ finish(true); });
 }
 
 // ✓ Hechas: lo completado, agrupado por el día en que se terminó (lo más nuevo arriba).
@@ -1927,7 +1967,10 @@ $("tdList").addEventListener("click", function(e){
   var row = b.closest(".td-item"); if(!row) return;
   var it = state.today.filter(function(x){ return x.id === row.dataset.id; })[0]; if(!it) return;
   var l = tdLink(it);
-  if(act === "done"){
+  if(act === "open"){
+    if(l) tdOpenInTree(l);
+    else tdEditLoose(it, b);
+  } else if(act === "done"){
     // Tildarla acá también la marca hecha en su proyecto.
     tdSetStatus(it, b.checked ? "done" : "todo");
   } else if(act === "status"){
@@ -1950,7 +1993,7 @@ $("tdList").addEventListener("click", function(e){
 var tdDrag = null;
 var TD_HOLD = 200;   // ms apretando con el dedo antes de que se pueda mover
 $("tdList").addEventListener("pointerdown", function(e){
-  if(e.button > 0 || e.target.closest("button, a, input")) return;
+  if(e.button > 0 || e.target.closest("button, a, input, [contenteditable=true]")) return;
   var row = e.target.closest(".td-item"); if(!row) return;
   var d = tdDrag = { row: row, id: e.pointerId, x: e.clientX, y: e.clientY, on: false, touch: e.pointerType === "touch" };
   d.start = function(){
