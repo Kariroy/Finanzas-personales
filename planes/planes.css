@@ -263,8 +263,6 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 
 .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 8px; }
 .bar i { display: block; height: 100%; background: var(--done); }
-.chk { width: 20px; height: 20px; flex: none; accent-color: var(--done); cursor: pointer; margin: 0; }
-@media (max-width: 800px) { .chk { width: 24px; height: 24px; } }
 
 /* ---------- ventana para pedir texto / confirmar ---------- */
 .ask {
@@ -773,3 +771,4 @@ button.sun.gap { visibility: hidden; }
   border-radius: 3px; padding: 0 3px; margin: 0 -3px; outline: none; user-select: text; -webkit-user-select: text; }
 .card.flash { animation: cardFlash 1.6s ease-out; }
 @keyframes cardFlash { 0%, 30% { box-shadow: 0 0 0 3px var(--ready); } 100% { box-shadow: none; } }
+.td-tree { display: inline-block; color: var(--doing); font-size: 11px; margin-right: 6px; vertical-align: 1px; }

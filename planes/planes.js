@@ -1604,9 +1604,10 @@ function tdItem(it, late){
   var badge = i && i.blocked ? '<span class="td-st" title="Prerequisitos sin terminar">🔒 ' + i.pending + "</span>" : "";
   var ready = st === "todo" && !(i && i.blocked);   // amarillo: se puede hacer ya
   return '<div class="rt-item td-item s-' + st + (done ? " done" : "") + (i && i.blocked ? " blocked" : "") + (ready ? " unlocked" : "") + '" data-id="' + it.id + '">' +
-    '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (done ? " checked" : "") + ">" +
     '<button type="button" class="st" data-act="status" title="Toque: cambiar estado · Doble toque: pausar">' + ICON[st] + "</button>" +
-    '<div class="rt-main"><div class="rt-name" data-act="open" title="' + (l ? "Ver en el árbol del proyecto" : "Tocá para editar") + '">' + esc(tdTitle(it)) + '</div>' + (badge || late ? '<div class="rt-meta">' + badge +
+    '<div class="rt-main"><div class="rt-name" data-act="open" title="' + (l ? "Ver en el mapa · " + esc(tdWhere(l.p)) : "Tocá para editar") + '">' +
+    // ▦ = viene del árbol (mapa) de un proyecto, como el botón Mapa
+    (l ? '<span class="td-tree" aria-label="De un proyecto">▦</span>' : "") + esc(tdTitle(it)) + '</div>' + (badge || late ? '<div class="rt-meta">' + badge +
     (late ? '<span class="td-ago">' + tdAgo(it.day) + "</span>" : "") + "</div>" : "") + "</div>" +
     PlanesNotes.dot(l ? l.t.notes : it.notes) +
     (late ? '<button type="button" class="btn td-move" data-act="tohoy">→ hoy</button>' : "") +
@@ -1785,9 +1786,6 @@ $("tdList").addEventListener("click", function(e){
   if(act === "open"){
     if(l) tdOpenInTree(l);
     else tdEditLoose(it, b);
-  } else if(act === "done"){
-    // Tildarla acá también la marca hecha en su proyecto.
-    tdSetStatus(it, b.checked ? "done" : "todo");
   } else if(act === "status"){
     tdStatusClick(it, e.shiftKey);
   } else if(act === "notes"){
