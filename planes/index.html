@@ -53,8 +53,8 @@
     <div class="topbar">
       <button class="icon-btn menu" id="openSide" aria-label="Mostrar u ocultar el panel" title="Mostrar / ocultar panel">☰</button>
       <div class="seg" id="modeSeg" role="tablist">
-        <button type="button" data-mode="proj" id="projToggle" role="tab" title="Tocá para cambiar entre Mapa y Lista">▦<span class="lbl"> Mapa</span></button>
         <button type="button" data-mode="today" role="tab" title="Hoy: las tareas del día">☀<span class="lbl"> Hoy</span></button>
+        <button type="button" data-mode="proj" id="projToggle" role="tab" title="Tocá para cambiar entre Mapa y Lista">▦<span class="lbl"> Mapa</span></button>
         <button type="button" data-mode="routines" role="tab" title="Rutinas">↻<span class="lbl"> Rutinas</span></button>
         <button type="button" data-mode="notes" role="tab" title="Notas">✎<span class="lbl"> Notas</span></button>
         <button type="button" data-mode="goals" role="tab" title="Objetivos">◎<span class="lbl"> Objetivos</span></button>
@@ -99,8 +99,8 @@
           <div class="td-sug" id="tdSug" hidden></div>
           <div class="td-filter" id="tdFilter"></div>
           <div class="td-addrow">
-            <input type="text" id="tdNew" placeholder="Anotar para hoy…" autocomplete="off" aria-label="Anotar una tarea">
-            <button class="btn" type="button" id="tdAddBtn">anotar</button>
+            <input type="text" id="tdNew" placeholder="Anotar para hoy…" autocomplete="off" enterkeyhint="send" aria-label="Anotar una tarea">
+            <button class="td-send" type="button" id="tdAddBtn" title="Anotar (Enter)" aria-label="Anotar">➤</button>
           </div>
         </div>
       </div>

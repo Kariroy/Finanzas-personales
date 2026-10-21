@@ -25,7 +25,8 @@ normalizeData();
 if(!Array.isArray(state.notes)) state.notes = [];
 if(!Array.isArray(state.goals)) state.goals = [];
 state.aprender = aprData(state.aprender);
-if(!state.mode) state.mode = matchMedia("(max-width: 800px)").matches ? "list" : "map";
+// Al abrir la app se empieza siempre por Hoy, la lista de tareas del día.
+state.mode = "today";
 // Al tocar un aviso de rutina se abre /planes/?rutinas: ir directo a la vista Rutinas.
 if(/[?&]rutinas\b/.test(location.search)){
   state.mode = "routines";
@@ -2840,7 +2841,14 @@ function onSession(s){
   avCurrent().then(function(sub){ $("rtBell").classList.toggle("on", !!sub); }).catch(function(){});
   storeKey = KEY + ":" + user.id;
   var cached = readStore(storeKey);
-  if(cached){ state.mode = cached.mode || state.mode; state.hideDone = cached.hideDone; applyData(cached); }
+  if(cached){
+    // Lo que se eligió en este dispositivo (proyecto, pestaña de portfolio, filtros…) se mantiene al volver a entrar.
+    ["current", "portfolioTab", "tdPort", "projMode", "hideDone", "sideCollapsed", "rtView", "highlight", "looseOpen", "notesFilter"].forEach(function(k){
+      if(cached[k] !== undefined) state[k] = cached[k];
+    });
+    applyData(cached);
+    applySide();
+  }
   setSync("sincronizando…");
   sb.from("planes_datos").select("data, updated_at").eq("user_id", user.id).maybeSingle().then(function(r){
     if(r.error) throw r.error;
