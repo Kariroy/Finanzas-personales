@@ -1784,29 +1784,18 @@ function tdAgo(k){
   var n = Math.round((rtToday() - rtParse(k)) / 864e5);
   return n === 1 ? "de ayer" : "hace " + n + " días";
 }
-function tdProgress(k){
-  var its = tdOn(k); if(!its.length) return null;
-  return Math.round(its.filter(tdDone).length * 100 / its.length);
-}
 
 function renderToday(){
   var box = $("today");
   box.hidden = state.mode !== "today";
   if(box.hidden) return;
   var t = rtToday(), cur = tdCur, k = rtKey(cur), isToday = k === rtKey(t);
-  var rel = isToday ? "Hoy" : k === rtKey(rtAdd(t, -1)) ? "Ayer" : k === rtKey(rtAdd(t, 1)) ? "Mañana" : "";
-  var dn = RT_DAY_NAMES[rtDow(cur)];
-  $("tdTitle").innerHTML = (rel || dn.charAt(0).toUpperCase() + dn.slice(1)) + " <small>" + (rel ? dn + " " : "") + cur.getDate() + " " + RT_MONTHS[cur.getMonth()].slice(0, 3) + "</small>";
-  var p = tdProgress(k);
-  $("tdRing").style.setProperty("--p", p || 0);
-  $("tdPct").textContent = p === null ? "–" : p + "%";
 
   var mon = rtAdd(cur, -rtDow(cur)), wh = "";
   for(var i = 0; i < 7; i++){
-    var d = rtAdd(mon, i), dk = rtKey(d), n = tdOn(dk).length, pr = tdProgress(dk) || 0;
+    var d = rtAdd(mon, i), dk = rtKey(d), n = tdOn(dk).length;
     wh += '<button type="button" class="rt-wd' + (dk === rtKey(t) ? " today" : "") + (dk === k ? " sel" : "") + (n ? "" : " future") +
-      '" data-day="' + dk + '"><span class="l">' + RT_DAYS[i] + '</span><span class="n">' + d.getDate() +
-      '</span><span class="bar"><i style="width:' + pr + '%"></i></span></button>';
+      '" data-day="' + dk + '"><span class="l">' + RT_DAYS[i] + '</span><span class="n">' + d.getDate() + "</span></button>";
   }
   $("tdWeek").innerHTML = wh;
 
@@ -1895,7 +1884,6 @@ $("tdWeek").addEventListener("click", function(e){
   var b = e.target.closest("[data-day]"); if(!b || Date.now() - tdSwipeAt < 400) return;
   tdCur = rtParse(b.dataset.day); renderToday();
 });
-$("tdTitle").addEventListener("click", function(){ tdCur = rtToday(); renderToday(); });
 // Deslizar la semana a un costado: semana anterior o siguiente.
 var tdSwipe = null;
 $("tdWeek").addEventListener("pointerdown", function(e){ tdSwipe = { x: e.clientX, y: e.clientY }; });
