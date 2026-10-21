@@ -93,24 +93,19 @@
     <section class="rt td" id="today" hidden>
       <div class="rt-inner">
         <div class="rt-top">
-          <h2 id="tdTitle">Hoy</h2>
+          <h2><button type="button" class="td-title" id="tdTitle" title="Volver a hoy">Hoy</button></h2>
           <div class="rt-ring" id="tdRing"><span id="tdPct">–</span></div>
         </div>
-        <div class="rt-daynav">
-          <button type="button" class="icon-btn" id="tdPrev" aria-label="Día anterior">‹</button>
-          <button type="button" class="rt-label" id="tdLabel" title="Volver a hoy"></button>
-          <button type="button" class="icon-btn" id="tdNext" aria-label="Día siguiente">›</button>
-        </div>
-        <div class="rt-week" id="tdWeek"></div>
-        <div class="td-filter" id="tdFilter"></div>
+        <div class="rt-week td-week" id="tdWeek" title="Deslizá para cambiar de semana"></div>
+        <div id="tdList"></div>
         <div class="td-add">
+          <div class="td-sug" id="tdSug" hidden></div>
+          <div class="td-filter" id="tdFilter"></div>
           <div class="td-addrow">
             <input type="text" id="tdNew" placeholder="Anotar para hoy…" autocomplete="off" aria-label="Anotar una tarea">
             <button class="btn" type="button" id="tdAddBtn">anotar</button>
           </div>
-          <div class="td-sug" id="tdSug" hidden></div>
         </div>
-        <div id="tdList"></div>
       </div>
     </section>
 

@@ -1769,15 +1769,13 @@ function tdMatches(q){
 function tdItem(it, late){
   var l = tdLink(it), st = tdStatus(it), done = st === "done";
   var i = l ? info(l.p, l.t) : null;
-  var where = l ? '<button type="button" class="td-where" data-act="goto" title="Abrir el proyecto">' + esc(tdWhere(l.p)) + "</button>"
-    : '<span class="td-loose">suelta</span>';
   var badge = i && i.blocked ? '<span class="td-st" title="Prerequisitos sin terminar">🔒 ' + i.pending + "</span>" : "";
   var ready = st === "todo" && !(i && i.blocked);   // amarillo: se puede hacer ya
   return '<div class="rt-item td-item s-' + st + (done ? " done" : "") + (i && i.blocked ? " blocked" : "") + (ready ? " unlocked" : "") + '" data-id="' + it.id + '">' +
     '<input type="checkbox" class="chk" data-act="done" aria-label="Hecha"' + (done ? " checked" : "") + ">" +
     '<button type="button" class="st" data-act="status" title="Toque: cambiar estado · Doble toque: pausar">' + ICON[st] + "</button>" +
-    '<div class="rt-main"><div class="rt-name">' + esc(tdTitle(it)) + '</div><div class="rt-meta">' + where + badge +
-    (late ? '<span class="td-ago">' + tdAgo(it.day) + "</span>" : "") + "</div></div>" +
+    '<div class="rt-main"><div class="rt-name">' + esc(tdTitle(it)) + '</div>' + (badge || late ? '<div class="rt-meta">' + badge +
+    (late ? '<span class="td-ago">' + tdAgo(it.day) + "</span>" : "") + "</div>" : "") + "</div>" +
     PlanesNotes.dot(l ? l.t.notes : it.notes) +
     (late ? '<button type="button" class="btn td-move" data-act="tohoy">→ hoy</button>' : "") +
     '<button type="button" class="rt-edit" data-act="del" title="Quitar del día" aria-label="Quitar del día">×</button></div>';
@@ -1797,8 +1795,8 @@ function renderToday(){
   if(box.hidden) return;
   var t = rtToday(), cur = tdCur, k = rtKey(cur), isToday = k === rtKey(t);
   var rel = isToday ? "Hoy" : k === rtKey(rtAdd(t, -1)) ? "Ayer" : k === rtKey(rtAdd(t, 1)) ? "Mañana" : "";
-  $("tdLabel").innerHTML = (rel || RT_DAY_NAMES[rtDow(cur)]) + "<small>" + RT_DAY_NAMES[rtDow(cur)] + " " + cur.getDate() + " " + RT_MONTHS[cur.getMonth()].slice(0, 3) + "</small>";
-  $("tdTitle").textContent = rel || "Día";
+  var dn = RT_DAY_NAMES[rtDow(cur)];
+  $("tdTitle").innerHTML = (rel || dn.charAt(0).toUpperCase() + dn.slice(1)) + " <small>" + (rel ? dn + " " : "") + cur.getDate() + " " + RT_MONTHS[cur.getMonth()].slice(0, 3) + "</small>";
   var p = tdProgress(k);
   $("tdRing").style.setProperty("--p", p || 0);
   $("tdPct").textContent = p === null ? "–" : p + "%";
@@ -1894,12 +1892,22 @@ $("tdFilter").addEventListener("click", function(e){
   state.tdPort = b.dataset.port; save(); renderToday();
 });
 $("tdWeek").addEventListener("click", function(e){
-  var b = e.target.closest("[data-day]"); if(!b) return;
+  var b = e.target.closest("[data-day]"); if(!b || Date.now() - tdSwipeAt < 400) return;
   tdCur = rtParse(b.dataset.day); renderToday();
 });
-$("tdPrev").addEventListener("click", function(){ tdCur = rtAdd(tdCur, -1); renderToday(); });
-$("tdNext").addEventListener("click", function(){ tdCur = rtAdd(tdCur, 1); renderToday(); });
-$("tdLabel").addEventListener("click", function(){ tdCur = rtToday(); renderToday(); });
+$("tdTitle").addEventListener("click", function(){ tdCur = rtToday(); renderToday(); });
+// Deslizar la semana a un costado: semana anterior o siguiente.
+var tdSwipe = null;
+$("tdWeek").addEventListener("pointerdown", function(e){ tdSwipe = { x: e.clientX, y: e.clientY }; });
+$("tdWeek").addEventListener("pointerup", function(e){
+  var s = tdSwipe; tdSwipe = null; if(!s) return;
+  var dx = e.clientX - s.x;
+  if(Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(e.clientY - s.y)) return;
+  tdCur = rtAdd(tdCur, dx < 0 ? 7 : -7);
+  tdSwipeAt = Date.now();
+  renderToday();
+});
+var tdSwipeAt = 0;
 
 $("tdList").addEventListener("click", function(e){
   var b = e.target.closest("[data-act]"); if(!b) return;
@@ -1927,9 +1935,6 @@ $("tdList").addEventListener("click", function(e){
   } else if(act === "del"){
     rtChange(function(){ state.today = state.today.filter(function(x){ return x !== it; }); });
     toast("Quitada del día" + (l ? " (la tarea sigue en su proyecto)" : ""), { label: "deshacer", fn: undo });
-  } else if(act === "goto" && l){
-    state.current = l.p.id; state.mode = state.projMode === "list" ? "list" : "map";
-    sel = { task: l.t.id }; save(); renderAll();
   }
 });
 
