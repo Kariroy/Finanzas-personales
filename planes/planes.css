@@ -809,10 +809,6 @@ button.tog:hover { background: var(--panel-2); color: var(--text); }
 .td-late .rt-sec-h { color: var(--paused); display: flex; align-items: center; gap: 6px; }
 .td-all { margin-left: auto; background: none; border: 0; color: var(--doing); cursor: pointer; font-size: 11px; padding: 2px 4px; }
 #tdList { margin-bottom: 12px; }
-.td-week { gap: 4px; margin: 0 0 12px; touch-action: pan-y; user-select: none; }
-.td-week .rt-wd { padding: 4px 0; gap: 1px; border-radius: 6px; }
-.td-week .rt-wd .l { font-size: 9px; }
-.td-week .rt-wd .n { font-size: 12px; }
 button.sun { background: none; border: 0; cursor: pointer; color: var(--muted); font-size: 12px; line-height: 1; padding: 0 3px; }
 button.sun:hover { color: var(--ready); }
 button.sun.on { color: var(--ready); }

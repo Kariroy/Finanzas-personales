@@ -197,7 +197,12 @@ function normalizeData(){
   state.routines.forEach(function(r){ if(!Array.isArray(r.days)) r.days = []; if(typeof r.name !== "string") r.name = "Rutina"; });
   if(!isObj(state.routineDone) || Array.isArray(state.routineDone)) state.routineDone = {};
   state.today = (Array.isArray(state.today) ? state.today : []).filter(function(it){ return isObj(it) && it.id && typeof it.day === "string"; });
-  state.today.forEach(function(it){ if(typeof it.title !== "string") it.title = "Tarea"; if(it.ref && !isObj(it.ref)) delete it.ref; });
+  var tk = rtKey(rtToday());
+  state.today.forEach(function(it){
+    if(typeof it.title !== "string") it.title = "Tarea";
+    if(it.ref && !isObj(it.ref)) delete it.ref;
+    if(!it.doneOn && tdDone(it)) it.doneOn = it.day < tk ? it.day : tk;   // hechas de antes: el día en que estaban anotadas
+  });
   if(state.current && !proj()) state.current = state.projects[0] ? state.projects[0].id : null;
 }
 
@@ -227,6 +232,7 @@ function change(fn){
   if(fn(p) === false) return;
   pushHist(before);
   if(p) p.updated = Date.now();
+  tdStamp();
   var fin = autoArchive();
   save();
   renderAll();
@@ -1531,7 +1537,7 @@ function rtParse(k){ var p = k.split("-"); return new Date(+p[0], +p[1] - 1, +p[
 var rtCur = rtToday();
 
 // Cambio con deshacer y sincronización (sin tocar la fecha de edición de los proyectos).
-function rtChange(fn){ var before = snapshot(); fn(); pushHist(before); save(); renderAll(); }
+function rtChange(fn){ var before = snapshot(); fn(); pushHist(before); tdStamp(); save(); renderAll(); }
 
 // Rutinas que tocan ese día (cada una cuenta desde el día en que se creó).
 function rtFor(d){
@@ -1706,6 +1712,15 @@ function tdStatusClick(it, shift){
   tdTap = { it: it, timer: setTimeout(function(){ tdTap = null; next(it); }, 260) };
 }
 function tdTitle(it){ var l = tdLink(it); return l ? l.t.title : it.title; }
+// Guarda el día en que se terminó cada una (it.doneOn), para el historial de lo hecho por día.
+function tdStamp(){
+  var k = rtKey(rtToday());
+  state.today.forEach(function(it){
+    var d = tdDone(it);
+    if(d && !it.doneOn) it.doneOn = k;
+    else if(!d && it.doneOn) delete it.doneOn;
+  });
+}
 function tdOn(k){ return state.today.filter(function(it){ return it.day === k; }); }
 function tdLate(){
   var k = rtKey(rtToday());
@@ -1789,15 +1804,8 @@ function renderToday(){
   var box = $("today");
   box.hidden = state.mode !== "today";
   if(box.hidden) return;
-  var t = rtToday(), cur = tdCur, k = rtKey(cur), isToday = k === rtKey(t);
-
-  var mon = rtAdd(cur, -rtDow(cur)), wh = "";
-  for(var i = 0; i < 7; i++){
-    var d = rtAdd(mon, i), dk = rtKey(d), n = tdOn(dk).length;
-    wh += '<button type="button" class="rt-wd' + (dk === rtKey(t) ? " today" : "") + (dk === k ? " sel" : "") + (n ? "" : " future") +
-      '" data-day="' + dk + '"><span class="l">' + RT_DAYS[i] + '</span><span class="n">' + d.getDate() + "</span></button>";
-  }
-  $("tdWeek").innerHTML = wh;
+  tdCur = rtToday();   // siempre hoy (se actualiza solo al pasar la medianoche)
+  var k = rtKey(tdCur);
 
   var f = state.tdPort || "all";
   if(f !== "all" && f !== "none" && !portfolioById(f)) f = state.tdPort = "all";
@@ -1805,18 +1813,18 @@ function renderToday(){
   $("tdFilter").innerHTML = '<span class="td-flbl">Buscar en</span>' + chips.map(function(c){
     return '<button type="button" class="rt-chip' + (c.id === f ? " on" : "") + '" data-port="' + c.id + '">' + esc(c.name) + "</button>";
   }).join("");
-  $("tdNew").placeholder = isToday ? "Anotar para hoy…" : "Anotar para el " + RT_DAY_NAMES[rtDow(cur)] + " " + cur.getDate() + "…";
 
-  var html = "", late = isToday ? tdLate() : [];
+  var html = "", late = tdLate();
   if(late.length){
     html += '<div class="rt-sec td-late"><div class="rt-sec-h">⚠ Atrasadas <span>' + late.length + "</span>" +
       '<button type="button" class="td-all" data-act="allhoy">pasar todas a hoy</button></div>' +
       late.map(function(it){ return tdItem(it, true); }).join("") + "</div>";
   }
-  var its = tdOn(k), pend = its.filter(function(x){ return !tdDone(x); }), done = its.filter(tdDone);
+  // Las de hoy, más las de otros días que se terminaron hoy.
+  var its = state.today.filter(function(it){ return it.day === k || it.doneOn === k; }), pend = its.filter(function(x){ return !tdDone(x); }), done = its.filter(tdDone);
   if(!its.length){
-    html += '<div class="rt-empty">' + (isToday ? "No anotaste nada para hoy." : "No hay nada anotado para este día.") +
-      "<br>Escribí arriba: si coincide con una tarea de un proyecto, te la trae.</div>";
+    html += '<div class="rt-empty">No anotaste nada para hoy.' +
+      "<br>Escribí abajo: si coincide con una tarea de un proyecto, te la trae.</div>";
   } else {
     if(!pend.length) html += '<div class="rt-cheer">✓ ¡Día completo!</div>';
     html += '<div class="rt-sec">' + pend.concat(done).map(function(it){ return tdItem(it, false); }).join("") + "</div>";
@@ -1880,22 +1888,6 @@ $("tdFilter").addEventListener("click", function(e){
   var b = e.target.closest("[data-port]"); if(!b) return;
   state.tdPort = b.dataset.port; save(); renderToday();
 });
-$("tdWeek").addEventListener("click", function(e){
-  var b = e.target.closest("[data-day]"); if(!b || Date.now() - tdSwipeAt < 400) return;
-  tdCur = rtParse(b.dataset.day); renderToday();
-});
-// Deslizar la semana a un costado: semana anterior o siguiente.
-var tdSwipe = null;
-$("tdWeek").addEventListener("pointerdown", function(e){ tdSwipe = { x: e.clientX, y: e.clientY }; });
-$("tdWeek").addEventListener("pointerup", function(e){
-  var s = tdSwipe; tdSwipe = null; if(!s) return;
-  var dx = e.clientX - s.x;
-  if(Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(e.clientY - s.y)) return;
-  tdCur = rtAdd(tdCur, dx < 0 ? 7 : -7);
-  tdSwipeAt = Date.now();
-  renderToday();
-});
-var tdSwipeAt = 0;
 
 $("tdList").addEventListener("click", function(e){
   var b = e.target.closest("[data-act]"); if(!b) return;
