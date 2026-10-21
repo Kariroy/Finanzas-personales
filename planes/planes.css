@@ -827,3 +827,10 @@ button.sun.gap { visibility: hidden; }
 .td-item.done .rt-name { text-decoration: line-through; color: var(--muted); }
 .td-item.done { opacity: .7; }
 #today { padding-bottom: 0; }
+.td-top { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.td-top .btn { padding: 5px 10px; font-size: 12px; }
+#tdHist[hidden], #tdList[hidden], .td-add[hidden] { display: none; }
+#tdHist { margin-bottom: 24px; }
+.td-h { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.td-h:last-child { border-bottom: 0; }
+.td-h-ok { color: var(--done); font-weight: 700; }

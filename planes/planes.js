@@ -1800,12 +1800,38 @@ function tdAgo(k){
   return n === 1 ? "de ayer" : "hace " + n + " días";
 }
 
+// ✓ Hechas: lo completado, agrupado por el día en que se terminó (lo más nuevo arriba).
+var tdHistOpen = false;
+function renderTdHist(){
+  var t = rtToday(), byDay = {};
+  state.today.forEach(function(it){ if(it.doneOn && tdDone(it)) (byDay[it.doneOn] = byDay[it.doneOn] || []).push(it); });
+  var days = Object.keys(byDay).sort().reverse();
+  if(!days.length){ $("tdHist").innerHTML = '<div class="rt-empty">Todavía no completaste tareas de Hoy.</div>'; return; }
+  $("tdHist").innerHTML = days.map(function(k){
+    var d = rtParse(k), rel = k === rtKey(t) ? "Hoy" : k === rtKey(rtAdd(t, -1)) ? "Ayer" : "";
+    var name = (rel ? rel + " · " : "") + RT_DAY_NAMES[rtDow(d)] + " " + d.getDate() + " " + RT_MONTHS[d.getMonth()].slice(0, 3) +
+      (d.getFullYear() !== t.getFullYear() ? " " + d.getFullYear() : "");
+    return '<div class="rt-sec"><div class="rt-sec-h">' + name + " <span>" + byDay[k].length + (byDay[k].length === 1 ? " hecha" : " hechas") + "</span></div>" +
+      byDay[k].map(function(it){
+        var l = tdLink(it);
+        return '<div class="td-h"><span class="td-h-ok">✓</span><div class="rt-main"><div class="rt-name">' + esc(tdTitle(it)) + "</div>" +
+          '<div class="rt-meta">' + (l ? esc(tdWhere(l.p)) : "suelta") + "</div></div></div>";
+      }).join("") + "</div>";
+  }).join("");
+}
+$("tdHistBtn").addEventListener("click", function(){ tdHistOpen = !tdHistOpen; renderToday(); $("today").scrollTop = 0; });
+
 function renderToday(){
   var box = $("today");
   box.hidden = state.mode !== "today";
   if(box.hidden) return;
   tdCur = rtToday();   // siempre hoy (se actualiza solo al pasar la medianoche)
   var k = rtKey(tdCur);
+  $("tdHistBtn").textContent = tdHistOpen ? "← volver a hoy" : "✓ Hechas";
+  $("tdHist").hidden = !tdHistOpen;
+  $("tdList").hidden = tdHistOpen;
+  document.querySelector("#today .td-add").hidden = tdHistOpen;
+  if(tdHistOpen){ renderTdHist(); return; }
 
   var f = state.tdPort || "all";
   if(f !== "all" && f !== "none" && !portfolioById(f)) f = state.tdPort = "all";
