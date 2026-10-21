@@ -88,8 +88,10 @@ Con `config.js` vacío la app funciona en **modo local**: los datos quedan solo 
 
 La carpeta `planes/` es otra app, independiente de la de gastos: un **planificador de tareas
 en forma de ramas**. Portafolios (pestañas, ej. Trabajo / Personal) → programas → proyectos → tareas; cada tarea es una card en un lienzo
-(**Mapa**) o una fila en un árbol de tareas y subtareas (**Lista**), y las dependencias marcan
-qué está desbloqueado, bloqueado, en curso o en pausa.
+(**Mapa**), y las dependencias marcan qué está desbloqueado, bloqueado, en curso o en pausa.
+La vista **Lista** (la que abre al entrar) son las tareas del día: se anotan sueltas o se traen de los
+proyectos (con ☀ desde el mapa o buscando al escribir), se ordenan arrastrando y «✓ Hechas» muestra
+lo completado por día.
 La vista **Rutinas** es un checklist diario: rutinas programadas por día de la semana y momento
 del día, con rachas y avance por semana o por mes.
 La vista **Objetivos** guarda objetivos SMART (específico, medible, alcanzable, relevante, temporal),
