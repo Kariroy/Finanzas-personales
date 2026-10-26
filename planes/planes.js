@@ -1078,7 +1078,7 @@ canvas.addEventListener("click", function(e){
   if(act === "status") statusClick(id, e.shiftKey);
   else if(act === "edit"){ select({ task: id }); startEdit(id); }
   else if(act === "child") newChild(id);
-  else if(act === "sun") tdToggle(proj(), id);
+  else if(act === "sun") tdSunMenu(proj(), id, b);
   else if(act === "notes") openNotes(id);
   else if(act === "del"){ sel = { task: id }; deleteSelected(); }
 });
@@ -1566,7 +1566,7 @@ function tdPortOk(p){
 function sunBtn(on, cls, t){
   var off = !on && t && t.status === "done";   // una hecha no se suma: el lugar queda vacío
   return '<button type="button" class="sun' + (on ? " on" : "") + (off ? " gap" : "") + (cls ? " " + cls : "") + '" data-act="sun"' + (off ? " disabled" : "") + ' title="' +
-    (on ? "En la Lista de hoy · tocá para quitarla" : "Sumar a la Lista de hoy") + '">☀</button>';
+    (on ? "En la Lista de hoy · tocá para cambiarla o quitarla" : "Sumar a la Lista de hoy") + '">☀</button>';
 }
 function tdToggle(p, id){
   var t = p && byId(p, id); if(!t) return;
@@ -1580,6 +1580,38 @@ function tdToggle(p, id){
   var ln = tdListById(tdCurList()).name;
   toast(had ? "Quitada de la Lista" : "☀ Sumada a «" + ln + "»", { label: "deshacer", fn: undo });
 }
+// ☀ en el mapa con varias listas: un desplegable para elegir en cuál ponerla (o sacarla).
+// Con una sola lista, el ☀ la suma o la quita directo.
+function tdSunMenu(p, id, btn){
+  if(state.tdLists.length < 2){ tdToggle(p, id); return; }
+  var t = p && byId(p, id); if(!t) return;
+  var k = rtKey(rtToday());
+  var mine = function(it){ return it.ref && it.ref.t === id && it.day <= k && !tdDone(it); };
+  var at = state.today.filter(mine).map(function(it){ return it.list || TD_MAIN; });
+  var pop = $("tdPop");
+  pop.innerHTML = '<div class="td-pop-h">Poner en la lista…</div>' + state.tdLists.map(function(l){
+    var on = at.indexOf(l.id) >= 0;
+    return '<button type="button" class="td-pop-o' + (on ? " on" : "") + '" data-list="' + esc(l.id) + '">' + (on ? "✓ " : "") + esc(l.name) + "</button>";
+  }).join("") + (at.length ? '<button type="button" class="td-pop-o td-pop-del" data-list="">Quitar de la Lista</button>' : "");
+  pop.hidden = false;
+  var r = btn.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  pop.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + "px";
+  pop.style.top = (r.bottom + 6 + h > innerHeight - 8 ? Math.max(8, r.top - 6 - h) : r.bottom + 6) + "px";
+  pop.onclick = function(e){
+    var o = e.target.closest("[data-list]"); if(!o) return;
+    var to = o.dataset.list;
+    tdPopClose();
+    if(to && at.length === 1 && at[0] === to) return;   // ya está ahí
+    rtChange(function(){
+      state.today = state.today.filter(function(it){ return !mine(it); });
+      if(to) state.today.push({ id: uid(), day: k, title: t.title, ref: { p: p.id, t: id }, list: to });
+    });
+    toast(to ? "☀ En «" + tdListById(to).name + "»" : "Quitada de la Lista", { label: "deshacer", fn: undo });
+  };
+}
+function tdPopClose(){ var pop = $("tdPop"); pop.hidden = true; pop.onclick = null; }
+document.addEventListener("pointerdown", function(e){ if(!$("tdPop").hidden && !e.target.closest("#tdPop")) tdPopClose(); }, true);
+document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !$("tdPop").hidden) tdPopClose(); });
 function tdWhere(p){ var g = programById(p.program); return (g ? g.name + " › " : "") + p.name; }
 function tdFold(s){ return String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
 // Tareas sin terminar de los proyectos activos del portfolio elegido, salvo las ya anotadas ese día.

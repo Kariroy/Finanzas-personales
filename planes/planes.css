@@ -777,3 +777,11 @@ button.sun.gap { visibility: hidden; }
 .card.flash { animation: cardFlash 1.6s ease-out; }
 @keyframes cardFlash { 0%, 30% { box-shadow: 0 0 0 3px var(--ready); } 100% { box-shadow: none; } }
 .td-tree { display: inline-block; color: var(--doing); font-size: 11px; margin-right: 6px; vertical-align: 1px; }
+.td-pop { position: fixed; z-index: 60; min-width: 170px; max-width: calc(100vw - 16px); background: var(--panel); border: 1px solid var(--line-2);
+  border-radius: 10px; padding: 4px; box-shadow: 0 10px 30px rgba(0, 0, 0, .5); display: flex; flex-direction: column; }
+.td-pop[hidden] { display: none; }
+.td-pop-h { color: var(--muted); font-size: 11px; padding: 6px 10px 4px; }
+.td-pop-o { background: none; border: 0; text-align: left; padding: 10px; border-radius: 6px; color: var(--text); cursor: pointer; font-weight: 600; }
+.td-pop-o:hover { background: var(--panel-2); }
+.td-pop-o.on { color: var(--ready); }
+.td-pop-del { color: var(--muted); font-weight: 400; border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; }
