@@ -755,7 +755,12 @@ button.sun.gap { visibility: hidden; }
 .td-item.done .rt-name { text-decoration: line-through; color: var(--muted); }
 .td-item.done { opacity: .7; }
 #today { padding-bottom: 0; }
-.td-top { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.td-top { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.td-top .btn { margin-left: auto; }
+.td-lists { max-width: 70%; background: var(--panel-2); color: var(--text); border: 1px solid var(--line-2); border-radius: 8px;
+  padding: 8px 10px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; }
+.td-lists:focus { outline: none; border-color: var(--doing); }
+.td-lists[hidden] { display: none; }
 .td-top .btn { padding: 5px 10px; font-size: 12px; }
 #tdHist[hidden], #tdList[hidden], .td-add[hidden] { display: none; }
 #tdHist { margin-bottom: 24px; }

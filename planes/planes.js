@@ -164,7 +164,7 @@ function snap(v){ return Math.round(v / GRID) * GRID; }
 function cardH(id){ var el = els[id]; return (el && el.offsetHeight) || H; }
 
 // ---------- historial ----------
-function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, today: state.today, notes: state.notes, goals: state.goals, current: state.current }); }
+function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, today: state.today, tdLists: state.tdLists, notes: state.notes, goals: state.goals, current: state.current }); }
 function pushHist(s){
   hist.push(s || snapshot());
   if(hist.length > 200) hist.shift();
@@ -199,8 +199,12 @@ function normalizeData(){
   state.routines.forEach(function(r){ if(!Array.isArray(r.days)) r.days = []; if(typeof r.name !== "string") r.name = "Rutina"; });
   if(!isObj(state.routineDone) || Array.isArray(state.routineDone)) state.routineDone = {};
   state.today = (Array.isArray(state.today) ? state.today : []).filter(function(it){ return isObj(it) && it.id && typeof it.day === "string"; });
+  state.tdLists = (Array.isArray(state.tdLists) ? state.tdLists : []).filter(function(l){ return isObj(l) && l.id && typeof l.name === "string"; });
+  if(!state.tdLists.length) state.tdLists = [{ id: "principal", name: "Principal" }];
+  var lids = {}; state.tdLists.forEach(function(l){ lids[l.id] = 1; });
   var tk = rtKey(rtToday());
   state.today.forEach(function(it){
+    if(it.list && !lids[it.list]) it.list = state.tdLists[0].id;
     if(typeof it.title !== "string") it.title = "Tarea";
     if(it.ref && !isObj(it.ref)) delete it.ref;
     if(!it.doneOn && tdDone(it)) it.doneOn = it.day < tk ? it.day : tk;   // hechas de antes: el día en que estaban anotadas
@@ -216,6 +220,7 @@ function restore(s){
   state.routines = o.routines || [];
   state.routineDone = o.routineDone || {};
   state.today = o.today || [];
+  state.tdLists = o.tdLists;
   normalizeData();
   state.notes = o.notes || [];
   state.goals = o.goals || [];
@@ -1538,10 +1543,10 @@ function tdStamp(){
     else if(!d && it.doneOn) delete it.doneOn;
   });
 }
-function tdOn(k){ return state.today.filter(function(it){ return it.day === k; }); }
+function tdOn(k){ return state.today.filter(function(it){ return it.day === k && tdInList(it); }); }
 function tdLate(){
   var k = rtKey(rtToday());
-  return state.today.filter(function(it){ return it.day < k && !tdDone(it); }).sort(function(a, b){ return a.day < b.day ? -1 : 1; });
+  return state.today.filter(function(it){ return it.day < k && !tdDone(it) && tdInList(it); }).sort(function(a, b){ return a.day < b.day ? -1 : 1; });
 }
 // Tareas de proyectos con algo pendiente para hoy (o atrasado): llevan ☀ en el mapa y la lista.
 function tdSun(){
@@ -1570,9 +1575,10 @@ function tdToggle(p, id){
   var had = state.today.some(mine);
   rtChange(function(){
     if(had) state.today = state.today.filter(function(it){ return !mine(it); });
-    else state.today.push({ id: uid(), day: k, title: t.title, ref: { p: p.id, t: id } });
+    else state.today.push({ id: uid(), day: k, title: t.title, ref: { p: p.id, t: id }, list: tdCurList() });
   });
-  toast(had ? "Quitada de la Lista" : "☀ Sumada a la Lista", { label: "deshacer", fn: undo });
+  var ln = tdListById(tdCurList()).name;
+  toast(had ? "Quitada de la Lista" : "☀ Sumada a «" + ln + "»", { label: "deshacer", fn: undo });
 }
 function tdWhere(p){ var g = programById(p.program); return (g ? g.name + " › " : "") + p.name; }
 function tdFold(s){ return String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
@@ -1611,6 +1617,7 @@ function tdItem(it, late){
     (late ? '<span class="td-ago">' + tdAgo(it.day) + "</span>" : "") + "</div>" : "") + "</div>" +
     PlanesNotes.dot(l ? l.t.notes : it.notes) +
     (late ? '<button type="button" class="btn td-move" data-act="tohoy">→ hoy</button>' : "") +
+    (state.tdLists.length > 1 ? '<button type="button" class="rt-edit" data-act="mvlist" title="Pasar a otra lista" aria-label="Pasar a otra lista">⇄</button>' : "") +
     '<button type="button" class="rt-edit" data-act="del" title="Quitar del día" aria-label="Quitar del día">×</button></div>';
 }
 function tdAgo(k){
@@ -1657,6 +1664,53 @@ function tdEditLoose(it, el){
   el.addEventListener("blur", function(){ finish(true); });
 }
 
+// Varias listas (ej. «Prioridad», «Ahora»): state.tdLists = [{ id, name }] y cada tarea guarda la suya en it.list.
+// La primera se llama «Principal» y tiene un id fijo, así dos dispositivos no crean cada uno la suya.
+var TD_MAIN = "principal";
+function tdListById(id){
+  for(var i = 0; i < state.tdLists.length; i++) if(state.tdLists[i].id === id) return state.tdLists[i];
+  return null;
+}
+function tdCurList(){ return tdListById(state.tdList) ? state.tdList : state.tdLists[0].id; }
+function tdInList(it){ return (it.list || TD_MAIN) === tdCurList(); }
+function renderTdLists(){
+  var cur = tdCurList(), k = rtKey(rtToday());
+  var count = function(id){ return state.today.filter(function(it){ return (it.list || TD_MAIN) === id && it.day <= k && !tdDone(it); }).length; };
+  var h = state.tdLists.map(function(l){
+    var n = count(l.id);
+    return '<option value="' + esc(l.id) + '">' + esc(l.name) + (n ? " (" + n + ")" : "") + "</option>";
+  }).join("");
+  h += '<option disabled>──────────</option><option value="+new">＋ Nueva lista…</option><option value="+edit">✎ Renombrar esta lista…</option>';
+  if(state.tdLists.length > 1) h += '<option value="+del">🗑 Borrar esta lista…</option>';
+  $("tdListSel").innerHTML = h;
+  $("tdListSel").value = cur;
+}
+$("tdListSel").addEventListener("change", function(){
+  var v = this.value, cur = tdCurList(), l = tdListById(cur);
+  this.value = cur;   // las opciones especiales no quedan elegidas
+  if(v === "+new"){
+    ask({ title: "Nueva lista", input: "", placeholder: "Ej.: Prioridad, Ahora, Compras…", ok: "crear" }, function(name){
+      var id = uid();
+      rtChange(function(){ state.tdLists.push({ id: id, name: name }); });
+      state.tdList = id; save(); renderToday();
+    });
+  } else if(v === "+edit"){
+    ask({ title: "Nombre de la lista", input: l.name, ok: "guardar" }, function(name){
+      if(name !== l.name) rtChange(function(){ l.name = name; });
+    });
+  } else if(v === "+del"){
+    var rest = state.tdLists.filter(function(x){ return x !== l; }), to = rest[0];
+    var n = state.today.filter(function(it){ return (it.list || TD_MAIN) === cur; }).length;
+    ask({ title: "¿Borrar la lista «" + l.name + "»?", text: n ? "Sus " + n + " tarea(s) pasan a «" + to.name + "»." : "", ok: "borrar", danger: true }, function(){
+      rtChange(function(){
+        state.today.forEach(function(it){ if((it.list || TD_MAIN) === cur) it.list = to.id; });
+        state.tdLists = rest;
+      });
+      state.tdList = to.id; save(); renderToday();
+    });
+  } else if(tdListById(v)){ state.tdList = v; save(); renderToday(); }
+});
+
 // ✓ Hechas: lo completado, agrupado por el día en que se terminó (lo más nuevo arriba).
 var tdHistOpen = false;
 function renderTdHist(){
@@ -1688,7 +1742,9 @@ function renderToday(){
   $("tdHist").hidden = !tdHistOpen;
   $("tdList").hidden = tdHistOpen;
   document.querySelector("#today .td-add").hidden = tdHistOpen;
+  $("tdListSel").hidden = tdHistOpen;
   if(tdHistOpen){ renderTdHist(); return; }
+  renderTdLists();
 
   var f = state.tdPort || "all";
   if(f !== "all" && f !== "none" && !portfolioById(f)) f = state.tdPort = "all";
@@ -1704,7 +1760,7 @@ function renderToday(){
       late.map(function(it){ return tdItem(it, true); }).join("") + "</div>";
   }
   // Las de hoy, más las de otros días que se terminaron hoy.
-  var its = state.today.filter(function(it){ return it.day === k || it.doneOn === k; }), pend = its.filter(function(x){ return !tdDone(x); }), done = its.filter(tdDone);
+  var its = state.today.filter(function(it){ return (it.day === k || it.doneOn === k) && tdInList(it); }), pend = its.filter(function(x){ return !tdDone(x); }), done = its.filter(tdDone);
   if(!its.length){
     html += '<div class="rt-empty">No anotaste nada para hoy.' +
       "<br>Escribí abajo: si coincide con una tarea de un proyecto, te la trae.</div>";
@@ -1735,8 +1791,8 @@ function tdAdd(o){
   rtChange(function(){
     if(o.ref){
       var p = projectById(o.ref.p), t = p && byId(p, o.ref.t); if(!t) return;
-      state.today.push({ id: uid(), day: k, title: t.title, ref: { p: p.id, t: t.id } });
-    } else state.today.push({ id: uid(), day: k, title: o.title });
+      state.today.push({ id: uid(), day: k, title: t.title, ref: { p: p.id, t: t.id }, list: tdCurList() });
+    } else state.today.push({ id: uid(), day: k, title: o.title, list: tdCurList() });
   });
   $("tdNew").value = ""; tdHi = -1; tdSugRender();
 }
@@ -1793,6 +1849,13 @@ $("tdList").addEventListener("click", function(e){
     PlanesNotes.open({ title: tdTitle(it), text: o.notes || "", at: o.notesAt, save: function(v){
       rtChange(function(){ if(v){ o.notes = v; o.notesAt = Date.now(); } else { delete o.notes; delete o.notesAt; } });
     } });
+  } else if(act === "mvlist"){
+    var others = state.tdLists.filter(function(x){ return x.id !== tdCurList(); });
+    ask({ title: "Pasar «" + tdTitle(it) + "» a otra lista", select: { label: "Lista", value: others[0].id,
+      options: others.map(function(x){ return { value: x.id, label: x.name }; }) }, ok: "pasar" }, function(v, to){
+      rtChange(function(){ it.list = to; });
+      toast("Pasada a «" + tdListById(to).name + "»", { label: "deshacer", fn: undo });
+    });
   } else if(act === "tohoy"){
     rtChange(function(){ it.day = rtKey(rtToday()); });
   } else if(act === "del"){
@@ -2616,7 +2679,7 @@ var sync = { at: null, timer: null, busy: false, pending: false };
 
 function setSync(text){ $("syncState").textContent = text; }
 
-function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, today: state.today, notes: state.notes, goals: state.goals, aprender: state.aprender }; }
+function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, today: state.today, tdLists: state.tdLists, notes: state.notes, goals: state.goals, aprender: state.aprender }; }
 
 // Reemplaza programas y proyectos por los de otra copia, conservando la vista local.
 function applyData(d){
@@ -2626,6 +2689,7 @@ function applyData(d){
   state.routines = Array.isArray(d.routines) ? d.routines : [];
   state.routineDone = d.routineDone && typeof d.routineDone === "object" ? d.routineDone : {};
   state.today = Array.isArray(d.today) ? d.today : [];
+  state.tdLists = d.tdLists;
   normalizeData();
   state.notes = Array.isArray(d.notes) ? d.notes : [];
   state.goals = Array.isArray(d.goals) ? d.goals : [];
@@ -2687,7 +2751,7 @@ function onSession(s){
   if(!user){
     // Sin sesión: no dejar a la vista datos de la cuenta anterior.
     storeKey = KEY; sync.at = null; clearTimeout(sync.timer); sync.pending = false;
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.tdLists = null; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
     if(window.PlanesAprender) window.PlanesAprender.reload();
     hist = []; fut = []; sel = null;
     renderAll();
@@ -2699,7 +2763,7 @@ function onSession(s){
   var cached = readStore(storeKey);
   if(cached){
     // Lo que se eligió en este dispositivo (proyecto, pestaña de portfolio, filtros…) se mantiene al volver a entrar.
-    ["current", "portfolioTab", "tdPort", "sideCollapsed", "rtView", "highlight", "looseOpen", "notesFilter"].forEach(function(k){
+    ["current", "portfolioTab", "tdPort", "tdList", "sideCollapsed", "rtView", "highlight", "looseOpen", "notesFilter"].forEach(function(k){
       if(cached[k] !== undefined) state[k] = cached[k];
     });
     applyData(cached);
@@ -2779,7 +2843,7 @@ if(REMOTE){
     $("signInBtn").disabled = $("signUpBtn").disabled = true;
   } else {
     // Mientras se sabe si hay sesión, no mostrar datos locales de nadie.
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.tdLists = null; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
     if(window.PlanesAprender) window.PlanesAprender.reload();
     renderAll();
     var params = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));

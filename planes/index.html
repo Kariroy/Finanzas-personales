@@ -81,7 +81,10 @@
 
     <section class="rt td" id="today" hidden>
       <div class="rt-inner">
-        <div class="td-top"><button type="button" class="btn" id="tdHistBtn" title="Lo que completaste cada día">✓ Hechas</button></div>
+        <div class="td-top">
+          <select id="tdListSel" class="td-lists" aria-label="Lista"></select>
+          <button type="button" class="btn" id="tdHistBtn" title="Lo que completaste cada día">✓ Hechas</button>
+        </div>
         <div id="tdHist" hidden></div>
         <div id="tdList"></div>
         <div class="td-add">
