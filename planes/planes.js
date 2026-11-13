@@ -1543,15 +1543,16 @@ function tdStamp(){
     else if(!d && it.doneOn) delete it.doneOn;
   });
 }
-function tdOn(k){ return state.today.filter(function(it){ return it.day === k && tdInList(it); }); }
+// Lo de hoy en adelante: las anotadas para un día futuro (de cuando se podía elegir el día) se ven ya, no quedan escondidas.
+function tdOn(k){ return state.today.filter(function(it){ return it.day >= k && tdInList(it); }); }
 function tdLate(){
   var k = rtKey(rtToday());
   return state.today.filter(function(it){ return it.day < k && !tdDone(it) && tdInList(it); }).sort(function(a, b){ return a.day < b.day ? -1 : 1; });
 }
 // Tareas de proyectos con algo pendiente para hoy (o atrasado): llevan ☀ en el mapa y la lista.
 function tdSun(){
-  var k = rtKey(rtToday()), out = {};
-  state.today.forEach(function(it){ if(it.ref && it.day <= k && !tdDone(it)) out[it.ref.t] = 1; });
+  var out = {};
+  state.today.forEach(function(it){ if(it.ref && !tdDone(it)) out[it.ref.t] = 1; });
   return out;
 }
 // ¿El proyecto entra en el portfolio elegido arriba? ("all" = todos, "none" = sin portfolio)
@@ -1571,7 +1572,7 @@ function sunBtn(on, cls, t){
 function tdToggle(p, id){
   var t = p && byId(p, id); if(!t) return;
   var k = rtKey(rtToday());
-  var mine = function(it){ return it.ref && it.ref.t === id && it.day <= k && !tdDone(it); };
+  var mine = function(it){ return it.ref && it.ref.t === id && !tdDone(it); };
   var had = state.today.some(mine);
   rtChange(function(){
     if(had) state.today = state.today.filter(function(it){ return !mine(it); });
@@ -1586,7 +1587,7 @@ function tdSunMenu(p, id, btn){
   if(state.tdLists.length < 2){ tdToggle(p, id); return; }
   var t = p && byId(p, id); if(!t) return;
   var k = rtKey(rtToday());
-  var mine = function(it){ return it.ref && it.ref.t === id && it.day <= k && !tdDone(it); };
+  var mine = function(it){ return it.ref && it.ref.t === id && !tdDone(it); };
   var at = state.today.filter(mine).map(function(it){ return it.list || TD_MAIN; });
   var pop = $("tdPop");
   pop.innerHTML = '<div class="td-pop-h">Poner en la lista…</div>' + state.tdLists.map(function(l){
@@ -1706,8 +1707,8 @@ function tdListById(id){
 function tdCurList(){ return tdListById(state.tdList) ? state.tdList : state.tdLists[0].id; }
 function tdInList(it){ return (it.list || TD_MAIN) === tdCurList(); }
 function renderTdLists(){
-  var cur = tdCurList(), k = rtKey(rtToday());
-  var count = function(id){ return state.today.filter(function(it){ return (it.list || TD_MAIN) === id && it.day <= k && !tdDone(it); }).length; };
+  var cur = tdCurList();
+  var count = function(id){ return state.today.filter(function(it){ return (it.list || TD_MAIN) === id && !tdDone(it); }).length; };
   var h = state.tdLists.map(function(l){
     var n = count(l.id);
     return '<option value="' + esc(l.id) + '">' + esc(l.name) + (n ? " (" + n + ")" : "") + "</option>";
@@ -1792,7 +1793,7 @@ function renderToday(){
       late.map(function(it){ return tdItem(it, true); }).join("") + "</div>";
   }
   // Las de hoy, más las de otros días que se terminaron hoy.
-  var its = state.today.filter(function(it){ return (it.day === k || it.doneOn === k) && tdInList(it); }), pend = its.filter(function(x){ return !tdDone(x); }), done = its.filter(tdDone);
+  var its = state.today.filter(function(it){ return (it.day === k || it.doneOn === k || (it.day > k && !tdDone(it))) && tdInList(it); }), pend = its.filter(function(x){ return !tdDone(x); }), done = its.filter(tdDone);
   if(!its.length){
     html += '<div class="rt-empty">No anotaste nada para hoy.' +
       "<br>Escribí abajo: si coincide con una tarea de un proyecto, te la trae.</div>";
