@@ -2784,7 +2784,7 @@ function onSession(s){
   if(!user){
     // Sin sesión: no dejar a la vista datos de la cuenta anterior.
     storeKey = KEY; sync.at = null; clearTimeout(sync.timer); sync.pending = false;
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.tdLists = null; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.tdLists = [{ id: "principal", name: "Principal" }]; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
     if(window.PlanesAprender) window.PlanesAprender.reload();
     hist = []; fut = []; sel = null;
     renderAll();
@@ -2876,7 +2876,7 @@ if(REMOTE){
     $("signInBtn").disabled = $("signUpBtn").disabled = true;
   } else {
     // Mientras se sabe si hay sesión, no mostrar datos locales de nadie.
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.tdLists = null; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.tdLists = [{ id: "principal", name: "Principal" }]; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
     if(window.PlanesAprender) window.PlanesAprender.reload();
     renderAll();
     var params = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));
