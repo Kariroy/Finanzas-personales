@@ -1650,7 +1650,7 @@ function tdItem(it, late){
     (late ? '<span class="td-ago">' + tdAgo(it.day) + "</span>" : "") + "</div>" : "") + "</div>" +
     PlanesNotes.dot(l ? l.t.notes : it.notes) +
     (late ? '<button type="button" class="btn td-move" data-act="tohoy">→ hoy</button>' : "") +
-    (state.tdLists.length > 1 ? '<button type="button" class="rt-edit" data-act="mvlist" title="Pasar a otra lista" aria-label="Pasar a otra lista">⇄</button>' : "") +
+    '<button type="button" class="rt-edit" data-act="mvlist" title="Pasar a otra lista" aria-label="Pasar a otra lista">⇄</button>' +
     '<button type="button" class="rt-edit" data-act="del" title="Quitar del día" aria-label="Quitar del día">×</button></div>';
 }
 function tdAgo(k){
@@ -1884,6 +1884,15 @@ $("tdList").addEventListener("click", function(e){
     } });
   } else if(act === "mvlist"){
     var others = state.tdLists.filter(function(x){ return x.id !== tdCurList(); });
+    // Con una sola lista: se crea la otra ahí mismo y la tarea pasa a ella.
+    if(!others.length){
+      ask({ title: "Pasar «" + tdTitle(it) + "» a una lista nueva", input: "", placeholder: "Nombre de la lista (ej.: Prioridad)", ok: "crear y pasar" }, function(name){
+        var nid = uid();
+        rtChange(function(){ state.tdLists.push({ id: nid, name: name }); it.list = nid; });
+        toast("Pasada a «" + name + "»", { label: "deshacer", fn: undo });
+      });
+      return;
+    }
     ask({ title: "Pasar «" + tdTitle(it) + "» a otra lista", select: { label: "Lista", value: others[0].id,
       options: others.map(function(x){ return { value: x.id, label: x.name }; }) }, ok: "pasar" }, function(v, to){
       rtChange(function(){ it.list = to; });
