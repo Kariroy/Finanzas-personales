@@ -1513,10 +1513,16 @@ function renderRoutines(){
   }
 
   var rs = rtFor(cur), html = "";
+  var gname = rtGroupById(rtGroupCur()).name;
+  // Si este grupo está vacío pero hay rutinas en otro, decirlo: si no, parece que se borraron.
+  var otros = state.rtGroups.filter(function(g){ return g.id !== rtGroupCur() && state.routines.some(function(r){ return (r.group || RT_MAIN) === g.id; }); });
   if(!state.routines.some(rtInGroup)){
-    html = '<div class="rt-empty">Todavía no tenés rutinas.<br>Tocá «+ rutina» para programar la primera: qué, qué días y en qué momento.</div>';
+    html = '<div class="rt-empty">' + (state.rtGroups.length > 1 ? "«" + esc(gname) + "» todavía no tiene rutinas." : "Todavía no tenés rutinas.") +
+      (otros.length ? "<br>Tus otras rutinas están en " + otros.map(function(g){ return "«" + esc(g.name) + "»"; }).join(", ") + ": elegilas en el desplegable de arriba." : "") +
+      "<br>Tocá «+ rutina» para programar una: qué, qué días y en qué momento.</div>";
   } else if(!rs.length){
-    html = '<div class="rt-empty">No hay rutinas programadas para este día.</div>';
+    html = '<div class="rt-empty">No hay rutinas de «' + esc(gname) + '» programadas para este día.' +
+      (otros.length ? "<br>Fijate también en " + otros.map(function(g){ return "«" + esc(g.name) + "»"; }).join(", ") + ", en el desplegable de arriba." : "") + "</div>";
   } else {
     if(isFuture) html += '<div class="rt-note">Día futuro: se puede ver, pero se marca ese día.</div>';
     if(p === 100) html += '<div class="rt-cheer">✓ ¡Día completo!</div>';
