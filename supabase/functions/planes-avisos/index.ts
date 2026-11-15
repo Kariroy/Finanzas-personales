@@ -34,6 +34,17 @@ export function localNow(now, tz) {
   };
 }
 
+// ¿La rutina toca ese día? Semanal: r.days (0 = lunes). Mensual: r.monthDays (1–31); si el mes
+// no tiene ese día (ej. 31 en noviembre), toca el último día del mes. (Igual que rtOnDay en planes.js.)
+export function onDay(r, local) {
+  if (Array.isArray(r.monthDays) && r.monthDays.length) {
+    const [y, m, d] = local.day.split("-").map(Number);
+    const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    return r.monthDays.some((n) => Math.min(n, last) === d);
+  }
+  return Array.isArray(r.days) && r.days.indexOf(local.dow) >= 0;
+}
+
 // Rutinas para avisar ahora: con hora, programadas para hoy, ya creadas, sin marcar,
 // y cuya hora pasó hace menos de WINDOW_MIN minutos.
 export function dueRoutines(data, local) {
@@ -41,7 +52,7 @@ export function dueRoutines(data, local) {
   const done = (data && data.routineDone && data.routineDone[local.day]) || {};
   return routines.filter((r) => {
     if (!r || typeof r.time !== "string" || !/^\d\d:\d\d$/.test(r.time)) return false;
-    if (!Array.isArray(r.days) || r.days.indexOf(local.dow) < 0) return false;
+    if (!onDay(r, local)) return false;
     if (r.created && r.created > local.day) return false;
     if (done[r.id]) return false;
     const [h, m] = r.time.split(":").map(Number);

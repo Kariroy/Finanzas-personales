@@ -196,7 +196,14 @@ function normalizeData(){
   });
   if(!Array.isArray(state.routines)) state.routines = [];
   state.routines = state.routines.filter(function(r){ return isObj(r) && r.id; });
-  state.routines.forEach(function(r){ if(!Array.isArray(r.days)) r.days = []; if(typeof r.name !== "string") r.name = "Rutina"; });
+  state.routines.forEach(function(r){
+    if(!Array.isArray(r.days)) r.days = [];
+    if(typeof r.name !== "string") r.name = "Rutina";
+    if(r.monthDays !== undefined){
+      r.monthDays = (Array.isArray(r.monthDays) ? r.monthDays : []).filter(function(n){ return n >= 1 && n <= 31 && n === Math.floor(n); });
+      if(!r.monthDays.length) delete r.monthDays;
+    }
+  });
   state.rtGroups = (Array.isArray(state.rtGroups) ? state.rtGroups : []).filter(function(g){ return isObj(g) && g.id && typeof g.name === "string"; });
   if(!state.rtGroups.length) state.rtGroups = [{ id: "principal", name: "Personal" }];
   var gids = {}; state.rtGroups.forEach(function(g){ gids[g.id] = 1; });
@@ -1366,11 +1373,26 @@ var rtCur = rtToday();
 // Cambio con deshacer y sincronización (sin tocar la fecha de edición de los proyectos).
 function rtChange(fn){ var before = snapshot(); fn(); pushHist(before); tdStamp(); save(); renderAll(); }
 
+// ¿La rutina toca ese día? Semanal: r.days (0 = lunes). Mensual: r.monthDays (1–31); si el mes
+// no tiene ese día (ej. 31 en noviembre), toca el último día del mes.
+function rtOnDay(r, d){
+  if(r.monthDays && r.monthDays.length){
+    var last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(), n = d.getDate();
+    return r.monthDays.some(function(m){ return Math.min(m, last) === n; });
+  }
+  return r.days.indexOf(rtDow(d)) >= 0;
+}
+function rtWhenText(r){
+  if(!r.monthDays || !r.monthDays.length) return "";
+  var ds = r.monthDays.slice().sort(function(a, b){ return a - b; });
+  return (ds.length > 1 ? "días " + ds.slice(0, -1).join(", ") + " y " + ds[ds.length - 1] : "día " + ds[0]) + " de cada mes";
+}
+
 // Rutinas que tocan ese día (cada una cuenta desde el día en que se creó).
 function rtFor(d){
-  var w = rtDow(d), k = rtKey(d);
+  var k = rtKey(d);
   // Primero las ordenadas arrastrando (r.ordered, en el orden de state.routines); las demás, por hora y nombre.
-  return state.routines.filter(function(r){ return r.days.indexOf(w) >= 0 && (!r.created || r.created <= k) && rtInGroup(r); }).sort(function(a, b){
+  return state.routines.filter(function(r){ return rtOnDay(r, d) && (!r.created || r.created <= k) && rtInGroup(r); }).sort(function(a, b){
     if(!!a.ordered !== !!b.ordered) return a.ordered ? -1 : 1;
     if(a.ordered) return state.routines.indexOf(a) - state.routines.indexOf(b);
     var ta = a.time || "99", tb = b.time || "99";
@@ -1387,7 +1409,7 @@ function rtStreak(r){
   var t = rtToday(), d = t, n = 0;
   for(var i = 0; i < 400; i++, d = rtAdd(d, -1)){
     if(r.created && rtKey(d) < r.created) break;
-    if(r.days.indexOf(rtDow(d)) < 0) continue;
+    if(!rtOnDay(r, d)) continue;
     if(rtIsDone(d, r)) n++;
     else if(rtKey(d) !== rtKey(t)) break;
   }
@@ -1508,7 +1530,7 @@ function renderRoutines(){
         var done = rtIsDone(cur, r), st = rtStreak(r);
         html += '<div class="rt-item' + (done ? " done" : "") + (isFuture ? " locked" : "") + '" data-id="' + r.id + '">' +
           '<span class="rt-chk">' + (done ? "✓" : "") + '</span><div class="rt-main"><div class="rt-name">' + esc(r.name) + "</div>" +
-          '<div class="rt-meta">' + (r.time ? "<span>" + r.time + "</span>" : "") +
+          '<div class="rt-meta">' + (r.time ? "<span>" + r.time + "</span>" : "") + (r.monthDays ? "<span>" + rtWhenText(r) + "</span>" : "") +
           (st > 1 ? '<span class="rt-streak">🔥 ' + st + " seguidos</span>" : "") + "</div></div>" +
           '<button type="button" class="rt-edit" data-edit="' + r.id + '" aria-label="Editar rutina">✎</button></div>';
       });
@@ -2080,10 +2102,18 @@ sortable({ box: $("rtList"), item: "rt-item", group: ".rt-sec", scroller: $("rou
 
 // ---------- editor de rutina ----------
 var rtEditing = null, rtEdDays = [], rtEdSlot = "manana", rtEdGroup = "principal";
+var rtEdMonth = false, rtEdMDays = [];   // mensual: días del mes elegidos
 function rtPaint(){
+  $("rtErr").textContent = "";
   $("rtDays").innerHTML = RT_DAYS.map(function(l, i){
     return '<button type="button" class="rt-chip' + (rtEdDays.indexOf(i) >= 0 ? " on" : "") + '" data-d="' + i + '" title="' + RT_DAY_NAMES[i] + '">' + l + "</button>";
   }).join("");
+  Array.prototype.forEach.call($("rtRep").children, function(b){ b.classList.toggle("on", (b.dataset.rep === "month") === rtEdMonth); });
+  $("rtDays").hidden = $("rtQuick").hidden = rtEdMonth;
+  $("rtMDays").hidden = $("rtMHint").hidden = !rtEdMonth;
+  var md = "";
+  for(var n = 1; n <= 31; n++) md += '<button type="button" class="rt-chip' + (rtEdMDays.indexOf(n) >= 0 ? " on" : "") + '" data-m="' + n + '">' + n + "</button>";
+  $("rtMDays").innerHTML = md;
   $("rtGroupWrap").hidden = state.rtGroups.length < 2;
   $("rtGroupChips").innerHTML = state.rtGroups.map(function(g){
     return '<button type="button" class="rt-chip' + (g.id === rtEdGroup ? " on" : "") + '" data-g="' + esc(g.id) + '">' + esc(g.name) + "</button>";
@@ -2098,7 +2128,9 @@ function rtOpen(id){
   $("rtEdTitle").textContent = r ? "Editar rutina" : "Nueva rutina";
   $("rtName").value = r ? r.name : "";
   $("rtTime").value = r ? r.time || "" : "";
-  rtEdDays = r ? r.days.slice() : [0, 1, 2, 3, 4, 5, 6];
+  rtEdDays = r && r.days.length ? r.days.slice() : [0, 1, 2, 3, 4, 5, 6];
+  rtEdMonth = !!(r && r.monthDays);
+  rtEdMDays = r && r.monthDays ? r.monthDays.slice() : [];
   rtEdSlot = r ? r.slot || "libre" : "manana";
   rtEdGroup = r ? r.group || RT_MAIN : rtGroupCur();
   $("rtDel").hidden = !r;
@@ -2112,6 +2144,16 @@ $("rtDays").addEventListener("click", function(e){
   var b = e.target.closest("[data-d]"); if(!b) return;
   var d = +b.dataset.d, i = rtEdDays.indexOf(d);
   if(i >= 0) rtEdDays.splice(i, 1); else rtEdDays.push(d);
+  rtPaint();
+});
+$("rtRep").addEventListener("click", function(e){
+  var b = e.target.closest("[data-rep]"); if(!b) return;
+  rtEdMonth = b.dataset.rep === "month"; rtPaint();
+});
+$("rtMDays").addEventListener("click", function(e){
+  var b = e.target.closest("[data-m]"); if(!b) return;
+  var n = +b.dataset.m, i = rtEdMDays.indexOf(n);
+  if(i >= 0) rtEdMDays.splice(i, 1); else rtEdMDays.push(n);
   rtPaint();
 });
 $("rtQuick").addEventListener("click", function(e){
@@ -2130,12 +2172,14 @@ $("rtSlot").addEventListener("click", function(e){
 $("rtSave").addEventListener("click", function(){
   var name = $("rtName").value.replace(/\s+/g, " ").trim();
   if(!name){ $("rtErr").textContent = "Poné un nombre."; $("rtName").focus(); return; }
-  if(!rtEdDays.length){ $("rtErr").textContent = "Elegí al menos un día."; return; }
-  var data = { name: name, days: rtEdDays.slice().sort(), slot: rtEdSlot, time: $("rtTime").value || "", group: rtEdGroup };
+  if(!(rtEdMonth ? rtEdMDays : rtEdDays).length){ $("rtErr").textContent = "Elegí al menos un día."; return; }
+  // Mensual: days queda vacío (así versiones viejas de la app o de los avisos no la toman como semanal).
+  var data = { name: name, days: rtEdMonth ? [] : rtEdDays.slice().sort(), slot: rtEdSlot, time: $("rtTime").value || "", group: rtEdGroup };
+  if(rtEdMonth) data.monthDays = rtEdMDays.slice().sort(function(a, b){ return a - b; });
   var r = rtEditing;
   rtClose();
   rtChange(function(){
-    if(r) Object.assign(r, data);
+    if(r){ Object.assign(r, data); if(!rtEdMonth) delete r.monthDays; }
     else { data.id = uid(); data.created = rtKey(rtToday()); state.routines.push(data); }
   });
 });
@@ -2466,7 +2510,7 @@ function glRtDone(g, upTo){
 function glRtScheduled(r, from, due){
   if(!r || !from || !due || due < from) return 0;
   var n = 0, d = rtParse(from), end = rtParse(due);
-  while(d <= end){ if(r.days.indexOf(rtDow(d)) >= 0) n++; d = rtAdd(d, 1); }
+  while(d <= end){ if(rtOnDay(r, d)) n++; d = rtAdd(d, 1); }
   return n;
 }
 function glStart(g){ return g.kind === "rt" ? 0 : g.start; }

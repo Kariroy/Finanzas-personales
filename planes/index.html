@@ -207,7 +207,13 @@
     </div>
     <div>
       <div class="rt-lbl">Qué días</div>
+      <div class="rt-seg rt-rep" id="rtRep">
+        <button type="button" data-rep="week">Días de la semana</button>
+        <button type="button" data-rep="month">Días del mes</button>
+      </div>
       <div class="rt-chips rt-days" id="rtDays"></div>
+      <div class="rt-chips rt-mdays" id="rtMDays" hidden></div>
+      <div class="rt-mhint" id="rtMHint" hidden>Se repite esos días todos los meses. Si un mes no tiene ese día (ej. 31), toca el último día del mes.</div>
       <div class="rt-quick" id="rtQuick">
         <button type="button" data-q="all">todos los días</button>
         <button type="button" data-q="week">lun a vie</button>

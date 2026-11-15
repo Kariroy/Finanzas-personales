@@ -789,3 +789,8 @@ button.sun.gap { visibility: hidden; }
 .sorting .rt-sec.vacia { display: block; }
 .sorting .rt-sec { min-height: 52px; border-radius: 8px; outline: 1px dashed var(--line-2); outline-offset: 4px; }
 .rt-groups { flex: 1; min-width: 0; max-width: none; text-overflow: ellipsis; }
+.rt-rep { display: inline-flex; margin-bottom: 8px; }
+.rt-mdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+.rt-mdays[hidden], .rt-days[hidden], .rt-quick[hidden], .rt-mhint[hidden] { display: none; }
+.rt-mdays .rt-chip { padding: 7px 0; text-align: center; }
+.rt-mhint { color: var(--faint); font-size: 11px; margin-top: 6px; }
