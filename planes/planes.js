@@ -1364,7 +1364,10 @@ function rtChange(fn){ var before = snapshot(); fn(); pushHist(before); tdStamp(
 // Rutinas que tocan ese día (cada una cuenta desde el día en que se creó).
 function rtFor(d){
   var w = rtDow(d), k = rtKey(d);
+  // Primero las ordenadas arrastrando (r.ordered, en el orden de state.routines); las demás, por hora y nombre.
   return state.routines.filter(function(r){ return r.days.indexOf(w) >= 0 && (!r.created || r.created <= k); }).sort(function(a, b){
+    if(!!a.ordered !== !!b.ordered) return a.ordered ? -1 : 1;
+    if(a.ordered) return state.routines.indexOf(a) - state.routines.indexOf(b);
     var ta = a.time || "99", tb = b.time || "99";
     return ta < tb ? -1 : ta > tb ? 1 : a.name.localeCompare(b.name, "es");
   });
@@ -1466,6 +1469,7 @@ function renderRoutines(){
 }
 
 $("rtList").addEventListener("click", function(e){
+  if(Date.now() - srtAt < 400) return;   // venía de arrastrar para ordenar
   var ed = e.target.closest("[data-edit]");
   if(ed){ rtOpen(ed.dataset.edit); return; }
   var it = e.target.closest(".rt-item"); if(!it || it.classList.contains("locked")) return;
@@ -1906,83 +1910,105 @@ $("tdList").addEventListener("click", function(e){
   }
 });
 
-// Ordenar por prioridad: con el mouse se arrastra directo; en el celular se mantiene
-// apretada un instante (si no, deslizar el dedo no podría desplazar la lista).
-var tdDrag = null;
+// Ordenar arrastrando (Lista y Rutinas): con el mouse se arrastra directo; en el celular se mantiene
+// apretada un instante (si no, deslizar el dedo no podría desplazar la pantalla).
+// o = { box, item (clase de las tarjetas), scroller, drop(fila) }: drop recibe la tarjeta ya ubicada en su lugar nuevo.
+var srt = null, srtAt = 0;
 var TD_HOLD = 200;   // ms apretando con el dedo antes de que se pueda mover
-$("tdList").addEventListener("pointerdown", function(e){
-  if(e.button > 0 || e.target.closest("button, a, input, [contenteditable=true]")) return;
-  var row = e.target.closest(".td-item"); if(!row) return;
-  var d = tdDrag = { row: row, id: e.pointerId, x: e.clientX, y: e.clientY, on: false, touch: e.pointerType === "touch" };
-  d.start = function(){
-    if(tdDrag !== d || d.on) return;
-    var r = row.getBoundingClientRect();
-    d.on = true; d.grab = d.y - r.top; d.dy = 0;
-    row.classList.add("dragging");
-    $("tdList").classList.add("sorting");
-    try { row.setPointerCapture(d.id); } catch(err){}
-    if(navigator.vibrate) navigator.vibrate(15);
-    tdAutoScroll();
-  };
-  if(d.touch) d.timer = setTimeout(d.start, TD_HOLD);
-  else e.preventDefault();   // con el mouse: que no se seleccione texto al arrastrar
-});
-// Mientras se arrastra, el dedo no tiene que mover la pantalla.
-$("tdList").addEventListener("touchmove", function(e){ if(tdDrag && tdDrag.on) e.preventDefault(); }, { passive: false });
-$("tdList").addEventListener("contextmenu", function(e){ if(e.target.closest(".td-item")) e.preventDefault(); });
+function sortable(o){
+  o.box.addEventListener("pointerdown", function(e){
+    if(e.button > 0 || e.target.closest("button, a, input, [contenteditable=true]")) return;
+    var row = e.target.closest("." + o.item); if(!row) return;
+    var d = srt = { o: o, row: row, id: e.pointerId, x: e.clientX, y: e.clientY, on: false, touch: e.pointerType === "touch" };
+    d.start = function(){
+      if(srt !== d || d.on) return;
+      var r = row.getBoundingClientRect();
+      d.on = true; d.grab = d.y - r.top;
+      row.classList.add("dragging");
+      o.box.classList.add("sorting");
+      try { row.setPointerCapture(d.id); } catch(err){}
+      if(navigator.vibrate) navigator.vibrate(15);
+      srtAutoScroll();
+    };
+    if(d.touch) d.timer = setTimeout(d.start, TD_HOLD);
+    else e.preventDefault();   // con el mouse: que no se seleccione texto al arrastrar
+  });
+  // Mientras se arrastra, el dedo no tiene que mover la pantalla.
+  o.box.addEventListener("touchmove", function(e){ if(srt && srt.on) e.preventDefault(); }, { passive: false });
+  o.box.addEventListener("contextmenu", function(e){ if(e.target.closest("." + o.item)) e.preventDefault(); });
+}
 document.addEventListener("pointermove", function(e){
-  var d = tdDrag; if(!d || e.pointerId !== d.id) return;
+  var d = srt; if(!d || e.pointerId !== d.id) return;
   if(!d.on){
     var moved = Math.abs(e.clientX - d.x) > 6 || Math.abs(e.clientY - d.y) > 6;
     if(!moved) return;
     // Mouse: arranca al mover. Dedo antes de tiempo: es un scroll normal, no se ordena.
-    if(!d.touch){ d.start(); d.y = e.clientY; tdDragMove(); }   // grab se mide desde donde se apretó
-    else { clearTimeout(d.timer); tdDrag = null; }
+    if(!d.touch){ d.start(); d.y = e.clientY; srtMove(); }   // grab se mide desde donde se apretó
+    else { clearTimeout(d.timer); srt = null; }
     return;
   }
   e.preventDefault();
   d.y = e.clientY;
-  tdDragMove();
+  srtMove();
 });
-function tdDragMove(){
-  var d = tdDrag, row = d.row, box = row.parentNode;
+// Solo se mueve entre las tarjetas de su misma sección.
+function srtMove(){
+  var d = srt, row = d.row, box = row.parentNode;
   var top = d.y - d.grab;   // dónde tendría que estar el borde de arriba de la tarjeta
-  var rows = Array.prototype.filter.call(box.children, function(x){ return x.classList.contains("td-item") && x !== row; });
+  var rows = Array.prototype.filter.call(box.children, function(x){ return x.classList.contains(d.o.item) && x !== row; });
   var before = null;
   for(var i = 0; i < rows.length; i++){
     var r = rows[i].getBoundingClientRect();
     if(top + row.offsetHeight / 2 < r.top + r.height / 2){ before = rows[i]; break; }
   }
-  if(before ? row.nextSibling !== before : box.lastElementChild !== row) box.insertBefore(row, before);
+  if(!before && rows.length) before = rows[rows.length - 1].nextSibling;
+  if(row.nextSibling !== before && row !== before) box.insertBefore(row, before);
   row.style.transform = "";
   row.style.transform = "translateY(" + (top - row.getBoundingClientRect().top) + "px)";
 }
 // Cerca de los bordes de la pantalla, la lista se desplaza sola.
-function tdAutoScroll(){
-  var d = tdDrag; if(!d || !d.on) return;
-  var sc = $("today"), r = sc.getBoundingClientRect(), v = 0;
+function srtAutoScroll(){
+  var d = srt; if(!d || !d.on) return;
+  var sc = d.o.scroller, r = sc.getBoundingClientRect(), v = 0;
   if(d.y < r.top + 70) v = -8; else if(d.y > r.bottom - 70) v = 8;
-  if(v){ var before = sc.scrollTop; sc.scrollTop += v; if(sc.scrollTop !== before) tdDragMove(); }
-  requestAnimationFrame(tdAutoScroll);
+  if(v){ var before = sc.scrollTop; sc.scrollTop += v; if(sc.scrollTop !== before) srtMove(); }
+  requestAnimationFrame(srtAutoScroll);
 }
-function tdDragEnd(e){
-  var d = tdDrag; if(!d || e.pointerId !== d.id) return;
+function srtEnd(e){
+  var d = srt; if(!d || e.pointerId !== d.id) return;
   clearTimeout(d.timer);
-  tdDrag = null;
+  srt = null;
   if(!d.on) return;
+  srtAt = Date.now();   // el clic que llega al soltar no cuenta como toque
   d.row.classList.remove("dragging");
-  $("tdList").classList.remove("sorting");
+  d.o.box.classList.remove("sorting");
   d.row.style.transform = "";
-  // Nuevo orden de esa sección; las demás tareas no se tocan.
-  var ids = Array.prototype.map.call(d.row.parentNode.querySelectorAll(".td-item"), function(x){ return x.dataset.id; });
+  d.o.drop(d.row);
+}
+document.addEventListener("pointerup", srtEnd);
+document.addEventListener("pointercancel", srtEnd);
+
+// Lista: nuevo orden de esa sección; las demás tareas no se tocan.
+sortable({ box: $("tdList"), item: "td-item", scroller: $("today"), drop: function(row){
+  var ids = Array.prototype.map.call(row.parentNode.querySelectorAll(".td-item"), function(x){ return x.dataset.id; });
   var items = ids.map(function(id){ return state.today.filter(function(x){ return x.id === id; })[0]; }).filter(Boolean);
   var slots = items.map(function(it){ return state.today.indexOf(it); }).sort(function(a, b){ return a - b; });
   var same = slots.every(function(s, i){ return state.today[s] === items[i]; });
   if(same){ renderToday(); return; }
   rtChange(function(){ slots.forEach(function(s, i){ state.today[s] = items[i]; }); });
-}
-document.addEventListener("pointerup", tdDragEnd);
-document.addEventListener("pointercancel", tdDragEnd);
+} });
+
+// Rutinas: arrastrar para priorizar dentro de su momento del día (mañana, tarde…).
+// Se reacomodan en state.routines, así el orden vale para todos los días.
+sortable({ box: $("rtList"), item: "rt-item", scroller: $("routines"), drop: function(row){
+  var items = Array.prototype.map.call(row.parentNode.querySelectorAll(".rt-item"), function(x){
+    return state.routines.filter(function(r){ return r.id === x.dataset.id; })[0];
+  }).filter(Boolean);
+  var slots = items.map(function(r){ return state.routines.indexOf(r); }).sort(function(a, b){ return a - b; });
+  var same = items.every(function(r){ return r.ordered; }) && slots.every(function(s, i){ return state.routines[s] === items[i]; });
+  if(same){ renderRoutines(); return; }
+  rtChange(function(){ slots.forEach(function(s, i){ state.routines[s] = items[i]; items[i].ordered = true; }); });
+} });
 
 // ---------- editor de rutina ----------
 var rtEditing = null, rtEdDays = [], rtEdSlot = "manana";
