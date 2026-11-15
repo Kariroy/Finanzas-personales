@@ -86,6 +86,12 @@
           <button type="button" class="btn" id="tdHistBtn" title="Lo que completaste cada día">✓ Hechas</button>
         </div>
         <div id="tdHist" hidden></div>
+        <div class="ta" id="taView" hidden>
+          <div class="ta-search"><input type="search" id="taQ" placeholder="Buscar tareas…" autocomplete="off" aria-label="Buscar tareas"><span class="nt-count" id="taCount"></span></div>
+          <div class="td-filter" id="taSt"></div>
+          <div class="td-filter" id="taPort"></div>
+          <div id="taList"></div>
+        </div>
         <div id="tdList"></div>
         <div class="td-add">
           <div class="td-sug" id="tdSug" hidden></div>
@@ -109,6 +115,7 @@
           </div>
           <div class="rt-ring" id="rtRing"><span id="rtPct">–</span></div>
         </div>
+        <div class="ta-search" id="rtAllBar" hidden><input type="search" id="rtAllQ" placeholder="Buscar rutinas…" autocomplete="off" aria-label="Buscar rutinas"><span class="nt-count" id="rtAllCount"></span></div>
         <div class="rt-daynav">
           <button type="button" class="icon-btn" id="rtPrev" aria-label="Anterior">‹</button>
           <button type="button" class="rt-label" id="rtLabel" title="Volver a hoy"></button>
