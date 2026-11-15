@@ -1876,22 +1876,19 @@ function renderTdLists(){
     var n = count(l.id);
     return '<option value="' + esc(l.id) + '">' + esc(l.name) + (n ? " (" + n + ")" : "") + "</option>";
   }).join("");
-  h += '<option value="+all">☰ Todas las tareas</option>';
-  h += '<option disabled>──────────</option><option value="+new">＋ Nueva lista…</option>';
-  if(!state.tdAll) h += '<option value="+edit">✎ Renombrar esta lista…</option>';
-  if(!state.tdAll && state.tdLists.length > 1) h += '<option value="+del">🗑 Borrar esta lista…</option>';
+  h += '<option disabled>──────────</option><option value="+new">＋ Nueva lista…</option><option value="+edit">✎ Renombrar esta lista…</option>';
+  if(state.tdLists.length > 1) h += '<option value="+del">🗑 Borrar esta lista…</option>';
   $("tdListSel").innerHTML = h;
-  $("tdListSel").value = state.tdAll ? "+all" : cur;
+  $("tdListSel").value = cur;
 }
 $("tdListSel").addEventListener("change", function(){
   var v = this.value, cur = tdCurList(), l = tdListById(cur);
-  this.value = state.tdAll ? "+all" : cur;   // las opciones especiales no quedan elegidas
-  if(v === "+all"){ state.tdAll = true; save(); renderToday(); $("today").scrollTop = 0; return; }
+  this.value = cur;   // las opciones especiales no quedan elegidas
   if(v === "+new"){
     ask({ title: "Nueva lista", input: "", placeholder: "Ej.: Prioridad, Ahora, Compras…", ok: "crear" }, function(name){
       var id = uid();
       rtChange(function(){ state.tdLists.push({ id: id, name: name }); });
-      state.tdList = id; state.tdAll = false; save(); renderToday();
+      state.tdList = id; save(); renderToday();
     });
   } else if(v === "+edit"){
     ask({ title: "Nombre de la lista", input: l.name, ok: "guardar" }, function(name){
@@ -1907,7 +1904,7 @@ $("tdListSel").addEventListener("change", function(){
       });
       state.tdList = to.id; save(); renderToday();
     });
-  } else if(tdListById(v)){ state.tdList = v; state.tdAll = false; save(); renderToday(); }
+  } else if(tdListById(v)){ state.tdList = v; save(); renderToday(); }
 });
 
 // ✓ Hechas: lo completado, agrupado por el día en que se terminó (lo más nuevo arriba).
@@ -1942,14 +1939,8 @@ function renderToday(){
   $("tdList").hidden = tdHistOpen;
   document.querySelector("#today .td-add").hidden = tdHistOpen;
   $("tdListSel").hidden = tdHistOpen;
-  var all = !!state.tdAll && !tdHistOpen;
-  $("taView").hidden = !all;
-  $("tdList").hidden = tdHistOpen || all;
-  document.querySelector("#today .td-add").hidden = tdHistOpen || all;
-  $("tdHistBtn").hidden = all;
   if(tdHistOpen){ renderTdHist(); return; }
   renderTdLists();
-  if(all){ renderTodas(); return; }
 
   var f = state.tdPort || "all";
   if(f !== "all" && f !== "none" && !portfolioById(f)) f = state.tdPort = "all";
@@ -1976,79 +1967,6 @@ function renderToday(){
   $("tdList").innerHTML = html;
   tdSugRender();
 }
-
-// ---------- todas las tareas (opción del desplegable de la Lista) ----------
-// Las tareas de todos los proyectos activos (más las sueltas), agrupadas por proyecto, con buscador y filtro por estado.
-var TA_ST = [
-  { id: "pend", name: "Pendientes" }, { id: "ready", name: "○ Para hacer" }, { id: "doing", name: "▶ En curso" },
-  { id: "paused", name: "❚❚ En pausa" }, { id: "blocked", name: "🔒 Bloqueadas" }, { id: "done", name: "✓ Hechas" }
-];
-var taFake = {};   // una «tarea de la Lista» por tarea de proyecto, para reusar el círculo de estado (doble toque = pausa)
-function taKeep(st, i){
-  var f = state.taSt || "pend";
-  if(f === "pend") return st !== "done";
-  if(f === "ready") return st === "todo" && !(i && i.blocked);
-  if(f === "blocked") return st !== "done" && !!(i && i.blocked);
-  return st === f;
-}
-function renderTodas(){
-  var q = tdFold($("taQ").value.trim()), words = q ? q.split(/\s+/) : [];
-  var hit = function(s){ s = tdFold(s); return words.every(function(w){ return s.indexOf(w) >= 0; }); };
-  $("taSt").innerHTML = TA_ST.map(function(c){
-    return '<button type="button" class="rt-chip' + (c.id === (state.taSt || "pend") ? " on" : "") + '" data-st="' + c.id + '">' + c.name + "</button>";
-  }).join("");
-  var f = state.tdPort || "all";
-  $("taPort").innerHTML = [{ id: "all", name: "Todos" }].concat(state.portfolios.map(function(x){ return { id: x.id, name: x.name }; }), [{ id: "none", name: "Sin portfolio" }])
-    .map(function(c){ return '<button type="button" class="rt-chip' + (c.id === f ? " on" : "") + '" data-port="' + c.id + '">' + esc(c.name) + "</button>"; }).join("");
-  var sun = tdSun(), html = "", total = 0;
-  state.projects.forEach(function(p){
-    if(p.archived || !tdPortOk(p)) return;
-    var ts = p.tasks.filter(function(t){ var i = info(p, t); return taKeep(t.status, i) && hit(t.title + " " + p.name); });
-    if(!ts.length) return;
-    total += ts.length;
-    html += '<div class="rt-sec"><div class="rt-sec-h">' + esc(tdWhere(p)) + " <span>" + ts.length + "</span></div>" + ts.map(function(t){
-      var i = info(p, t);
-      return '<div class="rt-item td-item ta-item s-' + t.status + (i.blocked ? " blocked" : "") + (i.unlocked ? " unlocked" : "") + '" data-p="' + p.id + '" data-t="' + t.id + '">' +
-        '<button type="button" class="st" data-act="status" title="Toque: cambiar estado · Doble toque: pausar">' + ICON[t.status] + "</button>" +
-        '<div class="rt-main"><div class="rt-name" data-act="open" title="Ver en el mapa">' + esc(t.title) + "</div>" +
-        (i.blocked ? '<div class="rt-meta"><span class="td-st">🔒 ' + i.pending + "</span></div>" : "") + "</div>" +
-        (t.status === "done" ? "" : sunBtn(sun[t.id])) + "</div>";
-    }).join("") + "</div>";
-  });
-  // Las sueltas de la Lista (no tienen portfolio).
-  if(f === "all" || f === "none"){
-    var ls = state.today.filter(function(it){ return !tdLink(it) && taKeep(tdStatus(it), null) && hit(tdTitle(it)); });
-    if(ls.length){
-      total += ls.length;
-      html += '<div class="rt-sec"><div class="rt-sec-h">Sueltas <span>' + ls.length + "</span></div>" + ls.map(function(it){
-        var l = tdListById(it.list || TD_MAIN);
-        return '<div class="rt-item td-item ta-item s-' + tdStatus(it) + '" data-it="' + it.id + '">' +
-          '<button type="button" class="st" data-act="status" title="Toque: cambiar estado · Doble toque: pausar">' + ICON[tdStatus(it)] + "</button>" +
-          '<div class="rt-main"><div class="rt-name">' + esc(tdTitle(it)) + '</div><div class="rt-meta"><span>en «' + esc(l ? l.name : "") + "»</span></div></div></div>";
-      }).join("") + "</div>";
-    }
-  }
-  $("taCount").textContent = total ? total + (total === 1 ? " tarea" : " tareas") : "";
-  $("taList").innerHTML = html || '<div class="rt-empty">' + (words.length ? "No hay tareas que coincidan con «" + esc($("taQ").value.trim()) + "»." : "No hay tareas con ese filtro.") + "</div>";
-}
-$("taQ").addEventListener("input", renderTodas);
-$("taSt").addEventListener("click", function(e){ var b = e.target.closest("[data-st]"); if(b){ state.taSt = b.dataset.st; save(); renderTodas(); } });
-$("taPort").addEventListener("click", function(e){ var b = e.target.closest("[data-port]"); if(b){ state.tdPort = b.dataset.port; save(); renderTodas(); } });
-$("taList").addEventListener("click", function(e){
-  var b = e.target.closest("[data-act]"), row = e.target.closest(".ta-item"); if(!b || !row) return;
-  var act = b.dataset.act;
-  if(row.dataset.it){
-    var it = state.today.filter(function(x){ return x.id === row.dataset.it; })[0];
-    if(it && act === "status") tdStatusClick(it, e.shiftKey);
-    return;
-  }
-  var p = projectById(row.dataset.p), t = p && byId(p, row.dataset.t); if(!t) return;
-  if(act === "status"){
-    var fk = taFake[t.id] || (taFake[t.id] = { ref: { p: p.id, t: t.id } });
-    tdStatusClick(fk, e.shiftKey);
-  } else if(act === "open") tdOpenInTree({ p: p, t: t });
-  else if(act === "sun") tdSunMenu(p, t.id, b);
-});
 
 // Lista de coincidencias debajo de lo que se está anotando.
 function tdSugRender(){
@@ -3138,7 +3056,7 @@ function onSession(s){
   var cached = readStore(storeKey);
   if(cached){
     // Lo que se eligió en este dispositivo (proyecto, pestaña de portfolio, filtros…) se mantiene al volver a entrar.
-    ["current", "portfolioTab", "tdPort", "tdList", "rtGroup", "tdAll", "rtAll", "taSt", "sideCollapsed", "rtView", "highlight", "looseOpen", "notesFilter"].forEach(function(k){
+    ["current", "portfolioTab", "tdPort", "tdList", "rtGroup", "rtAll", "sideCollapsed", "rtView", "highlight", "looseOpen", "notesFilter"].forEach(function(k){
       if(cached[k] !== undefined) state[k] = cached[k];
     });
     applyData(cached);

@@ -796,13 +796,11 @@ button.sun.gap { visibility: hidden; }
 .rt-mhint { color: var(--faint); font-size: 11px; margin-top: 6px; }
 #rtNthWrap[hidden] { display: none; }
 .rt-nthd { margin-top: 8px; }
-/* ---------- todas las tareas / todas las rutinas ---------- */
-#taView[hidden], #rtAllBar[hidden] { display: none; }
+/* ---------- todas las rutinas ---------- */
+#rtAllBar[hidden] { display: none; }
 .ta-search { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .ta-search input { flex: 1; min-width: 0; background: #0b0f14; border: 1px solid var(--line-2); border-radius: 8px; padding: 10px 11px; font-size: 16px; color: var(--text); }
 .ta-search input:focus { outline: none; border-color: var(--doing); }
-#taList { margin: 6px 0 24px; }
-.ta-item { cursor: default; }
 .rt-all .rt-daynav, .rt-all #rtWeek, .rt-all #rtMonth, .rt-all #rtView, .rt-all #rtRing { display: none; }
 .rta-item { cursor: default; border-left-color: var(--line-2); }
 .rta-item .rt-meta { gap: 8px; }
