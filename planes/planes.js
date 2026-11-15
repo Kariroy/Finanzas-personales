@@ -1483,6 +1483,26 @@ $("rtGroupSel").addEventListener("change", function(){
   } else if(rtGroupById(v)){ state.rtGroup = v; save(); renderRoutines(); }
 });
 
+// ⇄ de una rutina: la pasa a otro grupo (categoría). Con un solo grupo, se crea el nuevo ahí mismo.
+function rtMoveGroup(id){
+  var r = state.routines.filter(function(x){ return x.id === id; })[0]; if(!r) return;
+  var cur = r.group || RT_MAIN, others = state.rtGroups.filter(function(g){ return g.id !== cur; });
+  var done = function(to){ toast("«" + r.name + "» pasó a «" + rtGroupById(to).name + "»", { label: "deshacer", fn: undo }); };
+  if(!others.length){
+    ask({ title: "Pasar «" + r.name + "» a otras rutinas", input: "", placeholder: "Nombre (ej.: Local, Trabajo)", ok: "crear y pasar" }, function(name){
+      var nid = uid();
+      rtChange(function(){ state.rtGroups.push({ id: nid, name: name }); r.group = nid; });
+      done(nid);
+    });
+    return;
+  }
+  ask({ title: "Pasar «" + r.name + "» a…", select: { label: "Rutinas", value: others[0].id,
+    options: others.map(function(g){ return { value: g.id, label: g.name }; }) }, ok: "pasar" }, function(v, to){
+    rtChange(function(){ r.group = to; });
+    done(to);
+  });
+}
+
 function renderRoutines(){
   var box = $("routines");
   box.hidden = state.mode !== "routines";
@@ -1556,6 +1576,7 @@ function renderRoutines(){
           '<span class="rt-chk">' + (done ? "✓" : "") + '</span><div class="rt-main"><div class="rt-name">' + esc(r.name) + "</div>" +
           '<div class="rt-meta">' + (r.time ? "<span>" + r.time + "</span>" : "") + (r.monthDays || r.nth ? "<span>" + rtWhenText(r) + "</span>" : "") +
           (st > 1 ? '<span class="rt-streak">🔥 ' + st + " seguidos</span>" : "") + "</div></div>" +
+          '<button type="button" class="rt-edit" data-mvgroup="' + r.id + '" title="Pasar a otras rutinas (ej. Local)" aria-label="Pasar a otras rutinas">⇄</button>' +
           '<button type="button" class="rt-edit" data-edit="' + r.id + '" aria-label="Editar rutina">✎</button></div>';
       });
       html += "</div>";
@@ -1568,6 +1589,8 @@ $("rtList").addEventListener("click", function(e){
   if(Date.now() - srtAt < 400) return;   // venía de arrastrar para ordenar
   var ed = e.target.closest("[data-edit]");
   if(ed){ rtOpen(ed.dataset.edit); return; }
+  var mv = e.target.closest("[data-mvgroup]");
+  if(mv){ rtMoveGroup(mv.dataset.mvgroup); return; }
   var it = e.target.closest(".rt-item"); if(!it || it.classList.contains("locked")) return;
   var k = rtKey(rtCur), id = it.dataset.id;
   rtChange(function(){
