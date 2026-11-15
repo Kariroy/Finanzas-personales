@@ -164,7 +164,7 @@ function snap(v){ return Math.round(v / GRID) * GRID; }
 function cardH(id){ var el = els[id]; return (el && el.offsetHeight) || H; }
 
 // ---------- historial ----------
-function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, today: state.today, tdLists: state.tdLists, notes: state.notes, goals: state.goals, current: state.current }); }
+function snapshot(){ return JSON.stringify({ portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, today: state.today, tdLists: state.tdLists, rtGroups: state.rtGroups, notes: state.notes, goals: state.goals, current: state.current }); }
 function pushHist(s){
   hist.push(s || snapshot());
   if(hist.length > 200) hist.shift();
@@ -197,6 +197,10 @@ function normalizeData(){
   if(!Array.isArray(state.routines)) state.routines = [];
   state.routines = state.routines.filter(function(r){ return isObj(r) && r.id; });
   state.routines.forEach(function(r){ if(!Array.isArray(r.days)) r.days = []; if(typeof r.name !== "string") r.name = "Rutina"; });
+  state.rtGroups = (Array.isArray(state.rtGroups) ? state.rtGroups : []).filter(function(g){ return isObj(g) && g.id && typeof g.name === "string"; });
+  if(!state.rtGroups.length) state.rtGroups = [{ id: "principal", name: "Personal" }];
+  var gids = {}; state.rtGroups.forEach(function(g){ gids[g.id] = 1; });
+  state.routines.forEach(function(r){ if(r.group && !gids[r.group]) r.group = state.rtGroups[0].id; });
   if(!isObj(state.routineDone) || Array.isArray(state.routineDone)) state.routineDone = {};
   state.today = (Array.isArray(state.today) ? state.today : []).filter(function(it){ return isObj(it) && it.id && typeof it.day === "string"; });
   state.tdLists = (Array.isArray(state.tdLists) ? state.tdLists : []).filter(function(l){ return isObj(l) && l.id && typeof l.name === "string"; });
@@ -221,6 +225,7 @@ function restore(s){
   state.routineDone = o.routineDone || {};
   state.today = o.today || [];
   state.tdLists = o.tdLists;
+  state.rtGroups = o.rtGroups;
   normalizeData();
   state.notes = o.notes || [];
   state.goals = o.goals || [];
@@ -1365,7 +1370,7 @@ function rtChange(fn){ var before = snapshot(); fn(); pushHist(before); tdStamp(
 function rtFor(d){
   var w = rtDow(d), k = rtKey(d);
   // Primero las ordenadas arrastrando (r.ordered, en el orden de state.routines); las demás, por hora y nombre.
-  return state.routines.filter(function(r){ return r.days.indexOf(w) >= 0 && (!r.created || r.created <= k); }).sort(function(a, b){
+  return state.routines.filter(function(r){ return r.days.indexOf(w) >= 0 && (!r.created || r.created <= k) && rtInGroup(r); }).sort(function(a, b){
     if(!!a.ordered !== !!b.ordered) return a.ordered ? -1 : 1;
     if(a.ordered) return state.routines.indexOf(a) - state.routines.indexOf(b);
     var ta = a.time || "99", tb = b.time || "99";
@@ -1395,10 +1400,54 @@ function rtHeat(p){
   return "background: rgba(63, 185, 80, " + (0.12 + 0.45 * p / 100).toFixed(2) + ");";
 }
 
+// Grupos de rutinas (ej. «Personal», «Local»): state.rtGroups = [{ id, name }] y cada rutina guarda el suyo en r.group.
+// El primero tiene un id fijo («principal»), así dos dispositivos no crean cada uno el suyo.
+var RT_MAIN = "principal";
+function rtGroupById(id){
+  for(var i = 0; i < state.rtGroups.length; i++) if(state.rtGroups[i].id === id) return state.rtGroups[i];
+  return null;
+}
+function rtGroupCur(){ return rtGroupById(state.rtGroup) ? state.rtGroup : state.rtGroups[0].id; }
+function rtInGroup(r){ return (r.group || RT_MAIN) === rtGroupCur(); }
+function renderRtGroups(){
+  var cur = rtGroupCur();
+  var h = state.rtGroups.map(function(g){ return '<option value="' + esc(g.id) + '">' + esc(g.name) + "</option>"; }).join("");
+  h += '<option disabled>──────────</option><option value="+new">＋ Nuevas rutinas…</option><option value="+edit">✎ Renombrar…</option>';
+  if(state.rtGroups.length > 1) h += '<option value="+del">🗑 Borrar estas rutinas…</option>';
+  $("rtGroupSel").innerHTML = h;
+  $("rtGroupSel").value = cur;
+}
+$("rtGroupSel").addEventListener("change", function(){
+  var v = this.value, cur = rtGroupCur(), g = rtGroupById(cur);
+  this.value = cur;   // las opciones especiales no quedan elegidas
+  if(v === "+new"){
+    ask({ title: "Nuevas rutinas", input: "", placeholder: "Ej.: Local, Trabajo, Casa…", ok: "crear" }, function(name){
+      var id = uid();
+      rtChange(function(){ state.rtGroups.push({ id: id, name: name }); });
+      state.rtGroup = id; save(); renderRoutines();
+    });
+  } else if(v === "+edit"){
+    ask({ title: "Nombre de estas rutinas", input: g.name, ok: "guardar" }, function(name){
+      if(name !== g.name) rtChange(function(){ g.name = name; });
+    });
+  } else if(v === "+del"){
+    var rest = state.rtGroups.filter(function(x){ return x !== g; }), to = rest[0];
+    var n = state.routines.filter(function(r){ return (r.group || RT_MAIN) === cur; }).length;
+    ask({ title: "¿Borrar «" + g.name + "»?", text: n ? "Sus " + n + " rutina(s) pasan a «" + to.name + "», con sus días marcados." : "", ok: "borrar", danger: true }, function(){
+      rtChange(function(){
+        state.routines.forEach(function(r){ if((r.group || RT_MAIN) === cur) r.group = to.id; });
+        state.rtGroups = rest;
+      });
+      state.rtGroup = to.id; save(); renderRoutines();
+    });
+  } else if(rtGroupById(v)){ state.rtGroup = v; save(); renderRoutines(); }
+});
+
 function renderRoutines(){
   var box = $("routines");
   box.hidden = state.mode !== "routines";
   if(box.hidden) return;
+  renderRtGroups();
   var t = rtToday(), cur = rtCur, view = state.rtView === "month" ? "month" : "week";
   var isFuture = cur > t;
   var rel = rtKey(cur) === rtKey(t) ? "Hoy" : rtKey(cur) === rtKey(rtAdd(t, -1)) ? "Ayer" :
@@ -1442,7 +1491,7 @@ function renderRoutines(){
   }
 
   var rs = rtFor(cur), html = "";
-  if(!state.routines.length){
+  if(!state.routines.some(rtInGroup)){
     html = '<div class="rt-empty">Todavía no tenés rutinas.<br>Tocá «+ rutina» para programar la primera: qué, qué días y en qué momento.</div>';
   } else if(!rs.length){
     html = '<div class="rt-empty">No hay rutinas programadas para este día.</div>';
@@ -2030,10 +2079,14 @@ sortable({ box: $("rtList"), item: "rt-item", group: ".rt-sec", scroller: $("rou
 } });
 
 // ---------- editor de rutina ----------
-var rtEditing = null, rtEdDays = [], rtEdSlot = "manana";
+var rtEditing = null, rtEdDays = [], rtEdSlot = "manana", rtEdGroup = "principal";
 function rtPaint(){
   $("rtDays").innerHTML = RT_DAYS.map(function(l, i){
     return '<button type="button" class="rt-chip' + (rtEdDays.indexOf(i) >= 0 ? " on" : "") + '" data-d="' + i + '" title="' + RT_DAY_NAMES[i] + '">' + l + "</button>";
+  }).join("");
+  $("rtGroupWrap").hidden = state.rtGroups.length < 2;
+  $("rtGroupChips").innerHTML = state.rtGroups.map(function(g){
+    return '<button type="button" class="rt-chip' + (g.id === rtEdGroup ? " on" : "") + '" data-g="' + esc(g.id) + '">' + esc(g.name) + "</button>";
   }).join("");
   $("rtSlot").innerHTML = RT_SLOTS.map(function(sl){
     return '<button type="button" class="rt-chip' + (sl.id === rtEdSlot ? " on" : "") + '" data-s="' + sl.id + '">' + sl.name + "</button>";
@@ -2047,6 +2100,7 @@ function rtOpen(id){
   $("rtTime").value = r ? r.time || "" : "";
   rtEdDays = r ? r.days.slice() : [0, 1, 2, 3, 4, 5, 6];
   rtEdSlot = r ? r.slot || "libre" : "manana";
+  rtEdGroup = r ? r.group || RT_MAIN : rtGroupCur();
   $("rtDel").hidden = !r;
   $("rtErr").textContent = "";
   rtPaint();
@@ -2065,6 +2119,10 @@ $("rtQuick").addEventListener("click", function(e){
   rtEdDays = q === "all" ? [0, 1, 2, 3, 4, 5, 6] : q === "week" ? [0, 1, 2, 3, 4] : [5, 6];
   rtPaint();
 });
+$("rtGroupChips").addEventListener("click", function(e){
+  var b = e.target.closest("[data-g]"); if(!b) return;
+  rtEdGroup = b.dataset.g; rtPaint();
+});
 $("rtSlot").addEventListener("click", function(e){
   var b = e.target.closest("[data-s]"); if(!b) return;
   rtEdSlot = b.dataset.s; rtPaint();
@@ -2073,7 +2131,7 @@ $("rtSave").addEventListener("click", function(){
   var name = $("rtName").value.replace(/\s+/g, " ").trim();
   if(!name){ $("rtErr").textContent = "Poné un nombre."; $("rtName").focus(); return; }
   if(!rtEdDays.length){ $("rtErr").textContent = "Elegí al menos un día."; return; }
-  var data = { name: name, days: rtEdDays.slice().sort(), slot: rtEdSlot, time: $("rtTime").value || "" };
+  var data = { name: name, days: rtEdDays.slice().sort(), slot: rtEdSlot, time: $("rtTime").value || "", group: rtEdGroup };
   var r = rtEditing;
   rtClose();
   rtChange(function(){
@@ -2766,7 +2824,7 @@ var sync = { at: null, timer: null, busy: false, pending: false };
 
 function setSync(text){ $("syncState").textContent = text; }
 
-function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, today: state.today, tdLists: state.tdLists, notes: state.notes, goals: state.goals, aprender: state.aprender }; }
+function payload(){ return { portfolios: state.portfolios, programs: state.programs, projects: state.projects, routines: state.routines, routineDone: state.routineDone, today: state.today, tdLists: state.tdLists, rtGroups: state.rtGroups, notes: state.notes, goals: state.goals, aprender: state.aprender }; }
 
 // Reemplaza programas y proyectos por los de otra copia, conservando la vista local.
 function applyData(d){
@@ -2777,6 +2835,7 @@ function applyData(d){
   state.routineDone = d.routineDone && typeof d.routineDone === "object" ? d.routineDone : {};
   state.today = Array.isArray(d.today) ? d.today : [];
   state.tdLists = d.tdLists;
+  state.rtGroups = d.rtGroups;
   normalizeData();
   state.notes = Array.isArray(d.notes) ? d.notes : [];
   state.goals = Array.isArray(d.goals) ? d.goals : [];
@@ -2838,7 +2897,7 @@ function onSession(s){
   if(!user){
     // Sin sesión: no dejar a la vista datos de la cuenta anterior.
     storeKey = KEY; sync.at = null; clearTimeout(sync.timer); sync.pending = false;
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.tdLists = [{ id: "principal", name: "Principal" }]; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.tdLists = [{ id: "principal", name: "Principal" }]; state.rtGroups = [{ id: "principal", name: "Personal" }]; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
     if(window.PlanesAprender) window.PlanesAprender.reload();
     hist = []; fut = []; sel = null;
     renderAll();
@@ -2850,7 +2909,7 @@ function onSession(s){
   var cached = readStore(storeKey);
   if(cached){
     // Lo que se eligió en este dispositivo (proyecto, pestaña de portfolio, filtros…) se mantiene al volver a entrar.
-    ["current", "portfolioTab", "tdPort", "tdList", "sideCollapsed", "rtView", "highlight", "looseOpen", "notesFilter"].forEach(function(k){
+    ["current", "portfolioTab", "tdPort", "tdList", "rtGroup", "sideCollapsed", "rtView", "highlight", "looseOpen", "notesFilter"].forEach(function(k){
       if(cached[k] !== undefined) state[k] = cached[k];
     });
     applyData(cached);
@@ -2930,7 +2989,7 @@ if(REMOTE){
     $("signInBtn").disabled = $("signUpBtn").disabled = true;
   } else {
     // Mientras se sabe si hay sesión, no mostrar datos locales de nadie.
-    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.tdLists = [{ id: "principal", name: "Principal" }]; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
+    state.portfolios = []; state.programs = []; state.projects = []; state.routines = []; state.routineDone = {}; state.today = []; state.tdLists = [{ id: "principal", name: "Principal" }]; state.rtGroups = [{ id: "principal", name: "Personal" }]; state.notes = []; state.goals = []; state.current = null; state.aprender = { skills: [], current: null };
     if(window.PlanesAprender) window.PlanesAprender.reload();
     renderAll();
     var params = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));
