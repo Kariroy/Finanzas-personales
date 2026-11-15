@@ -203,6 +203,11 @@ function normalizeData(){
       r.monthDays = (Array.isArray(r.monthDays) ? r.monthDays : []).filter(function(n){ return n >= 1 && n <= 31 && n === Math.floor(n); });
       if(!r.monthDays.length) delete r.monthDays;
     }
+    if(r.nth !== undefined){
+      var nn = isObj(r.nth) && Array.isArray(r.nth.n) ? r.nth.n.filter(function(x){ return x === -1 || (x >= 1 && x <= 4); }) : [];
+      var nd = isObj(r.nth) && Array.isArray(r.nth.d) ? r.nth.d.filter(function(x){ return x >= 0 && x <= 6; }) : [];
+      if(nn.length && nd.length) r.nth = { n: nn, d: nd }; else delete r.nth;
+    }
   });
   state.rtGroups = (Array.isArray(state.rtGroups) ? state.rtGroups : []).filter(function(g){ return isObj(g) && g.id && typeof g.name === "string"; });
   if(!state.rtGroups.length) state.rtGroups = [{ id: "principal", name: "Personal" }];
@@ -1376,13 +1381,26 @@ function rtChange(fn){ var before = snapshot(); fn(); pushHist(before); tdStamp(
 // ¿La rutina toca ese día? Semanal: r.days (0 = lunes). Mensual: r.monthDays (1–31); si el mes
 // no tiene ese día (ej. 31 en noviembre), toca el último día del mes.
 function rtOnDay(r, d){
+  // «1.er miércoles», «último viernes»…: r.nth = { n: [1..4 o -1 = último], d: [0..6] }.
+  if(r.nth){
+    if(r.nth.d.indexOf(rtDow(d)) < 0) return false;
+    var dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(), k = Math.ceil(d.getDate() / 7);
+    return r.nth.n.indexOf(k) >= 0 || (r.nth.n.indexOf(-1) >= 0 && d.getDate() + 7 > dim);
+  }
   if(r.monthDays && r.monthDays.length){
     var last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(), n = d.getDate();
     return r.monthDays.some(function(m){ return Math.min(m, last) === n; });
   }
   return r.days.indexOf(rtDow(d)) >= 0;
 }
+var RT_NTH = { 1: "1.er", 2: "2.º", 3: "3.er", 4: "4.º", "-1": "último" };
+function rtJoin(xs){ return xs.length > 1 ? xs.slice(0, -1).join(", ") + " y " + xs[xs.length - 1] : xs[0]; }
 function rtWhenText(r){
+  if(r.nth){
+    var ns = r.nth.n.slice().sort(function(a, b){ return (a < 0 ? 9 : a) - (b < 0 ? 9 : b); }).map(function(x){ return RT_NTH[x]; });
+    var ds = r.nth.d.slice().sort().map(function(x){ return RT_DAY_NAMES[x]; });
+    return rtJoin(ns) + " " + rtJoin(ds) + " de cada mes";
+  }
   if(!r.monthDays || !r.monthDays.length) return "";
   var ds = r.monthDays.slice().sort(function(a, b){ return a - b; });
   return (ds.length > 1 ? "días " + ds.slice(0, -1).join(", ") + " y " + ds[ds.length - 1] : "día " + ds[0]) + " de cada mes";
@@ -1536,7 +1554,7 @@ function renderRoutines(){
         var done = rtIsDone(cur, r), st = rtStreak(r);
         html += '<div class="rt-item' + (done ? " done" : "") + (isFuture ? " locked" : "") + '" data-id="' + r.id + '">' +
           '<span class="rt-chk">' + (done ? "✓" : "") + '</span><div class="rt-main"><div class="rt-name">' + esc(r.name) + "</div>" +
-          '<div class="rt-meta">' + (r.time ? "<span>" + r.time + "</span>" : "") + (r.monthDays ? "<span>" + rtWhenText(r) + "</span>" : "") +
+          '<div class="rt-meta">' + (r.time ? "<span>" + r.time + "</span>" : "") + (r.monthDays || r.nth ? "<span>" + rtWhenText(r) + "</span>" : "") +
           (st > 1 ? '<span class="rt-streak">🔥 ' + st + " seguidos</span>" : "") + "</div></div>" +
           '<button type="button" class="rt-edit" data-edit="' + r.id + '" aria-label="Editar rutina">✎</button></div>';
       });
@@ -2108,15 +2126,23 @@ sortable({ box: $("rtList"), item: "rt-item", group: ".rt-sec", scroller: $("rou
 
 // ---------- editor de rutina ----------
 var rtEditing = null, rtEdDays = [], rtEdSlot = "manana", rtEdGroup = "principal";
-var rtEdMonth = false, rtEdMDays = [];   // mensual: días del mes elegidos
+// Cómo se repite: "week" (días de la semana), "month" (días del mes) o "nth" (ej. 1.er miércoles).
+var rtEdRep = "week", rtEdMDays = [], rtEdNth = [1], rtEdNthDays = [2];
 function rtPaint(){
   $("rtErr").textContent = "";
   $("rtDays").innerHTML = RT_DAYS.map(function(l, i){
     return '<button type="button" class="rt-chip' + (rtEdDays.indexOf(i) >= 0 ? " on" : "") + '" data-d="' + i + '" title="' + RT_DAY_NAMES[i] + '">' + l + "</button>";
   }).join("");
-  Array.prototype.forEach.call($("rtRep").children, function(b){ b.classList.toggle("on", (b.dataset.rep === "month") === rtEdMonth); });
-  $("rtDays").hidden = $("rtQuick").hidden = rtEdMonth;
-  $("rtMDays").hidden = $("rtMHint").hidden = !rtEdMonth;
+  Array.prototype.forEach.call($("rtRep").children, function(b){ b.classList.toggle("on", b.dataset.rep === rtEdRep); });
+  $("rtDays").hidden = $("rtQuick").hidden = rtEdRep !== "week";
+  $("rtMDays").hidden = $("rtMHint").hidden = rtEdRep !== "month";
+  $("rtNthWrap").hidden = rtEdRep !== "nth";
+  $("rtNthN").innerHTML = [1, 2, 3, 4, -1].map(function(x){
+    return '<button type="button" class="rt-chip' + (rtEdNth.indexOf(x) >= 0 ? " on" : "") + '" data-n="' + x + '">' + RT_NTH[x] + "</button>";
+  }).join("");
+  $("rtNthD").innerHTML = RT_DAYS.map(function(l, i){
+    return '<button type="button" class="rt-chip' + (rtEdNthDays.indexOf(i) >= 0 ? " on" : "") + '" data-nd="' + i + '" title="' + RT_DAY_NAMES[i] + '">' + l + "</button>";
+  }).join("");
   var md = "";
   for(var n = 1; n <= 31; n++) md += '<button type="button" class="rt-chip' + (rtEdMDays.indexOf(n) >= 0 ? " on" : "") + '" data-m="' + n + '">' + n + "</button>";
   $("rtMDays").innerHTML = md;
@@ -2135,8 +2161,10 @@ function rtOpen(id){
   $("rtName").value = r ? r.name : "";
   $("rtTime").value = r ? r.time || "" : "";
   rtEdDays = r && r.days.length ? r.days.slice() : [0, 1, 2, 3, 4, 5, 6];
-  rtEdMonth = !!(r && r.monthDays);
+  rtEdRep = r && r.nth ? "nth" : r && r.monthDays ? "month" : "week";
   rtEdMDays = r && r.monthDays ? r.monthDays.slice() : [];
+  rtEdNth = r && r.nth ? r.nth.n.slice() : [1];
+  rtEdNthDays = r && r.nth ? r.nth.d.slice() : [2];
   rtEdSlot = r ? r.slot || "libre" : "manana";
   rtEdGroup = r ? r.group || RT_MAIN : rtGroupCur();
   $("rtDel").hidden = !r;
@@ -2154,8 +2182,11 @@ $("rtDays").addEventListener("click", function(e){
 });
 $("rtRep").addEventListener("click", function(e){
   var b = e.target.closest("[data-rep]"); if(!b) return;
-  rtEdMonth = b.dataset.rep === "month"; rtPaint();
+  rtEdRep = b.dataset.rep; rtPaint();
 });
+function rtToggleIn(arr, v){ var i = arr.indexOf(v); if(i >= 0) arr.splice(i, 1); else arr.push(v); rtPaint(); }
+$("rtNthN").addEventListener("click", function(e){ var b = e.target.closest("[data-n]"); if(b) rtToggleIn(rtEdNth, +b.dataset.n); });
+$("rtNthD").addEventListener("click", function(e){ var b = e.target.closest("[data-nd]"); if(b) rtToggleIn(rtEdNthDays, +b.dataset.nd); });
 $("rtMDays").addEventListener("click", function(e){
   var b = e.target.closest("[data-m]"); if(!b) return;
   var n = +b.dataset.m, i = rtEdMDays.indexOf(n);
@@ -2178,14 +2209,17 @@ $("rtSlot").addEventListener("click", function(e){
 $("rtSave").addEventListener("click", function(){
   var name = $("rtName").value.replace(/\s+/g, " ").trim();
   if(!name){ $("rtErr").textContent = "Poné un nombre."; $("rtName").focus(); return; }
-  if(!(rtEdMonth ? rtEdMDays : rtEdDays).length){ $("rtErr").textContent = "Elegí al menos un día."; return; }
+  if(rtEdRep === "nth" ? !rtEdNth.length || !rtEdNthDays.length : !(rtEdRep === "month" ? rtEdMDays : rtEdDays).length){
+    $("rtErr").textContent = rtEdRep === "nth" ? "Elegí cuál (1.er, 2.º…) y qué día de la semana." : "Elegí al menos un día."; return;
+  }
   // Mensual: days queda vacío (así versiones viejas de la app o de los avisos no la toman como semanal).
-  var data = { name: name, days: rtEdMonth ? [] : rtEdDays.slice().sort(), slot: rtEdSlot, time: $("rtTime").value || "", group: rtEdGroup };
-  if(rtEdMonth) data.monthDays = rtEdMDays.slice().sort(function(a, b){ return a - b; });
+  var data = { name: name, days: rtEdRep !== "week" ? [] : rtEdDays.slice().sort(), slot: rtEdSlot, time: $("rtTime").value || "", group: rtEdGroup };
+  if(rtEdRep === "month") data.monthDays = rtEdMDays.slice().sort(function(a, b){ return a - b; });
+  if(rtEdRep === "nth") data.nth = { n: rtEdNth.slice(), d: rtEdNthDays.slice().sort() };
   var r = rtEditing;
   rtClose();
   rtChange(function(){
-    if(r){ Object.assign(r, data); if(!rtEdMonth) delete r.monthDays; }
+    if(r){ Object.assign(r, data); if(rtEdRep !== "month") delete r.monthDays; if(rtEdRep !== "nth") delete r.nth; }
     else { data.id = uid(); data.created = rtKey(rtToday()); state.routines.push(data); }
   });
 });

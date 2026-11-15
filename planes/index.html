@@ -208,8 +208,14 @@
     <div>
       <div class="rt-lbl">Qué días</div>
       <div class="rt-seg rt-rep" id="rtRep">
-        <button type="button" data-rep="week">Días de la semana</button>
+        <button type="button" data-rep="week">Semanal</button>
         <button type="button" data-rep="month">Días del mes</button>
+        <button type="button" data-rep="nth" title="Ej.: el primer miércoles de cada mes">1.er miércoles…</button>
+      </div>
+      <div id="rtNthWrap" hidden>
+        <div class="rt-chips" id="rtNthN"></div>
+        <div class="rt-chips rt-days rt-nthd" id="rtNthD"></div>
+        <div class="rt-mhint">Ej.: 1.er + X = el primer miércoles de cada mes. «último» = el último de ese día en el mes.</div>
       </div>
       <div class="rt-chips rt-days" id="rtDays"></div>
       <div class="rt-chips rt-mdays" id="rtMDays" hidden></div>

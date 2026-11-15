@@ -794,3 +794,5 @@ button.sun.gap { visibility: hidden; }
 .rt-mdays[hidden], .rt-days[hidden], .rt-quick[hidden], .rt-mhint[hidden] { display: none; }
 .rt-mdays .rt-chip { padding: 7px 0; text-align: center; }
 .rt-mhint { color: var(--faint); font-size: 11px; margin-top: 6px; }
+#rtNthWrap[hidden] { display: none; }
+.rt-nthd { margin-top: 8px; }

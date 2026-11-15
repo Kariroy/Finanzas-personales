@@ -34,12 +34,17 @@ export function localNow(now, tz) {
   };
 }
 
-// ¿La rutina toca ese día? Semanal: r.days (0 = lunes). Mensual: r.monthDays (1–31); si el mes
+// ¿La rutina toca ese día? Semanal: r.days (0 = lunes). Mensual: r.monthDays (1–31) o r.nth; si el mes
 // no tiene ese día (ej. 31 en noviembre), toca el último día del mes. (Igual que rtOnDay en planes.js.)
 export function onDay(r, local) {
+  const [y, m, d] = local.day.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  // «1.er miércoles», «último viernes»…: r.nth = { n: [1..4 o -1 = último], d: [0..6] }.
+  if (r.nth && Array.isArray(r.nth.n) && Array.isArray(r.nth.d)) {
+    if (r.nth.d.indexOf(local.dow) < 0) return false;
+    return r.nth.n.indexOf(Math.ceil(d / 7)) >= 0 || (r.nth.n.indexOf(-1) >= 0 && d + 7 > last);
+  }
   if (Array.isArray(r.monthDays) && r.monthDays.length) {
-    const [y, m, d] = local.day.split("-").map(Number);
-    const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
     return r.monthDays.some((n) => Math.min(n, last) === d);
   }
   return Array.isArray(r.days) && r.days.indexOf(local.dow) >= 0;
