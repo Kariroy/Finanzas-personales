@@ -785,3 +785,6 @@ button.sun.gap { visibility: hidden; }
 .td-pop-o:hover { background: var(--panel-2); }
 .td-pop-o.on { color: var(--ready); }
 .td-pop-del { color: var(--muted); font-weight: 400; border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; }
+.rt-sec.vacia { display: none; }
+.sorting .rt-sec.vacia { display: block; }
+.sorting .rt-sec { min-height: 52px; border-radius: 8px; outline: 1px dashed var(--line-2); outline-offset: 4px; }

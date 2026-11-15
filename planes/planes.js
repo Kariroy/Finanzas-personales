@@ -1451,9 +1451,10 @@ function renderRoutines(){
     if(p === 100) html += '<div class="rt-cheer">✓ ¡Día completo!</div>';
     RT_SLOTS.forEach(function(sl){
       var items = rs.filter(function(r){ return (r.slot || "libre") === sl.id; });
-      if(!items.length) return;
       var nd = items.filter(function(r){ return rtIsDone(cur, r); }).length;
-      html += '<div class="rt-sec"><div class="rt-sec-h">' + sl.name + ' <span>' + nd + "/" + items.length + "</span></div>";
+      // Los momentos vacíos solo aparecen mientras se arrastra, para poder soltar ahí.
+      html += '<div class="rt-sec' + (items.length ? "" : " vacia") + '" data-slot="' + sl.id + '"><div class="rt-sec-h">' + sl.name +
+        (items.length ? ' <span>' + nd + "/" + items.length + "</span>" : "") + "</div>";
       items.forEach(function(r){
         var done = rtIsDone(cur, r), st = rtStreak(r);
         html += '<div class="rt-item' + (done ? " done" : "") + (isFuture ? " locked" : "") + '" data-id="' + r.id + '">' +
@@ -1955,6 +1956,15 @@ document.addEventListener("pointermove", function(e){
 function srtMove(){
   var d = srt, row = d.row, box = row.parentNode;
   var top = d.y - d.grab;   // dónde tendría que estar el borde de arriba de la tarjeta
+  // Con o.group (Rutinas) puede pasar a otra sección: la que está bajo el centro de la tarjeta, o la más cercana.
+  if(d.o.group){
+    var mid = top + row.offsetHeight / 2, best = null, bd = Infinity;
+    Array.prototype.forEach.call(d.o.box.querySelectorAll(d.o.group), function(sec){
+      var r = sec.getBoundingClientRect(), dist = mid < r.top ? r.top - mid : mid > r.bottom ? mid - r.bottom : 0;
+      if(dist < bd){ bd = dist; best = sec; }
+    });
+    if(best) box = best;
+  }
   var rows = Array.prototype.filter.call(box.children, function(x){ return x.classList.contains(d.o.item) && x !== row; });
   var before = null;
   for(var i = 0; i < rows.length; i++){
@@ -1962,7 +1972,7 @@ function srtMove(){
     if(top + row.offsetHeight / 2 < r.top + r.height / 2){ before = rows[i]; break; }
   }
   if(!before && rows.length) before = rows[rows.length - 1].nextSibling;
-  if(row.nextSibling !== before && row !== before) box.insertBefore(row, before);
+  if(row.parentNode !== box || (row.nextSibling !== before && row !== before)) box.insertBefore(row, before);
   row.style.transform = "";
   row.style.transform = "translateY(" + (top - row.getBoundingClientRect().top) + "px)";
 }
@@ -2000,14 +2010,23 @@ sortable({ box: $("tdList"), item: "td-item", scroller: $("today"), drop: functi
 
 // Rutinas: arrastrar para priorizar dentro de su momento del día (mañana, tarde…).
 // Se reacomodan en state.routines, así el orden vale para todos los días.
-sortable({ box: $("rtList"), item: "rt-item", scroller: $("routines"), drop: function(row){
-  var items = Array.prototype.map.call(row.parentNode.querySelectorAll(".rt-item"), function(x){
-    return state.routines.filter(function(r){ return r.id === x.dataset.id; })[0];
+// Arrastrada a otro momento (mañana, tarde, noche…), pasa a ese momento.
+sortable({ box: $("rtList"), item: "rt-item", group: ".rt-sec", scroller: $("routines"), drop: function(){
+  var moves = [];
+  var items = Array.prototype.map.call($("rtList").querySelectorAll(".rt-item"), function(x){
+    var r = state.routines.filter(function(q){ return q.id === x.dataset.id; })[0];
+    var sl = x.closest(".rt-sec").dataset.slot;
+    if(r && (r.slot || "libre") !== sl) moves.push({ r: r, slot: sl });
+    return r;
   }).filter(Boolean);
   var slots = items.map(function(r){ return state.routines.indexOf(r); }).sort(function(a, b){ return a - b; });
-  var same = items.every(function(r){ return r.ordered; }) && slots.every(function(s, i){ return state.routines[s] === items[i]; });
+  var same = !moves.length && items.every(function(r){ return r.ordered; }) && slots.every(function(s, i){ return state.routines[s] === items[i]; });
   if(same){ renderRoutines(); return; }
-  rtChange(function(){ slots.forEach(function(s, i){ state.routines[s] = items[i]; items[i].ordered = true; }); });
+  rtChange(function(){
+    slots.forEach(function(s, i){ state.routines[s] = items[i]; items[i].ordered = true; });
+    moves.forEach(function(m){ m.r.slot = m.slot; });
+  });
+  if(moves.length) toast("«" + moves[0].r.name + "» pasó a " + RT_SLOTS.filter(function(x){ return x.id === moves[0].slot; })[0].name.replace(/^\S+\s/, ""));
 } });
 
 // ---------- editor de rutina ----------
