@@ -1530,6 +1530,7 @@ function renderRtAll(){
       return '<div class="rt-item rta-item" data-id="' + r.id + '"><div class="rt-main"><div class="rt-name">' + esc(r.name) + "</div>" +
         '<div class="rt-meta"><span>' + rtSchedText(r) + "</span><span>" + sl.name + "</span>" + (r.time ? "<span>" + r.time + "</span>" : "") +
         (st > 1 ? '<span class="rt-streak">🔥 ' + st + "</span>" : "") + "</div></div>" +
+        rtNoteBtns(r) +
         '<button type="button" class="rt-edit" data-mvgroup="' + r.id + '" title="Pasar a otras rutinas" aria-label="Pasar a otras rutinas">⇄</button>' +
         '<button type="button" class="rt-edit" data-edit="' + r.id + '" aria-label="Editar rutina">✎</button></div>';
     }).join("") + "</div>";
@@ -1538,6 +1539,19 @@ function renderRtAll(){
   $("rtList").innerHTML = html || '<div class="rt-empty">' + (words.length ? "No hay rutinas que coincidan." : "Todavía no tenés rutinas.") + "</div>";
 }
 $("rtAllQ").addEventListener("input", renderRtAll);
+
+// Notas de una rutina (el mismo puntito que en las tareas). Si las notas tienen un link, 🔗 lo abre directo.
+function rtNoteBtns(r){
+  var m = (r.notes || "").match(/https?:\/\/[^\s<)\]]+/);
+  return (m ? '<a class="rt-link" href="' + esc(m[0]) + '" target="_blank" rel="noopener" title="Abrir ' + esc(m[0]) + '">🔗</a>' : "") +
+    '<span class="rt-dot">' + PlanesNotes.dot(r.notes, 'data-rtnote="' + r.id + '"') + "</span>";
+}
+function rtOpenNotes(id){
+  var r = state.routines.filter(function(x){ return x.id === id; })[0]; if(!r) return;
+  PlanesNotes.open({ title: r.name, text: r.notes || "", at: r.notesAt, save: function(v){
+    rtChange(function(){ if(v){ r.notes = v; r.notesAt = Date.now(); } else { delete r.notes; delete r.notesAt; } });
+  } });
+}
 
 function renderRoutines(){
   var box = $("routines");
@@ -1616,6 +1630,7 @@ function renderRoutines(){
           '<span class="rt-chk">' + (done ? "✓" : "") + '</span><div class="rt-main"><div class="rt-name">' + esc(r.name) + "</div>" +
           '<div class="rt-meta">' + (r.time ? "<span>" + r.time + "</span>" : "") + (r.monthDays || r.nth ? "<span>" + rtWhenText(r) + "</span>" : "") +
           (st > 1 ? '<span class="rt-streak">🔥 ' + st + " seguidos</span>" : "") + "</div></div>" +
+          rtNoteBtns(r) +
           '<button type="button" class="rt-edit" data-mvgroup="' + r.id + '" title="Pasar a otras rutinas (ej. Local)" aria-label="Pasar a otras rutinas">⇄</button>' +
           '<button type="button" class="rt-edit" data-edit="' + r.id + '" aria-label="Editar rutina">✎</button></div>';
       });
@@ -1629,6 +1644,9 @@ $("rtList").addEventListener("click", function(e){
   if(Date.now() - srtAt < 400) return;   // venía de arrastrar para ordenar
   var ed = e.target.closest("[data-edit]");
   if(ed){ rtOpen(ed.dataset.edit); return; }
+  if(e.target.closest("a")) return;   // 🔗 abre el link, no marca la rutina
+  var nb = e.target.closest("[data-rtnote]");
+  if(nb){ rtOpenNotes(nb.dataset.rtnote); return; }
   var mv = e.target.closest("[data-mvgroup]");
   if(mv){ rtMoveGroup(mv.dataset.mvgroup); return; }
   var it = e.target.closest(".rt-item"); if(!it || it.classList.contains("locked") || it.classList.contains("rta-item")) return;
