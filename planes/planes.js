@@ -2324,6 +2324,9 @@ document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !$("r
 // ---------- avisos (notificaciones push) ----------
 // La clave pública VAPID va acá (es pública por diseño); la privada vive solo en Supabase.
 var VAPID_PUBLIC_KEY = "BP_6eD4H5UXbg1m2swn2uoN7OLcYyymZW16Iw10fr-MGG51AypL5iuLCXn9bOZkYBa6LjE5_w_CUVaw3u4D4xz0";
+// iPhone/iPad: los avisos solo funcionan con Planes agregado a la pantalla de inicio (iOS 16.4 o más nuevo).
+function avIOS(){ return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+function avStandalone(){ return navigator.standalone === true || matchMedia("(display-mode: standalone)").matches; }
 function avSupported(){
   return location.protocol === "https:" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
@@ -2344,10 +2347,16 @@ function avShow(text, buttons){
 }
 function avPaint(){
   $("avErr").textContent = "";
-  if(!avSupported()){ avShow("Este navegador no permite notificaciones. En Android usá <b>Chrome</b>.", []); return; }
+  if(avIOS() && !avStandalone()){
+    avShow("En iPhone, los avisos funcionan con Planes en la pantalla de inicio: en Safari tocá <b>Compartir ⬆</b> → <b>Agregar a inicio</b>, " +
+      "abrí Planes desde ese ícono y activá los avisos ahí (hace falta iOS 16.4 o más nuevo).", []);
+    return;
+  }
+  if(!avSupported()){ avShow(avIOS() ? "Este iPhone no permite notificaciones web: actualizá a iOS 16.4 o más nuevo." : "Este navegador no permite notificaciones. En Android usá <b>Chrome</b>.", []); return; }
   if(!REMOTE || !user){ avShow("Para recibir avisos tenés que entrar con tu cuenta.", []); return; }
   if(Notification.permission === "denied"){
-    avShow("Las notificaciones de Planes están <b>bloqueadas</b>. Habilitalas en Chrome → ⋮ → Configuración → " +
+    avShow(avIOS() ? "Las notificaciones de Planes están <b>bloqueadas</b>. Habilitalas en Ajustes → Notificaciones → Planes, y volvé a abrir esta ventana."
+      : "Las notificaciones de Planes están <b>bloqueadas</b>. Habilitalas en Chrome → ⋮ → Configuración → " +
       "Configuración de sitios → Notificaciones, y volvé a abrir esta ventana.", []);
     return;
   }

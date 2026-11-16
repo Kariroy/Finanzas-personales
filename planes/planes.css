@@ -21,7 +21,15 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
+/* iPhone: márgenes seguros (isla/notch arriba, barra de inicio abajo, bordes en horizontal). */
+:root {
+  --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px); --sar: env(safe-area-inset-right, 0px);
+}
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
   background: var(--bg);
   color: var(--text);
   font: 12px/1.4 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -127,8 +135,8 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .wires { position: absolute; overflow: visible; pointer-events: none; }
 
 .topbar {
-  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-  display: flex; align-items: center; gap: 12px; z-index: 6; max-width: calc(100% - 20px);
+  position: absolute; top: calc(10px + var(--sat)); left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px; z-index: 6; max-width: calc(100% - 20px - var(--sal) - var(--sar));
 }
 .seg { display: flex; background: #141a22; border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 2px; flex: none; }
 .seg button { background: none; border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer; color: var(--muted); }
@@ -232,14 +240,14 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .empty[hidden] { display: none; }
 
 .toolbar {
-  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+  position: absolute; bottom: calc(16px + var(--sab)); left: 50%; transform: translateX(-50%);
   display: flex; gap: 6px; z-index: 3;
 }
 .toolbar .btn { background: #141a22; }
 .toolbar .sq { width: 34px; padding: 7px 0; }
 
 .toast {
-  position: absolute; top: 56px; left: 50%; transform: translate(-50%, -8px);
+  position: absolute; top: calc(56px + var(--sat)); left: 50%; transform: translate(-50%, -8px);
   background: #1f2630; border: 1px solid var(--line-2); border-radius: 6px;
   padding: 7px 12px; opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; z-index: 4;
 }
@@ -251,12 +259,13 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 @media (max-width: 800px) {
   .only-mobile { display: inline-block; }
   .side {
-    position: fixed; inset: 0; z-index: 10; width: 100%; padding: 14px 16px;
+    position: fixed; inset: 0; z-index: 10; width: 100%;
+    padding: calc(14px + var(--sat)) calc(16px + var(--sar)) calc(14px + var(--sab)) calc(16px + var(--sal));
     transform: translateX(-100%); transition: transform .2s;
     box-shadow: 0 0 40px rgba(0, 0, 0, .5);
   }
   .side.open { transform: none; }
-  .topbar { left: 10px; right: 10px; transform: none; gap: 6px; max-width: none; }
+  .topbar { left: calc(10px + var(--sal)); right: calc(10px + var(--sar)); transform: none; gap: 6px; max-width: none; }
   .topbar .help-btn { margin-left: auto; }
   .tools { opacity: 1; }
 }
@@ -422,7 +431,9 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 }
 
 /* ---------- rutinas (checklist diario) ---------- */
-.rt { position: absolute; inset: 0; overflow-y: auto; background: var(--bg); touch-action: pan-y; padding: 64px 16px 24px; }
+.rt { position: absolute; inset: 0; overflow-y: auto; background: var(--bg); touch-action: pan-y; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(64px + var(--sat)) calc(16px + var(--sar)) calc(24px + var(--sab)) calc(16px + var(--sal)); }
 .rt[hidden] { display: none; }
 .rt-inner { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; min-height: 100%; }
 .rt-top { display: flex; align-items: center; gap: 12px; }
@@ -484,7 +495,7 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .rt-empty { color: var(--faint); text-align: center; padding: 36px 10px; line-height: 1.6; }
 .rt-note { color: var(--faint); font-size: 11px; margin: 4px 2px; }
 .rt-cheer { text-align: center; color: var(--done); font-weight: 700; margin: 12px 0 0; }
-.rt-fab { position: sticky; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); align-self: center; margin-top: auto; z-index: 2;
+.rt-fab { position: sticky; bottom: calc(16px + var(--sab)); align-self: center; margin-top: auto; z-index: 2;
   background: #1f6feb; color: #fff; border: 0; border-radius: 999px; padding: 13px 22px; font-weight: 700; cursor: pointer;
   box-shadow: 0 8px 24px rgba(0, 0, 0, .4); }
 #rtList { margin-bottom: 24px; }
@@ -492,7 +503,7 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .rt-sheet { position: fixed; inset: 0; z-index: 55; background: rgba(0, 0, 0, .55); display: flex; align-items: flex-end; justify-content: center; }
 .rt-sheet[hidden] { display: none; }
 .rt-box { width: min(560px, 100%); background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px 14px 0 0;
-  padding: 18px 16px calc(22px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; max-height: 92vh; overflow-y: auto; }
+  padding: 18px 16px calc(22px + var(--sab)); display: flex; flex-direction: column; gap: 14px; max-height: 92vh; overflow-y: auto; }
 @media (min-width: 640px) { .rt-sheet { align-items: center; } .rt-box { border-radius: 14px; } }
 .rt-box h3 { margin: 0; font-size: 15px; }
 .rt-lbl { color: var(--muted); font-size: 11px; margin-bottom: 6px; }
@@ -563,9 +574,9 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 @media (min-width: 801px) { .nt-box textarea { font-size: 13px; } .nt-search input { font-size: 13px; } }
 .nt .rt-inner[hidden] { display: none; }
 /* ---------- aprender (planes/aprender.js) ---------- */
-.apr { position: absolute; left: 0; right: 0; bottom: 0; top: 56px; background: var(--bg); border-top: 1px solid var(--line); }
+.apr { position: absolute; left: 0; right: 0; bottom: 0; top: calc(56px + var(--sat)); background: var(--bg); border-top: 1px solid var(--line); }
 .apr[hidden] { display: none; }
-@media (max-width: 800px) { .apr { top: 60px; } }
+@media (max-width: 800px) { .apr { top: calc(60px + var(--sat)); } }
 
 /* Con 5 vistas, en pantallas angostas solo la elegida muestra el nombre. */
 @media (max-width: 440px) {
@@ -712,7 +723,7 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .td-flbl { color: var(--muted); font-size: 11px; margin-right: 2px; }
 .td-filter .rt-chip { padding: 5px 10px; font-size: 12px; }
 .td-add { position: sticky; bottom: 0; z-index: 4; margin-top: auto; background: var(--bg);
-  padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); }
+  padding: 8px 0 calc(8px + var(--sab)); border-top: 1px solid var(--line); }
 .td-addrow { display: flex; gap: 8px; }
 .td-addrow input { flex: 1; min-width: 0; background: #0b0f14; border: 1px solid var(--line-2); border-radius: 8px; padding: 11px; font-size: 16px; color: var(--text); }
 .td-addrow input:focus { outline: none; border-color: var(--doing); }
@@ -743,7 +754,7 @@ button.sun.on { color: var(--ready); }
 button.sun.gap { visibility: hidden; }
 .card button.sun:not(.on) { opacity: 0; }
 .card:hover button.sun:not(.on), .card.selected button.sun:not(.on) { opacity: 1; }
-.td-item, .rt-item { -webkit-touch-callout: none; touch-action: pan-y; }
+.td-item, .rt-item { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: pan-y; }
 .td-item.dragging, .rt-item.dragging { position: relative; z-index: 3; cursor: grabbing; box-shadow: 0 10px 28px rgba(0, 0, 0, .5);
   border-color: var(--doing); background: var(--panel-2); }
 .sorting .td-item:not(.dragging), .sorting .rt-item:not(.dragging) { transition: transform .12s; }
@@ -807,3 +818,9 @@ button.sun.gap { visibility: hidden; }
 .rt-dot { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; font-size: 11px; color: var(--muted); }
 .rt-link { text-decoration: none; font-size: 15px; padding: 4px 6px; border-radius: 6px; }
 .rt-link:hover { background: var(--panel-2); }
+
+/* iPhone: con letra de menos de 16px, Safari hace zoom al tocar un campo. En pantallas táctiles, 16px siempre. */
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 16px !important; }
+}
+.rt-sheet .rt-box { padding-left: calc(16px + var(--sal)); padding-right: calc(16px + var(--sar)); }
