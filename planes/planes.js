@@ -1433,6 +1433,32 @@ function rtStreak(r){
   }
   return n;
 }
+// Mejor racha de la historia (récord): recorre desde que se creó (o desde la primera marca) hasta hoy.
+function rtBest(r){
+  var t = rtToday(), tk = rtKey(t), from = r.created;
+  if(!from) Object.keys(state.routineDone).forEach(function(k){ if(state.routineDone[k][r.id] && (!from || k < from)) from = k; });
+  if(!from) return 0;
+  var d = rtParse(from), lim = rtAdd(t, -800), run = 0, best = 0;
+  if(d < lim) d = lim;
+  for(; d <= t; d = rtAdd(d, 1)){
+    if(!rtOnDay(r, d)) continue;
+    if(rtIsDone(d, r)){ run++; if(run > best) best = run; }
+    else if(rtKey(d) !== tk) run = 0;
+  }
+  return best;
+}
+// Racha actual y récord, para mostrar en la rutina: «🔥 5 seguidos · récord 12», «🏆 12 ¡récord!», «a 2 del récord».
+function rtStreakHtml(r, short){
+  var st = rtStreak(r), best = rtBest(r);
+  if(st < 1 && best < 2) return "";
+  if(st >= 2 && st >= best) return '<span class="rt-streak rec">🏆 ' + st + (short ? "" : " seguidos") + " · ¡récord!</span>";
+  var h = st >= 1 ? '<span class="rt-streak">🔥 ' + st + (short ? "" : st === 1 ? " seguido" : " seguidos") + "</span>" : "";
+  if(best >= 2){
+    var falta = best - st + 1;   // para superarlo
+    h += '<span class="rt-best">récord ' + best + (st >= 1 && falta <= 3 ? " · ¡a " + falta + " de superarlo!" : "") + "</span>";
+  }
+  return h;
+}
 // Color del día en el mes: más verde = más completo.
 function rtHeat(p){
   if(!p) return "";
@@ -1519,6 +1545,20 @@ function rtSchedText(r){
 function renderRtAll(){
   var q = tdFold($("rtAllQ").value.trim()), words = q ? q.split(/\s+/) : [];
   var html = "", total = 0;
+  // 🔥 Rachas: las rutinas con racha o récord, de la racha más larga a la más corta, con cuánto falta para el récord.
+  if(!words.length){
+    var rk = state.routines.map(function(r){ return { r: r, st: rtStreak(r), best: rtBest(r) }; })
+      .filter(function(x){ return x.st >= 1 || x.best >= 2; })
+      .sort(function(a, b){ return b.st - a.st || b.best - a.best; });
+    if(rk.length){
+      html += '<div class="rt-sec rk"><div class="rt-sec-h">🔥 Rachas</div>' + rk.map(function(x){
+        var pct = x.best ? Math.min(100, Math.round(x.st * 100 / x.best)) : 100, rec = x.st >= 2 && x.st >= x.best;
+        return '<div class="rk-row' + (rec ? " rec" : "") + '"><div class="rk-top"><span class="rk-name">' + esc(x.r.name) + "</span>" +
+          '<span class="rk-n">' + (rec ? "🏆 " : "🔥 ") + x.st + '</span><span class="rk-b">récord ' + Math.max(x.best, x.st) + "</span></div>" +
+          '<div class="rk-bar"><i style="width:' + pct + '%"></i></div></div>';
+      }).join("") + "</div>";
+    }
+  }
   state.rtGroups.forEach(function(g){
     var rs = state.routines.filter(function(r){
       return (r.group || RT_MAIN) === g.id && words.every(function(w){ return tdFold(r.name).indexOf(w) >= 0; });
@@ -1526,10 +1566,10 @@ function renderRtAll(){
     if(!rs.length) return;
     total += rs.length;
     html += '<div class="rt-sec"><div class="rt-sec-h">' + esc(g.name) + " <span>" + rs.length + "</span></div>" + rs.map(function(r){
-      var st = rtStreak(r), sl = RT_SLOTS.filter(function(x){ return x.id === (r.slot || "libre"); })[0];
+      var sl = RT_SLOTS.filter(function(x){ return x.id === (r.slot || "libre"); })[0];
       return '<div class="rt-item rta-item" data-id="' + r.id + '"><div class="rt-main"><div class="rt-name">' + esc(r.name) + "</div>" +
         '<div class="rt-meta"><span>' + rtSchedText(r) + "</span><span>" + sl.name + "</span>" + (r.time ? "<span>" + r.time + "</span>" : "") +
-        (st > 1 ? '<span class="rt-streak">🔥 ' + st + "</span>" : "") + "</div></div>" +
+        rtStreakHtml(r, true) + "</div></div>" +
         rtNoteBtns(r) +
         '<button type="button" class="rt-edit" data-mvgroup="' + r.id + '" title="Pasar a otras rutinas" aria-label="Pasar a otras rutinas">⇄</button>' +
         '<button type="button" class="rt-edit" data-edit="' + r.id + '" aria-label="Editar rutina">✎</button></div>';
@@ -1625,11 +1665,11 @@ function renderRoutines(){
       html += '<div class="rt-sec' + (items.length ? "" : " vacia") + '" data-slot="' + sl.id + '"><div class="rt-sec-h">' + sl.name +
         (items.length ? ' <span>' + nd + "/" + items.length + "</span>" : "") + "</div>";
       items.forEach(function(r){
-        var done = rtIsDone(cur, r), st = rtStreak(r);
+        var done = rtIsDone(cur, r);
         html += '<div class="rt-item' + (done ? " done" : "") + (isFuture ? " locked" : "") + '" data-id="' + r.id + '">' +
           '<span class="rt-chk">' + (done ? "✓" : "") + '</span><div class="rt-main"><div class="rt-name">' + esc(r.name) + "</div>" +
           '<div class="rt-meta">' + (r.time ? "<span>" + r.time + "</span>" : "") + (r.monthDays || r.nth ? "<span>" + rtWhenText(r) + "</span>" : "") +
-          (st > 1 ? '<span class="rt-streak">🔥 ' + st + " seguidos</span>" : "") + "</div></div>" +
+          rtStreakHtml(r) + "</div></div>" +
           rtNoteBtns(r) +
           '<button type="button" class="rt-edit" data-mvgroup="' + r.id + '" title="Pasar a otras rutinas (ej. Local)" aria-label="Pasar a otras rutinas">⇄</button>' +
           '<button type="button" class="rt-edit" data-edit="' + r.id + '" aria-label="Editar rutina">✎</button></div>';
@@ -1651,11 +1691,15 @@ $("rtList").addEventListener("click", function(e){
   if(mv){ rtMoveGroup(mv.dataset.mvgroup); return; }
   var it = e.target.closest(".rt-item"); if(!it || it.classList.contains("locked") || it.classList.contains("rta-item")) return;
   var k = rtKey(rtCur), id = it.dataset.id;
+  var r = state.routines.filter(function(x){ return x.id === id; })[0];
+  var was = state.routineDone[k] && state.routineDone[k][id], before = r ? rtBest(r) : 0;
   rtChange(function(){
     var m = state.routineDone[k] || (state.routineDone[k] = {});
     if(m[id]) delete m[id]; else m[id] = true;
     if(!Object.keys(m).length) delete state.routineDone[k];
   });
+  // Superó su récord (y ya había uno que superar): festejarlo.
+  if(r && !was && before >= 2 && rtStreak(r) > before) toast("🏆 ¡Nuevo récord en «" + r.name + "»: " + rtStreak(r) + " seguidos!");
 });
 function rtPick(e){
   var d = e.target.closest("[data-day]"); if(!d) return;

@@ -824,3 +824,15 @@ button.sun.gap { visibility: hidden; }
   input, select, textarea { font-size: 16px !important; }
 }
 .rt-sheet .rt-box { padding-left: calc(16px + var(--sal)); padding-right: calc(16px + var(--sar)); }
+/* rachas */
+.rt-streak.rec { font-weight: 700; }
+.rt-best { color: var(--faint); }
+.rk { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 12px 6px; margin-bottom: 14px; }
+.rk-row { margin-bottom: 10px; }
+.rk-top { display: flex; align-items: baseline; gap: 10px; }
+.rk-name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk-n { color: var(--ready); font-weight: 700; }
+.rk-b { color: var(--faint); font-size: 11px; }
+.rk-bar { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: 5px; }
+.rk-bar i { display: block; height: 100%; background: var(--paused); }
+.rk-row.rec .rk-bar i { background: var(--ready); }
