@@ -1770,10 +1770,6 @@ function tdStamp(){
 }
 // Lo de hoy en adelante: las anotadas para un día futuro (de cuando se podía elegir el día) se ven ya, no quedan escondidas.
 function tdOn(k){ return state.today.filter(function(it){ return it.day >= k && tdInList(it); }); }
-function tdLate(){
-  var k = rtKey(rtToday());
-  return state.today.filter(function(it){ return it.day < k && !tdDone(it) && tdInList(it); }).sort(function(a, b){ return a.day < b.day ? -1 : 1; });
-}
 // Tareas de proyectos con algo pendiente para hoy (o atrasado): llevan ☀ en el mapa y la lista.
 function tdSun(){
   var out = {};
@@ -1862,7 +1858,7 @@ function tdMatches(q){
   }).slice(0, 6);
 }
 
-function tdItem(it, late){
+function tdItem(it){
   var l = tdLink(it), st = tdStatus(it), done = st === "done";
   var i = l ? info(l.p, l.t) : null;
   var badge = i && i.blocked ? '<span class="td-st" title="Prerequisitos sin terminar">🔒 ' + i.pending + "</span>" : "";
@@ -1871,16 +1867,10 @@ function tdItem(it, late){
     '<button type="button" class="st" data-act="status" title="Toque: cambiar estado · Doble toque: pausar">' + ICON[st] + "</button>" +
     '<div class="rt-main"><div class="rt-name" data-act="open" title="' + (l ? "Ver en el mapa · " + esc(tdWhere(l.p)) : "Tocá para editar") + '">' +
     // ▦ = viene del árbol (mapa) de un proyecto, como el botón Mapa
-    (l ? '<span class="td-tree" aria-label="De un proyecto">▦</span>' : "") + esc(tdTitle(it)) + '</div>' + (badge || late ? '<div class="rt-meta">' + badge +
-    (late ? '<span class="td-ago">' + tdAgo(it.day) + "</span>" : "") + "</div>" : "") + "</div>" +
+    (l ? '<span class="td-tree" aria-label="De un proyecto">▦</span>' : "") + esc(tdTitle(it)) + '</div>' + (badge ? '<div class="rt-meta">' + badge + "</div>" : "") + "</div>" +
     PlanesNotes.dot(l ? l.t.notes : it.notes) +
-    (late ? '<button type="button" class="btn td-move" data-act="tohoy">→ hoy</button>' : "") +
     '<button type="button" class="rt-edit" data-act="mvlist" title="Pasar a otra lista" aria-label="Pasar a otra lista">⇄</button>' +
     '<button type="button" class="rt-edit" data-act="del" title="Quitar del día" aria-label="Quitar del día">×</button></div>';
-}
-function tdAgo(k){
-  var n = Math.round((rtToday() - rtParse(k)) / 864e5);
-  return n === 1 ? "de ayer" : "hace " + n + " días";
 }
 
 // Tarea de un proyecto: abre el mapa de su proyecto centrado en esa tarjeta, seleccionada y resaltada.
@@ -2011,20 +2001,15 @@ function renderToday(){
     return '<button type="button" class="rt-chip' + (c.id === f ? " on" : "") + '" data-port="' + c.id + '">' + esc(c.name) + "</button>";
   }).join("");
 
-  var html = "", late = tdLate();
-  if(late.length){
-    html += '<div class="rt-sec td-late"><div class="rt-sec-h">⚠ Atrasadas <span>' + late.length + "</span>" +
-      '<button type="button" class="td-all" data-act="allhoy">pasar todas a hoy</button></div>' +
-      late.map(function(it){ return tdItem(it, true); }).join("") + "</div>";
-  }
-  // Las de hoy, más las de otros días que se terminaron hoy.
-  var its = state.today.filter(function(it){ return (it.day === k || it.doneOn === k || (it.day > k && !tdDone(it))) && tdInList(it); }), pend = its.filter(function(x){ return !tdDone(x); }), done = its.filter(tdDone);
+  var html = "";
+  // Todas las pendientes de la lista (sin importar el día en que se anotaron) y las terminadas hoy.
+  var its = state.today.filter(function(it){ return (!tdDone(it) || it.doneOn === k || (it.day === k && !it.doneOn)) && tdInList(it); }), pend = its.filter(function(x){ return !tdDone(x); }), done = its.filter(tdDone);
   if(!its.length){
     html += '<div class="rt-empty">No anotaste nada para hoy.' +
       "<br>Escribí abajo: si coincide con una tarea de un proyecto, te la trae.</div>";
   } else {
     if(!pend.length) html += '<div class="rt-cheer">✓ ¡Día completo!</div>';
-    html += '<div class="rt-sec">' + pend.concat(done).map(function(it){ return tdItem(it, false); }).join("") + "</div>";
+    html += '<div class="rt-sec">' + pend.concat(done).map(tdItem).join("") + "</div>";
   }
   $("tdList").innerHTML = html;
   tdSugRender();
@@ -2089,11 +2074,6 @@ $("tdFilter").addEventListener("click", function(e){
 $("tdList").addEventListener("click", function(e){
   var b = e.target.closest("[data-act]"); if(!b) return;
   var act = b.dataset.act;
-  if(act === "allhoy"){
-    var k0 = rtKey(rtToday());
-    rtChange(function(){ tdLate().forEach(function(it){ it.day = k0; }); });
-    return;
-  }
   var row = b.closest(".td-item"); if(!row) return;
   var it = state.today.filter(function(x){ return x.id === row.dataset.id; })[0]; if(!it) return;
   var l = tdLink(it);
@@ -2123,8 +2103,6 @@ $("tdList").addEventListener("click", function(e){
       rtChange(function(){ it.list = to; });
       toast("Pasada a «" + tdListById(to).name + "»", { label: "deshacer", fn: undo });
     });
-  } else if(act === "tohoy"){
-    rtChange(function(){ it.day = rtKey(rtToday()); });
   } else if(act === "del"){
     rtChange(function(){ state.today = state.today.filter(function(x){ return x !== it; }); });
     toast("Quitada del día" + (l ? " (la tarea sigue en su proyecto)" : ""), { label: "deshacer", fn: undo });

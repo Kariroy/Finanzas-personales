@@ -743,10 +743,6 @@ select.btn { text-align: left; appearance: none; background-image: linear-gradie
 .td-item.s-doing { border-left-color: var(--doing); }
 .td-item.s-paused { border-left-color: var(--paused); }
 .td-st { color: var(--muted); }
-.td-ago { color: var(--paused); }
-.td-move { padding: 5px 8px; font-size: 12px; white-space: nowrap; }
-.td-late .rt-sec-h { color: var(--paused); display: flex; align-items: center; gap: 6px; }
-.td-all { margin-left: auto; background: none; border: 0; color: var(--doing); cursor: pointer; font-size: 11px; padding: 2px 4px; }
 #tdList { margin-bottom: 12px; }
 button.sun { background: none; border: 0; cursor: pointer; color: var(--muted); font-size: 12px; line-height: 1; padding: 0 3px; }
 button.sun:hover { color: var(--ready); }
